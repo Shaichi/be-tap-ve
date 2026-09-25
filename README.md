@@ -45,7 +45,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
 | `/uml-erd` | **ERD (chân chim)** | PK/FK, khoá kép, cardinality `1`, `0..1`, `1..*`, `0..*`, identifying / non-identifying |
-| `/uml-screenflow` | **Screen flow** | màn hình, dialog, điều hướng `thao tác [điều kiện]` |
+| `/uml-screenflow` | **Screen flow** | màn hình, dialog, điều hướng `thao tác [điều kiện]`; hoặc **sơ đồ trang (site map)** dạng cây từ Home |
 | `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp vòng quanh, luồng dữ liệu hai chiều |
 | `/uml-comet` | Trọn bộ COMET | use case → context → class → communication + sequence → statechart → (activity, package, component, deployment) |
 
@@ -55,6 +55,9 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 </p>
 <p align="center">
   <img src="docs/img/order_design_class.png" width="70%" alt="Design class diagram">
+</p>
+<p align="center">
+  <img src="docs/img/lms_screenflow_sitemap.png" width="90%" alt="Screen flow - site map">
 </p>
 <p align="center">
   <img src="docs/img/atm_comm_validate_pin.png" width="48%" alt="Communication diagram">
@@ -213,6 +216,30 @@ Tuỳ chọn khác:
 }
 ```
 
+**Design class diagram** (visibility `+ - # ~`, kiểu, operation, role, chiều điều hướng, lớp trừu tượng):
+```json
+{
+  "diagram": "class", "title": "Đặt hàng",
+  "elements": [
+    {"id": "ord", "type": "class", "name": "Order",
+     "attributes": ["-date: Date", "-status: String"], "operations": ["+calcTotal(): float"]},
+    {"id": "od", "type": "class", "name": "OrderDetail",
+     "attributes": ["-quantity: int"], "operations": ["+calcSubTotal(): float"]},
+    {"id": "item", "type": "class", "name": "Item",
+     "attributes": ["-description: String"], "operations": ["+getPriceForQuantity(qty: int): float"]},
+    {"id": "pay", "type": "class", "name": "Payment", "abstract": true, "attributes": ["#amount: float"]},
+    {"id": "cash", "type": "class", "name": "Cash", "attributes": ["-cashTendered: float"]}
+  ],
+  "relations": [
+    {"type": "aggregation", "from": "ord", "to": "od", "fromMult": "1", "toMult": "1..*", "toRole": "line item"},
+    {"type": "association", "from": "od", "to": "item", "label": "Refers to",
+     "fromMult": "0..*", "toMult": "1", "navigable": true},
+    {"type": "association", "from": "ord", "to": "pay", "label": "Paid by", "fromMult": "1", "toMult": "1..*"},
+    {"type": "generalization", "from": "cash", "to": "pay"}
+  ]
+}
+```
+
 **ERD:**
 ```json
 {
@@ -294,7 +321,7 @@ be-tap-ve/
     │   ├── install.py         ← cài vào Claude Code / Antigravity
     │   └── mcp_smoke.py       ← thử draw.io MCP server
     ├── references/            ← spec-format, uml-notation, comet-method, drawio-mcp
-    ├── examples/              ← 14 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
+    ├── examples/              ← 15 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
     └── tests/                 ← run_tests.py + fuzz_specs.py
 ```
 
