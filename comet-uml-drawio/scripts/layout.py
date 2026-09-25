@@ -17,6 +17,7 @@ huong LR duoc xu ly bang cach hoan vi truc x/y o dau vao va dau ra.
 from __future__ import annotations
 
 import heapq
+import re
 import math
 from collections import defaultdict
 
@@ -883,3 +884,418 @@ def label_geometry(pts, c):
         return 0.0, (c[0] - pts[0][0], c[1] - pts[0][1])
     _, along, p = best
     return 2 * along / tot - 1, (c[0] - p[0], c[1] - p[1])
+
+
+# =============================================================================== tree (site map)
+TREE = {
+    "hgap": 50,      # khe ngang giua 2 cot
+    "vgap": 20,      # khe doc toi thieu giua 2 hinh cung cot
+    "top_gap": 36,   # khe giua hinh va con "top" (dat ngay phia tren, cung cot)
+    "stub": 14,      # tam con up/down cach mep hinh cha it nhat ngan nay (truc doc nhin thay duoc)
+    "grid_m": 12,    # le cua bo dinh tuyen canh ngoai cay (khoang cach duong di toi hinh)
+    "bend": 40,      # phat moi lan be goc (bo dinh tuyen)
+}
+
+
+def _side_tokens(e, el_sp):
+    s = str((getattr(e, "rel", None) or {}).get("side") or (el_sp or {}).get("side") or "").lower()
+    return {t for t in re.split(r"[\s,_\-/]+", s) if t}
+
+
+def tree_layout(elems, ledges, root=None, warns=None, cfg=None):
+    """Bo cuc cay kieu so do trang (site map / navigation map), goc ben trai, nhanh lon sang phai.
+
+    * Moi man hinh con nam tren mot hang rieng; con dau tien cung hang voi cha (mui ten ngang thang),
+      cac con khac xep xuong duoi, noi bang MOT duong truc doc chung di ra tu day hinh cha.
+    * Cac hinh cung do sau thang cot (can giua theo cot).
+    * `side` (tren quan he hoac tren phan tu con): "up" (xep phia tren, truc di ra tu dinh hinh cha),
+      "down", "same" (cung hang), "top" (ngay phia tren, cung cot), "left" (nhanh sang trai - chi o goc;
+      ket hop duoc: "left-up", "left-down").
+    * `"branch": "side"` tren phan tu cha: con up/down noi tu CANH BEN cua cha qua khe giua 2 cot (nhanh
+      quat), khong chiem cot cua cha -> gon hon; mac dinh "bottom": truc doc di ra tu day/dinh hinh cha.
+    * Canh khong thuoc cay (quay lai, noi tat) -> dinh tuyen truc giao tranh hinh (A* tren luoi Hanan).
+    Ket qua giong layered_layout: gan el.fx/el.fy, e.pts/lab_c/src_c/dst_c; tra dict(w, h, ...).
+    """
+    C = dict(TREE)
+    if cfg:
+        C.update(cfg)
+    warns = warns if warns is not None else []
+    E = {el.id: el for el in elems}
+    order = [el.id for el in elems]
+    out_e = defaultdict(list)
+    indeg = defaultdict(int)
+    for e in ledges:
+        e.pts, e.lab_c, e.src_c, e.dst_c = [], None, None, None
+        if e.u != e.v:
+            out_e[e.u].append(e)
+            indeg[e.v] += 1
+
+    # ------------------------------------------------ cay khung (BFS theo thu tu quan he)
+    parent_e = {}
+    kids = defaultdict(list)
+    seen = set()
+    roots = []
+
+    def bfs(r):
+        roots.append(r)
+        seen.add(r)
+        q = [r]
+        while q:
+            x = q.pop(0)
+            for e in out_e[x]:
+                if e.v not in seen:
+                    seen.add(e.v)
+                    parent_e[e.v] = e
+                    kids[x].append(e)
+                    q.append(e.v)
+
+    if root is not None and str(root) not in E:
+        warns.append("root '%s' khong ton tai -> tu chon man hinh goc." % root)
+        root = None
+    if root is None and order:
+        root = ([x for x in order if not indeg[x]] or order)[0]
+    if root is not None:
+        bfs(str(root))
+    for x in order:
+        if x not in seen and not indeg[x]:
+            bfs(x)
+    for x in order:
+        if x not in seen:
+            bfs(x)
+
+    # ------------------------------------------------ phan loai con: huong (dir) + vi tri (pos)
+    dir_of = {r: 1 for r in roots}
+    pos_of = {}
+    for r in roots:
+        q = [r]
+        while q:
+            x = q.pop(0)
+            first = {1: True, -1: True}
+            info = []
+            for e in kids[x]:
+                t = _side_tokens(e, E[e.v].sp)
+                d = dir_of[x]
+                if "left" in t or "right" in t:
+                    want = -1 if "left" in t else 1
+                    if want != d and x not in roots:
+                        warns.append("side '%s' cua %s->%s: chi man hinh goc moi re nhanh nguoc chieu -> bo qua."
+                                     % ("left" if want < 0 else "right", x, e.v))
+                    else:
+                        d = want
+                p = next((k for k in ("top", "up", "down", "same") if k in t), None)
+                info.append((e, d, p))
+            for e, d, p in info:           # "same" tuong minh chiem hang cua cha truoc
+                if p == "same":
+                    pos_of[e.v] = "same" if first[d] else "down"
+                    first[d] = False
+            for e, d, p in info:
+                if p is None:
+                    p = "same" if first[d] else "down"
+                    if p == "same":
+                        first[d] = False
+                pos_of.setdefault(e.v, p)
+                dir_of[e.v] = d
+                q.append(e.v)
+
+    # ------------------------------------------------ do sau (cot)
+    depth = {}
+    for r in roots:
+        depth[r] = 0
+        q = [r]
+        while q:
+            x = q.pop(0)
+            for e in kids[x]:
+                depth[e.v] = depth[x] if pos_of[e.v] == "top" else depth[x] + dir_of[e.v]
+                q.append(e.v)
+
+    # ------------------------------------------------ hang (y): contour [tren, duoi] theo tung cot
+    vg = C["vgap"]
+    off = {}
+
+    def merge(M, B, o):
+        for d, (a, b) in B.items():
+            if d in M:
+                M[d] = [min(M[d][0], a + o), max(M[d][1], b + o)]
+            else:
+                M[d] = [a + o, b + o]
+
+    def below(M, B, gap_at=None):
+        o = -math.inf
+        for d, (a, b) in B.items():
+            if d in M:
+                o = max(o, M[d][1] - a + (gap_at or {}).get(d, vg))
+        return o
+
+    def above(M, B, gap_at=None):
+        o = math.inf
+        for d, (a, b) in B.items():
+            if d in M:
+                o = min(o, M[d][0] - b - (gap_at or {}).get(d, vg))
+        return o
+
+    ups_via_gap = {}
+    fan = {x: str(E[x].sp.get("branch", "")).lower() in ("side", "fan") for x in order}
+
+    def block(x):
+        el = E[x]
+        d = depth[x]
+        h = el.h
+        M = {d: [-h / 2, h / 2]}
+        ch = kids[x]
+        tops = [e for e in ch if pos_of[e.v] == "top"]
+        side = fan[x]
+        for e in ch:
+            if pos_of[e.v] == "same":
+                off[e.v] = 0.0
+                merge(M, block(e.v), 0.0)
+        last = None
+        for e in ch:
+            if pos_of[e.v] == "down":
+                B = block(e.v)
+                o = max(h / 2 + C["stub"], below(M, B))
+                off[e.v] = last = o
+                merge(M, B, o)
+        if last is not None and not side:  # giu cot cua cha cho truc doc
+            M[d][1] = max(M[d][1], last + vg / 2)
+        ups_via_gap[x] = bool(tops) and not side
+        first = None
+        lim = -(h / 2 + C["top_gap"] / 2 + C["stub"]) if ups_via_gap[x] else -(h / 2 + C["stub"])
+        for e in reversed(ch):
+            if pos_of[e.v] == "up":
+                B = block(e.v)
+                o = min(lim, above(M, B))
+                off[e.v] = first = o
+                merge(M, B, o)
+        if first is not None and not tops and not side:
+            M[d][0] = min(M[d][0], first - vg / 2)
+        for e in tops:
+            B = block(e.v)
+            o = min(-(h / 2 + C["top_gap"] + E[e.v].h / 2), above(M, B, {d: C["top_gap"]}))
+            off[e.v] = o
+            merge(M, B, o)
+        return M
+
+    Y = {}
+    Mall = {}
+    for r in roots:
+        B = block(r)
+        if not Mall:
+            o = 0.0
+        else:
+            o = below(Mall, B, {k: vg * 2 for k in B})
+            if o == -math.inf:
+                o = max(v[1] for v in Mall.values()) - min(v[0] for v in B.values()) + vg * 2
+        merge(Mall, B, o)
+        Y[r] = o
+        q = [r]
+        while q:
+            x = q.pop(0)
+            for e in kids[x]:
+                Y[e.v] = Y[x] + off[e.v]
+                q.append(e.v)
+
+    # ------------------------------------------------ cot (x): can giua theo cot
+    colw = defaultdict(float)
+    for x in order:
+        colw[depth[x]] = max(colw[depth[x]], E[x].w)
+    gapn = defaultdict(lambda: float(C["hgap"]))   # gapn[d]: khe giua cot d va cot ke ben phia goc
+    for v, e in parent_e.items():
+        if e.lab and pos_of[v] != "top":
+            gapn[depth[v]] = max(gapn[depth[v]], e.lab[0] + 24)
+    ds = sorted(colw)
+    XC = {0: 0.0}
+    for d in [k for k in ds if k > 0]:
+        XC[d] = XC[d - 1] + colw[d - 1] / 2 + gapn[d] + colw[d] / 2
+    for d in sorted([k for k in ds if k < 0], reverse=True):
+        XC[d] = XC[d + 1] - colw[d + 1] / 2 - gapn[d] - colw[d] / 2
+
+    R = {}
+    for x in order:
+        el = E[x]
+        R[x] = [XC[depth[x]] - el.w / 2, Y[x] - el.h / 2, el.w, el.h]
+    x0 = min(r[0] for r in R.values())
+    y0 = min(r[1] for r in R.values())
+    for r in R.values():
+        r[0] -= x0
+        r[1] -= y0
+    for k in XC:
+        XC[k] -= x0
+
+    def col_edge(d, s):  # mep cot d ve phia s (+1 phai, -1 trai)
+        return XC[d] + s * colw[d] / 2
+
+    # ------------------------------------------------ canh cua cay
+    segs = []       # (p, q, nguon) - de bo dinh tuyen tranh chong khit
+
+    def add(e, pts, lab_c=None):
+        e.pts = pts
+        e.lab_c = lab_c
+        for p, q in zip(pts, pts[1:]):
+            segs.append((p, q, e.u))
+
+    def lab_at(e, xa, xb, y):
+        return ((xa + xb) / 2, y - e.lab[1] / 2 - 2) if e.lab else None
+
+    for v, e in parent_e.items():
+        u = e.u
+        ru, rv = R[u], R[v]
+        s = dir_of[v]
+        cu = (ru[0] + ru[2] / 2, ru[1] + ru[3] / 2)
+        cv = (rv[0] + rv[2] / 2, rv[1] + rv[3] / 2)
+        near = rv[0] if s > 0 else rv[0] + rv[2]
+        p = pos_of[v]
+        if p == "same":
+            xa = ru[0] + ru[2] if s > 0 else ru[0]
+            add(e, [(xa, cu[1]), (near, cv[1])], lab_at(e, xa, near, cv[1]))
+        elif p in ("up", "down") and fan[u]:   # nhanh quat tu canh ben qua khe giua 2 cot
+            xa = ru[0] + ru[2] if s > 0 else ru[0]
+            xg = col_edge(depth[u], s) + s * gapn[depth[v]] / 2
+            add(e, [(xa, cu[1]), (xg, cu[1]), (xg, cv[1]), (near, cv[1])], lab_at(e, xg, near, cv[1]))
+        elif p == "down" or (p == "up" and not ups_via_gap.get(u)):
+            ya = ru[1] + ru[3] if p == "down" else ru[1]
+            add(e, [(cu[0], ya), (cu[0], cv[1]), (near, cv[1])],
+                lab_at(e, col_edge(depth[u], s), near, cv[1]))
+        elif p == "up":   # co con "top" chan phia tren: truc re ra khe giua 2 cot roi moi di len
+            xe = cu[0] + s * min(ru[2] / 4, 24)
+            ym = ru[1] - C["top_gap"] / 2
+            xg = col_edge(depth[u], s) + s * gapn[depth[v]] / 2
+            add(e, [(xe, ru[1]), (xe, ym), (xg, ym), (xg, cv[1]), (near, cv[1])],
+                lab_at(e, xg, near, cv[1]))
+        else:  # top
+            add(e, [(cu[0], ru[1]), (cu[0], rv[1] + rv[3])],
+                (cu[0] + 6 + e.lab[0] / 2, (ru[1] + rv[1] + rv[3]) / 2) if e.lab else None)
+
+    # ------------------------------------------------ canh ngoai cay: dinh tuyen truc giao
+    tree_ids = {id(e) for e in parent_e.values()}
+    for e in ledges:
+        if id(e) in tree_ids:
+            continue
+        if e.u == e.v:
+            r = R[e.u]
+            xr, yc = r[0] + r[2], r[1] + r[3] / 2
+            add(e, [(xr, yc - 8), (xr + 18, yc - 8), (xr + 18, yc + 8), (xr, yc + 8)],
+                (xr + 24 + e.lab[0] / 2, yc) if e.lab else None)
+            continue
+        pts = _route(R, e.u, e.v, segs, C)
+        add(e, pts)
+        if e.lab:
+            i = max(range(len(pts) - 1), key=lambda k: math.dist(pts[k], pts[k + 1]))
+            (ax, ay), (bx, by) = pts[i], pts[i + 1]
+            if abs(ay - by) < 0.01:
+                e.lab_c = ((ax + bx) / 2, ay - e.lab[1] / 2 - 2)
+            else:
+                e.lab_c = (ax + 4 + e.lab[0] / 2, (ay + by) / 2)
+
+    W = max(r[0] + r[2] for r in R.values())
+    H = max(r[1] + r[3] for r in R.values())
+    for e in ledges:
+        for px, py in e.pts:
+            W, H = max(W, px), max(H, py)
+    for x in order:
+        el = E[x]
+        el.fx, el.fy = R[x][0] - el.sr[0], R[x][1] - el.sr[1]
+    return {"w": W, "h": H, "cat_boxes": {}, "crossings": 0, "lanes": [], "need_w": {}}
+
+
+def _route(R, su, tv, segs, C):
+    """Duong truc giao it be goc tu hinh su den hinh tv: khong xuyen hinh nao, tranh di chong khit
+    len canh da co (khac nguon). Dijkstra tren luoi Hanan (toa do mep hinh +- grid_m)."""
+    m = C["grid_m"]
+    rects = [(r[0], r[1], r[0] + r[2], r[1] + r[3]) for r in R.values()]
+    obs = [(a - m + 0.5, b - m + 0.5, c + m - 0.5, d + m - 0.5) for a, b, c, d in rects]
+    xs, ys = set(), set()
+    for a, b, c, d in rects:
+        xs |= {a - m, c + m}
+        ys |= {b - m, d + m}
+
+    def ports(k):   # (diem tren mep, diem ra ngoai grid_m, huong ra)
+        a, b, w, h = R[k]
+        cx, cy = a + w / 2, b + h / 2
+        return [((a + w, cy), (a + w + m, cy), (1, 0)), ((a, cy), (a - m, cy), (-1, 0)),
+                ((cx, b + h), (cx, b + h + m), (0, 1)), ((cx, b), (cx, b - m), (0, -1))]
+
+    SP, TP = ports(su), ports(tv)
+    for _, (x, y), _ in SP + TP:
+        xs.add(x)
+        ys.add(y)
+    xs, ys = sorted(xs), sorted(ys)
+    xi = {x: i for i, x in enumerate(xs)}
+    yi = {y: i for i, y in enumerate(ys)}
+
+    def inside(x, y):
+        return any(a < x < c and b < y < d for a, b, c, d in obs)
+
+    free_cache = {}
+
+    def free(i, j):
+        if (i, j) not in free_cache:
+            free_cache[(i, j)] = not inside(xs[i], ys[j])
+        return free_cache[(i, j)]
+
+    def overlap_pen(p, q):
+        for a, b, src in segs:
+            if src == su:
+                continue
+            if abs(p[1] - q[1]) < 0.01 and abs(a[1] - b[1]) < 0.01 and abs(a[1] - p[1]) < 1.0:
+                ov = min(max(p[0], q[0]), max(a[0], b[0])) - max(min(p[0], q[0]), min(a[0], b[0]))
+            elif abs(p[0] - q[0]) < 0.01 and abs(a[0] - b[0]) < 0.01 and abs(a[0] - p[0]) < 1.0:
+                ov = min(max(p[1], q[1]), max(a[1], b[1])) - max(min(p[1], q[1]), min(a[1], b[1]))
+            else:
+                continue
+            if ov > 0.5:
+                return 10000.0
+        return 0.0
+
+    targets = {(xi[x], yi[y]): (tp, (-dv[0], -dv[1])) for tp, (x, y), dv in TP}
+    pq, best, prev, cnt = [], {}, {}, 0
+    for sp, (x, y), dv in SP:
+        st = (xi[x], yi[y], dv)
+        if free(st[0], st[1]):
+            best[st] = 0.0
+            prev[st] = (None, sp)
+            heapq.heappush(pq, (0.0, cnt, st))
+            cnt += 1
+    goal = None
+    while pq:
+        c, _, st = heapq.heappop(pq)
+        if c > best.get(st, math.inf) + 1e-9:
+            continue
+        if goal is not None and c >= goal[0]:
+            break
+        i, j, dv = st
+        if (i, j) in targets:
+            tp, need = targets[(i, j)]
+            fin = c + (0 if dv == need else C["bend"])
+            if goal is None or fin < goal[0]:
+                goal = (fin, st, tp)
+        for nd in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if nd == (-dv[0], -dv[1]):
+                continue
+            ni, nj = i + nd[0], j + nd[1]
+            if not (0 <= ni < len(xs) and 0 <= nj < len(ys)) or not free(ni, nj):
+                continue
+            p, q = (xs[i], ys[j]), (xs[ni], ys[nj])
+            if inside((p[0] + q[0]) / 2, (p[1] + q[1]) / 2):
+                continue
+            nc = c + math.dist(p, q) + (0 if nd == dv else C["bend"]) + overlap_pen(p, q)
+            ns = (ni, nj, nd)
+            if nc < best.get(ns, math.inf) - 1e-9:
+                best[ns] = nc
+                prev[ns] = (st, None)
+                heapq.heappush(pq, (nc, cnt, ns))
+                cnt += 1
+    if goal is None:  # khong co duong: noi thang (validator se bao loi)
+        a, b = R[su], R[tv]
+        return [(a[0] + a[2], a[1] + a[3] / 2), (b[0], b[1] + b[3] / 2)]
+    _, st, tp = goal
+    path = []
+    while True:
+        path.append((xs[st[0]], ys[st[1]]))
+        ps, sp = prev[st]
+        if ps is None:
+            path.append(sp)
+            break
+        st = ps
+    path.reverse()
+    path.append(tp)
+    return _simplify(path)

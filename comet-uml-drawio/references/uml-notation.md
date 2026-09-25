@@ -134,6 +134,9 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 - Điều hướng: mũi tên liền, nhãn `thao tác [điều kiện]`. Decision (hình thoi có câu hỏi) khi hệ thống quyết định
   màn hình tiếp theo; nhánh ra có guard.
 - Mọi màn hình tới được từ điểm bắt đầu (F1); điều hướng từ màn hình ghi thao tác kích hoạt (F2).
+- Kiểu **sơ đồ trang (site map)**: ô chữ nhật chỉ ghi tên màn hình, popup/modal bo góc, mũi tên mở không nhãn bẻ
+  góc bo tròn, không khung. Bố cục cây từ Home: List → Details cùng hàng (mũi tên ngang), Add/Edit ở hàng dưới;
+  các nhánh chính của Home đi chung một trục dọc. F2 không áp dụng.
 
 ## Context diagram nghiệp vụ (comet_check B1–B3)
 

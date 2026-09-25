@@ -110,6 +110,22 @@ def marker(kind, fill, p, q, size=10):
     return ""
 
 
+def _rounded_path(pts, r=8.0):
+    """Duong gap khuc bo tron goc (giong rounded=1 cua draw.io)."""
+    d = ["M%.1f,%.1f" % pts[0]]
+    for a, b, c in zip(pts, pts[1:], pts[2:]):
+        l1, l2 = math.dist(a, b), math.dist(b, c)
+        k = min(r, l1 / 2, l2 / 2)
+        if k < 0.5:
+            d.append("L%.1f,%.1f" % b)
+            continue
+        p = (b[0] + (a[0] - b[0]) * k / l1, b[1] + (a[1] - b[1]) * k / l1)
+        q = (b[0] + (c[0] - b[0]) * k / l2, b[1] + (c[1] - b[1]) * k / l2)
+        d.append("L%.1f,%.1f Q%.1f,%.1f %.1f,%.1f" % (p[0], p[1], b[0], b[1], q[0], q[1]))
+    d.append("L%.1f,%.1f" % pts[-1])
+    return " ".join(d)
+
+
 def render_page(name, model):
     svg, _, _ = render_svg(model)
     return "<h3>%s</h3>%s" % (html.escape(name), svg)
@@ -259,8 +275,11 @@ def render_svg(model):
     for eid, (c, pts) in G.edges.items():
         st = c.st
         dash = ' stroke-dasharray="6 4"' if st.get("dashed") == "1" else ""
-        S.append('<polyline points="%s" fill="none" stroke="#000"%s/>'
-                 % (" ".join("%.1f,%.1f" % p for p in pts), dash))
+        if st.get("rounded") == "1" and len(pts) > 2:
+            S.append('<path d="%s" fill="none" stroke="#000"%s/>' % (_rounded_path(pts), dash))
+        else:
+            S.append('<polyline points="%s" fill="none" stroke="#000"%s/>'
+                     % (" ".join("%.1f,%.1f" % p for p in pts), dash))
         ea = st.get("endArrow", "classic")
         if ea and ea != "none":
             S.append(marker(ea, st.get("endFill", "1") != "0", pts[-1], pts[-2]))

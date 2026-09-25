@@ -30,7 +30,7 @@ from collections import OrderedDict, defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from layout import LEdge, label_geometry, layered_layout  # noqa: E402
+from layout import LEdge, label_geometry, layered_layout, tree_layout  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -143,6 +143,23 @@ ER_END = {
 }
 ER_REL = {"relationship", "relation", "association", "identifying", "nonidentifying", "non-identifying"}
 SCREEN_KINDS = {"screen", "page", "dialog", "popup"}
+FLOW_NODES = {"initial", "final", "activityfinal", "flowfinal", "decision", "choice", "merge", "junction"}
+
+
+def sitemap_mode(spec):
+    """Screen flow dang so do trang (site map): bo cuc cay, hop don gian, khong khung.
+    `"layout": "tree"` / `"layered"` chon tuong minh; bo trong -> tu nhan: khong co nut initial/final/decision,
+    khong man hinh nao liet ke `items`, khong dieu huong nao ghi trigger/guard/label."""
+    if str(spec.get("diagram", "")).lower() != "screenflow":
+        return False
+    lay = str(spec.get("layout") or "").lower()
+    if lay:
+        return lay in ("tree", "sitemap", "site-map", "navigation")
+    for e in spec.get("elements", []):
+        if str(e.get("type", "")).lower() in FLOW_NODES or e.get("items") or e.get("fields") or e.get("in"):
+            return False
+    return not any(r.get(k) for r in spec.get("relations", [])
+                   for k in ("trigger", "event", "guard", "label", "name", "action"))
 
 EDGE_BASE = "html=1;rounded=0;fontSize=11;labelBackgroundColor=#ffffff;jumpStyle=arc;jumpSize=6;endSize=10;startSize=10;"
 
@@ -504,9 +521,19 @@ def render_screen(el, sp, name):
     dialog/popup: net dut, tieu de mau vang, «dialog»."""
     k = el.kind
     dialog = k in ("dialog", "popup")
+    items = [str(x) for x in sp.get("items", sp.get("fields", [])) or []]
+    if not items:
+        # chi co ten: hop don gian - man hinh chu nhat, dialog/popup bo goc tron (kieu so do trang)
+        lines = ([(stereo(sp["stereotype"]), False, False)] if sp.get("stereotype") else []) +                 [(l, False, False) for l in wrap(name, 200)]
+        el.value = _html_lines(lines)
+        el.style = ("rounded=%d;%swhiteSpace=wrap;html=1;fillColor=%s;"
+                    % (1 if dialog else 0, "absoluteArcSize=1;arcSize=24;" if dialog else "",
+                       "#fff2cc" if dialog else "#dae8fc"))
+        el.box(max(100, max(text_size(t, 12, b)[0] for t, b, _ in lines) + 16), max(48, len(lines) * 16 + 18))
+        el.perim = "rounded" if dialog else "rect"
+        return el
     st = sp.get("stereotype") or ("dialog" if dialog else None)
     head = ([(stereo(st), False, False)] if st else []) + [(l, True, False) for l in wrap(name, 200)]
-    items = [str(x) for x in sp.get("items", sp.get("fields", [])) or []]
     lines = [l for it in items for l in wrap(it, 240)]
     w = max([150] + [text_size(t, 12, b)[0] + 24 for t, b, _ in head] + [text_size(l)[0] + 20 for l in lines])
     hh = len(head) * 16 + 10
@@ -740,6 +767,7 @@ def build_graph(spec, warns, origin):
         if kids.get(s["id"]):
             s["_container"] = True
     E = OrderedDict((s["id"], render(s, direction, diagram)) for s in sps)
+    tree = sitemap_mode(spec) and not any(kids.get(s["id"]) for s in sps)
 
     # ------------------------------------------------ categories (COMET/UML conventions)
     rels = [dict(r, type=r.get("type") or DEFAULT_REL.get(diagram, "association")) for r in spec.get("relations", [])]
@@ -833,6 +861,9 @@ def build_graph(spec, warns, origin):
                 el.box(w, h)
                 finish_container(el)
         members = [E[k] for k in kids.get(pid, [])]
+        if tree:
+            results[pid] = res = tree_layout(members, level_edges.get(pid, []), spec.get("root"), warns)
+            return res
         snap = {el.id: (el.w, el.h, el.sr, list(el.sub)) for el in members}
         for _ in range(3):
             res = layered_layout(members, level_edges.get(pid, []), direction,
@@ -950,7 +981,7 @@ def build_graph(spec, warns, origin):
         ox, oy = (0.0, 0.0) if pid is None else (E[pid].ax, E[pid].ay)
         par = "1" if pid is None else E[pid].id
         pts = le.abs
-        style = EDGE_BASE + le.style + _constraint(pts[0], su, "exit") + _constraint(pts[-1], sv, "entry")
+        style = (EDGE_BASE.replace("rounded=0", "rounded=1") if tree else EDGE_BASE) + le.style + _constraint(pts[0], su, "exit") + _constraint(pts[-1], sv, "entry")
         way = [(x - ox, y - oy) for x, y in pts[1:-1]]
         gx, off = (None, None)
         if le.label and le.alab:
@@ -1555,7 +1586,7 @@ def build_bizcontext(spec, warns, origin):
 def build_page(spec, warns):
     diagram = str(spec.get("diagram", "class")).lower()
     spec["diagram"] = diagram
-    use_frame = spec.get("frame", True)
+    use_frame = spec.get("frame", not sitemap_mode(spec))
     title = spec.get("title") or spec.get("useCase") or spec.get("name") or diagram
     kind = FRAME_KIND.get(diagram, "")
     flabel = "%s %s" % (kind, title) if kind else title

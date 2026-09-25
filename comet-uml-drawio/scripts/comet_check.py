@@ -49,7 +49,8 @@ Class diagram (ap dung cho moi spec "class"):
   C2  Association/aggregation/composition co multiplicity o ca 2 dau (WARN); association co ten/role (INFO).
 ERD / screen flow / context diagram nghiep vu:
   E1  Entity co khoa chinh (PK). E2 Relationship co cardinality 2 dau + ten. E3 Nhieu-nhieu -> entity trung gian.
-  F1  Moi man hinh toi duoc tu diem bat dau. F2 Dieu huong co thao tac kich hoat (trigger).
+  F1  Moi man hinh toi duoc tu diem bat dau. F2 Dieu huong co thao tac kich hoat (trigger) - bo qua voi
+      so do trang ("layout": "tree" / site map: mui ten khong nhan).
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
@@ -62,6 +63,9 @@ import json
 import re
 import sys
 from collections import defaultdict
+
+sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
+from uml2drawio import sitemap_mode  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -379,15 +383,18 @@ def check_screenflow(s, E, W, I):
     name = lambda i: (els[i].get("name") or i) if i in els else i
     adj = defaultdict(set)
     ins = defaultdict(int)
+    sitemap = sitemap_mode(s)
     for r in s.get("relations", []):
         a, b = str(r.get("from")), str(r.get("to"))
         adj[a].add(b)
         ins[b] += 1
         ta = norm(els.get(a, {}).get("type"))
-        if ta in ("screen", "page", "dialog", "popup") and not (r.get("trigger") or r.get("event") or r.get("label")):
+        if not sitemap and ta in ("screen", "page", "dialog", "popup") and not (r.get("trigger") or r.get("event") or r.get("label")):
             I.append("F2 [%s] Dieu huong '%s' -> '%s' chua ghi thao tac kich hoat (\"trigger\", vd 'Nhan Dang nhap')."
                      % (src, name(a), name(b)))
     starts = [i for i, e in els.items() if norm(e.get("type")) == "initial"]
+    if not starts and s.get("root") in els:
+        starts = [s["root"]]
     if not starts:
         starts = [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]
     seen, todo = set(starts), list(starts)

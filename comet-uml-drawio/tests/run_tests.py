@@ -869,6 +869,48 @@ class TestGenerator(unittest.TestCase):
         R = rects(G)
         self.assertLess(R["a"][2], R["h"][0])                                          # mac dinh trai -> phai
         self.assertEqual(check(sp)[:2], ([], []))
+        self.assertFalse(U.sitemap_mode(sp))
+
+    def test_screenflow_sitemap_tree(self):
+        sp = json.loads((EXAMPLES / "lms_screenflow_sitemap.json").read_text(encoding="utf-8"))
+        xml, cs, G = self.clean(sp)
+        R = rects(G)
+        cy = {k: (r[1] + r[3]) / 2 for k, r in R.items()}
+        cx = {k: (r[0] + r[2]) / 2 for k, r in R.items()}
+        self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))   # khong khung
+        self.assertEqual(text(cs["home"]), "Home")                                     # o chi ghi ten
+        self.assertEqual(style(cs["home"]).get("rounded"), "0")
+        self.assertEqual(style(cs["login"]).get("rounded"), "1")                       # popup bo goc
+        for e in edges(cs):
+            self.assertEqual(text(e), "")                                              # khong nhan
+            self.assertEqual(style(e).get("rounded"), "1")
+            self.assertEqual(style(e).get("endArrow"), "open")
+        for a, b in (("posts", "post"), ("blogs", "blog"), ("subject", "price"), ("home", "myreg")):
+            self.assertAlmostEqual(cy[a], cy[b], delta=0.5)                            # same: cung hang
+            self.assertLess(R[a][2], R[b][0])
+        self.assertAlmostEqual(cx["profile"], cx["home"], delta=0.5)                   # top: ngay tren
+        self.assertLess(R["profile"][3], R["home"][1])
+        self.assertLess(R["login"][2], R["home"][0])                                   # left
+        self.assertLess(cy["register"], cy["login"])
+        self.assertGreater(cy["reset"], cy["login"])
+        self.assertLess(cy["blogs"], cy["home"])                                       # up
+        self.assertGreater(cy["addpost"], cy["posts"])                                 # down: hang duoi
+        self.assertAlmostEqual(cx["addpost"], cx["post"], delta=0.5)
+        self.assertLess(cy["dim"], cy["subject"])                                      # branch side
+        self.assertGreater(cy["slessons"], cy["subject"])
+        ex = [float(style(edge_between(cs, "subject", k)).get("exitX", -1)) for k in ("dim", "slessons")]
+        self.assertEqual(ex, [1.0, 1.0])                                               # toa tu canh phai
+        self.assertEqual(float(style(edge_between(cs, "posts", "addpost")).get("exitY", -1)), 1.0)
+        self.assertTrue(U.sitemap_mode(sp))
+        self.assertEqual(check(sp, partial=True)[:2], ([], []))                        # F2 bo qua
+        auto = copy.deepcopy(sp)
+        del auto["layout"]
+        self.assertTrue(U.sitemap_mode(auto))                                          # tu nhan dien
+        auto["layout"] = "layered"
+        self.assertFalse(U.sitemap_mode(auto))
+        auto["relations"][0]["trigger"] = "Nhấn"
+        del auto["layout"]
+        self.assertFalse(U.sitemap_mode(auto))
 
     def test_bizcontext_ring(self):
         sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))

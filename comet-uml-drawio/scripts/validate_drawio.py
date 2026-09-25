@@ -5,7 +5,7 @@ validate_drawio.py - Kiem tra file .drawio / mxGraphModel XML:
   * cau truc: id trung, parent/source/target khong ton tai
   * hinh hoc: hinh chong len nhau (ERROR), hinh nam trong hinh khong phai container (WARN),
     hinh qua sat nhau < 8px (WARN), canh di xuyen qua hinh (ERROR),
-    hai canh chong len nhau tren cung mot doan thang (ERROR), nhan de len hinh/nhan khac (WARN)
+    hai canh chong len nhau tren cung mot doan thang (ERROR; tru canh cung nguon di chung truc), nhan de len hinh/nhan khac (WARN)
   * UML lint: dung << >> thay vi « » (WARN), «include»/«extend» khong net dut + mui ten mo (ERROR),
     message trong sequence khong nam ngang (ERROR), stereotype khong thuoc UML/COMET (INFO),
     actor khong co lien ket (WARN)
@@ -512,6 +512,8 @@ def analyze_page(name, model):
                 break
             if a[4] == b[4]:
                 continue
+            if a[5].source and a[5].source == b[5].source and a[5].target != b[5].target:
+                continue  # cung nguon: duong truc chung (bus) roi re nhanh - van phan biet duoc tung mui ten
             ov = min(a[3], b[3]) - max(a[2], b[2])
             if ov > 2.0 and (a[4], b[4]) not in reported:
                 reported.add((a[4], b[4]))

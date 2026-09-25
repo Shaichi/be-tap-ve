@@ -50,7 +50,7 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `artifact` | – |
 | `package`, `subsystem` | chứa phần tử con qua `in` |
 | `entity`, `table` (ERD) | `attributes[]`: chuỗi `"PK maKH: INT"` / `"FK x: T"` / `"PK,FK x: T"` / `"ten: T"` hoặc object `{"name", "type", "key"}` (`key`: `PK`, `FK`, `PK,FK`, `UK`; hoặc `pk`/`fk`: true); `weak`: true (viền đậm) |
-| `screen`, `page`, `dialog`, `popup` (screen flow) | `items[]` (hoặc `fields[]`): thành phần trên màn hình, nút viết `[OK]`; dialog/popup nền vàng nét đứt «dialog» |
+| `screen`, `page`, `dialog`, `popup` (screen flow) | `items[]` (hoặc `fields[]`): thành phần trên màn hình, nút viết `[OK]`; dialog/popup nền vàng nét đứt «dialog». Không `items` → ô chữ nhật chỉ ghi tên (popup/dialog bo góc); site map: `branch: "side"` (con toả từ cạnh phải), `side` (vị trí so với cha) |
 | `system` (bizcontext) | hình tròn trung tâm – đúng 1 |
 
 Context diagram: đúng 1 `{"type": "system", "stereotype": "software system"}` và các lớp ngoài
@@ -205,6 +205,31 @@ Ví dụ đầy đủ: `examples/banking_erd.json`. comet_check E1–E3.
   {"type": "navigate", "from": "err", "to": "login", "trigger": "OK"}]}
 ```
 Mặc định `direction: "LR"`. Ví dụ đầy đủ: `examples/atm_screenflow.json`. comet_check F1–F2.
+
+**Sơ đồ trang (site map)** – cây điều hướng toàn hệ thống, ô chỉ ghi tên, mũi tên không nhãn, không khung:
+```json
+{"diagram": "screenflow", "title": "LMS", "layout": "tree", "root": "home", "elements": [
+  {"id": "home", "type": "screen", "name": "Home"},
+  {"id": "login", "type": "popup", "name": "User Login"},
+  {"id": "posts", "type": "screen", "name": "Post Lists"},
+  {"id": "post", "type": "screen", "name": "Post Details"},
+  {"id": "addpost", "type": "screen", "name": "Add Post"}],
+ "relations": [
+  {"from": "home", "to": "login", "side": "left"},
+  {"from": "home", "to": "posts"},
+  {"from": "posts", "to": "post"},
+  {"from": "posts", "to": "addpost"}]}
+```
+- `layout`: `"tree"` bật; `"layered"` tắt. Không ghi → tự bật khi không có initial/final/decision, màn hình không
+  `items` và relation không `trigger`/`guard`/`label`.
+- `root`: gốc (mặc định nút đầu tiên không có mũi tên vào). Cạnh cây = lần đầu một nút được trỏ tới theo thứ tự
+  relations; cạnh còn lại (vd. Course Details → Course Register) tự đi vòng tránh hình.
+- `side` (trên relation hoặc element con): `same` cùng hàng (mặc định cho con đầu tiên), `down` hàng dưới, ra từ
+  đáy cha (mặc định cho các con sau), `up` hàng trên, `top` ngay trên đầu cha, `left` cột bên trái (ghép
+  `left-up`, `left-down`).
+- `branch: "side"` trên element cha → con toả từ cạnh phải thay vì từ đáy. `frame: true` → vẽ lại khung + tiêu đề.
+- Ví dụ đầy đủ: `examples/lms_screenflow_sitemap.json`. comet_check chỉ chạy F1 (F2 bỏ qua vì site map không
+  ghi nhãn).
 
 ### Context diagram nghiệp vụ
 
