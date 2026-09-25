@@ -121,16 +121,14 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 - M–N hợp lệ ở mức khái niệm; khi chuyển sang mức logic mới tách bảng trung gian.
 - Quan hệ nối đúng thực thể (E1); đủ bản số 2 đầu (E2); mỗi hình thoi có tên (E3).
 
-## Screen flow (comet_check F1–F2)
+## Screen flow – sơ đồ trang / site map (comet_check F1–F2)
 
-- Màn hình (`screen`/`page`): khung bo góc, tiêu đề xanh, thân liệt kê thành phần; dialog/popup nền vàng, nét
-  đứt, «dialog».
-- Điều hướng: mũi tên liền, nhãn `thao tác [điều kiện]`. Decision (hình thoi có câu hỏi) khi hệ thống quyết định
-  màn hình tiếp theo; nhánh ra có guard.
-- Mọi màn hình tới được từ điểm bắt đầu (F1); điều hướng từ màn hình ghi thao tác kích hoạt (F2).
-- Kiểu **sơ đồ trang (site map)**: ô chữ nhật chỉ ghi tên màn hình, popup/modal bo góc, mũi tên mở không nhãn bẻ
-  góc bo tròn, không khung. Bố cục cây từ Home: List → Details cùng hàng (mũi tên ngang), Add/Edit ở hàng dưới;
-  các nhánh chính của Home đi chung một trục dọc. F2 không áp dụng.
+- Màn hình (`screen`/`page`): ô chữ nhật chỉ ghi tên; popup/modal (`popup`/`dialog`): ô bo góc. Không liệt kê thành
+  phần giao diện, không decision/initial/final.
+- Điều hướng: mũi tên mở **không nhãn**, bẻ góc bo tròn; không khung, không tiêu đề.
+- Bố cục cây từ Home: List → Details cùng hàng (mũi tên ngang), Add/Edit ở hàng dưới; các nhánh chính của Home
+  đi chung một trục dọc.
+- Mọi màn hình tới được từ màn hình gốc (F1); spec chỉ gồm màn hình/popup và mũi tên không nhãn (F2).
 
 ## Context diagram nghiệp vụ (comet_check B1–B3)
 

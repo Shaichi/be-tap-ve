@@ -127,7 +127,7 @@ FRAME_KIND = {
     # so do nghiep vu / du lieu (khong phai UML): khung chi ghi ten
     "erd": "", "screenflow": "", "bizcontext": "",
 }
-DEFAULT_DIR = {"usecase": "LR", "communication": "LR", "screenflow": "LR"}
+DEFAULT_DIR = {"usecase": "LR", "communication": "LR"}
 # quan he khong ghi "type": mac dinh theo loai so do (activity/state: luong co guard; erd: relationship...)
 DEFAULT_REL = {"activity": "flow", "state": "transition", "erd": "relationship", "screenflow": "navigate"}
 
@@ -135,20 +135,68 @@ SCREEN_KINDS = {"screen", "page", "dialog", "popup"}
 FLOW_NODES = {"initial", "final", "activityfinal", "flowfinal", "decision", "choice", "merge", "junction"}
 
 
+NAV_LABELS = ("trigger", "event", "guard", "label", "name", "action")
+
+
 def sitemap_mode(spec):
-    """Screen flow dang so do trang (site map): bo cuc cay, hop don gian, khong khung.
-    `"layout": "tree"` / `"layered"` chon tuong minh; bo trong -> tu nhan: khong co nut initial/final/decision,
-    khong man hinh nao liet ke `items`, khong dieu huong nao ghi trigger/guard/label."""
-    if str(spec.get("diagram", "")).lower() != "screenflow":
-        return False
-    lay = str(spec.get("layout") or "").lower()
-    if lay:
-        return lay in ("tree", "sitemap", "site-map", "navigation")
+    """Screen flow luon ve dang so do trang (site map): cay dieu huong tu Home, o chi ghi ten, khong khung."""
+    return str(spec.get("diagram", "")).lower() == "screenflow"
+
+
+def sitemap_expand(spec, warns=None):
+    """Chuan hoa spec screen flow ve site map: bo nut initial/final/decision (canh qua decision/merge noi thang
+    truoc -> sau; initial chi dinh root), bo `items` cua man hinh va nhan tren mui ten - kem canh bao."""
+    w = warns if warns is not None else []
+    sp = dict(spec)
+    flow = {str(e.get("id", e.get("name"))): str(e.get("type", "")).lower() for e in spec.get("elements", [])
+            if str(e.get("type", "")).lower() in FLOW_NODES}
+    els = []
     for e in spec.get("elements", []):
-        if str(e.get("type", "")).lower() in FLOW_NODES or e.get("items") or e.get("fields") or e.get("in"):
-            return False
-    return not any(r.get(k) for r in spec.get("relations", [])
-                   for k in ("trigger", "event", "guard", "label", "name", "action"))
+        i = str(e.get("id", e.get("name")))
+        if i in flow:
+            w.append("Screen flow (site map) khong ve nut %s: bo qua '%s'." % (flow[i], i))
+            continue
+        if e.get("items") or e.get("fields"):
+            w.append("Screen flow (site map) chi ghi ten man hinh: bo qua 'items' cua '%s'." % e.get("name", i))
+            e = {k: v for k, v in e.items() if k not in ("items", "fields")}
+        els.append(e)
+    rels, nlab = [], 0
+    for r in spec.get("relations", []):
+        if any(r.get(k) for k in NAV_LABELS):
+            nlab += 1
+        rels.append({k: v for k, v in r.items() if k not in NAV_LABELS})
+    if nlab:
+        w.append("Screen flow (site map) khong ghi nhan tren mui ten: bo qua nhan cua %d dieu huong." % nlab)
+    # noi thang qua cac nut luong: a -> decision -> b  =>  a -> b
+    out = defaultdict(list)
+    for r in rels:
+        out[str(r.get("from"))].append(r)
+
+    def targets(n, seen):
+        res = []
+        for r in out[n]:
+            t = str(r.get("to"))
+            if t in flow:
+                if t not in seen:
+                    res += targets(t, seen | {t})
+            else:
+                res.append((t, r))
+        return res
+    final, have = [], set()
+    for r in rels:
+        a = str(r.get("from"))
+        if a in flow:
+            if flow[a] == "initial" and not sp.get("root"):
+                ts = targets(a, {a})
+                if ts:
+                    sp["root"] = ts[0][0]
+            continue
+        for t, tr in ([(str(r.get("to")), r)] if str(r.get("to")) not in flow else targets(str(r.get("to")), {str(r.get("to"))})):
+            if (a, t) not in have and a != t:
+                have.add((a, t))
+                final.append(dict(r, to=t, side=r.get("side", tr.get("side"))) if tr is not r else r)
+    sp["elements"], sp["relations"] = els, final
+    return sp
 
 CHEN_REL = {"relationship", "diamond", "relation"}
 
@@ -526,37 +574,15 @@ def render_chen(el, sp, name):
 
 
 def render_screen(el, sp, name):
-    """Screen flow: man hinh = cua so co thanh tieu de (ten) + than liet ke thanh phan UI (`items`).
-    dialog/popup: net dut, tieu de mau vang, «dialog»."""
-    k = el.kind
-    dialog = k in ("dialog", "popup")
-    items = [str(x) for x in sp.get("items", sp.get("fields", [])) or []]
-    if not items:
-        # chi co ten: hop don gian - man hinh chu nhat, dialog/popup bo goc tron (kieu so do trang)
-        lines = ([(stereo(sp["stereotype"]), False, False)] if sp.get("stereotype") else []) +                 [(l, False, False) for l in wrap(name, 200)]
-        el.value = _html_lines(lines)
-        el.style = ("rounded=%d;%swhiteSpace=wrap;html=1;fillColor=%s;"
-                    % (1 if dialog else 0, "absoluteArcSize=1;arcSize=24;" if dialog else "",
-                       "#fff2cc" if dialog else "#dae8fc"))
-        el.box(max(100, max(text_size(t, 12, b)[0] for t, b, _ in lines) + 16), max(48, len(lines) * 16 + 18))
-        el.perim = "rounded" if dialog else "rect"
-        return el
-    st = sp.get("stereotype") or ("dialog" if dialog else None)
-    head = ([(stereo(st), False, False)] if st else []) + [(l, True, False) for l in wrap(name, 200)]
-    lines = [l for it in items for l in wrap(it, 240)]
-    w = max([150] + [text_size(t, 12, b)[0] + 24 for t, b, _ in head] + [text_size(l)[0] + 20 for l in lines])
-    hh = len(head) * 16 + 10
-    ah = max(44, len(lines) * 18 + 12)
-    el.value = _html_lines(head)
-    el.style = ("swimlane;rounded=1;arcSize=8;absoluteArcSize=1;startSize=%d;html=1;whiteSpace=wrap;collapsible=0;"
-                "fontStyle=0;childLayout=stackLayout;horizontal=1;horizontalStack=0;resizeParent=1;resizeLast=0;"
-                "marginBottom=0;swimlaneFillColor=#ffffff;fillColor=%s;%s"
-                % (hh, "#fff2cc" if dialog else "#dae8fc", "dashed=1;" if dialog else ""))
-    el.sub.append(("ui", "<br>".join(esc(l) for l in lines),
-                   "text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;"
-                   "html=1;whiteSpace=wrap;fontColor=#333333;", 0, hh, w, ah))
-    el.box(w, hh + ah)
-    el.perim = "rounded"
+    """Screen flow (site map): o chi ghi ten - man hinh chu nhat, dialog/popup bo goc tron."""
+    dialog = el.kind in ("dialog", "popup")
+    lines = ([(stereo(sp["stereotype"]), False, False)] if sp.get("stereotype") else []) +         [(l, False, False) for l in wrap(name, 200)]
+    el.value = _html_lines(lines)
+    el.style = ("rounded=%d;%swhiteSpace=wrap;html=1;fillColor=%s;"
+                % (1 if dialog else 0, "absoluteArcSize=1;arcSize=24;" if dialog else "",
+                   "#fff2cc" if dialog else "#dae8fc"))
+    el.box(max(100, max(text_size(t, 12, b)[0] for t, b, _ in lines) + 16), max(48, len(lines) * 16 + 18))
+    el.perim = "rounded" if dialog else "rect"
     return el
 
 
@@ -1597,7 +1623,8 @@ def build_page(spec, warns):
     elif diagram == "bizcontext":
         out = build_bizcontext(spec, warns, origin)
     else:
-        out = build_graph(chen_expand(spec, warns) if chen_mode(spec) else spec, warns, origin)
+        src = chen_expand(spec, warns) if chen_mode(spec) else sitemap_expand(spec, warns) if sitemap_mode(spec)             else spec
+        out = build_graph(src, warns, origin)
     if use_frame:
         x0, y0 = 40, 40
         x1 = max(out.maxx + 24, x0 + fw + 60)

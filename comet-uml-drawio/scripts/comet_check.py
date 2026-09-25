@@ -49,8 +49,8 @@ Class diagram (ap dung cho moi spec "class"):
   C2  Association/aggregation/composition co multiplicity o ca 2 dau (WARN); association co ten/role (INFO).
 ERD / screen flow / context diagram nghiep vu:
   E1  Relationship noi dung thuc the. E2 Du ban so 2 dau (1/N/M). E3 Quan he (hinh thoi) co ten.
-  F1  Moi man hinh toi duoc tu diem bat dau. F2 Dieu huong co thao tac kich hoat (trigger) - bo qua voi
-      so do trang ("layout": "tree" / site map: mui ten khong nhan).
+  F1  Moi man hinh toi duoc tu man hinh goc. F2 Site map chi gom man hinh/popup + mui ten khong nhan: khong
+      initial/final/decision, khong "items", khong trigger/guard/label.
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
@@ -65,7 +65,7 @@ import sys
 from collections import defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
-from uml2drawio import CHEN_REL, sitemap_mode  # noqa: E402
+from uml2drawio import CHEN_REL, FLOW_NODES, NAV_LABELS  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -370,26 +370,26 @@ def check_erd(s, E, W, I):
 
 
 def check_screenflow(s, E, W, I):
-    """F1-F2: screen flow - moi man hinh toi duoc tu diem bat dau; dieu huong co thao tac kich hoat."""
+    """F1-F2: screen flow (site map) - moi man hinh toi duoc tu goc; chi co man hinh/popup va mui ten khong nhan."""
     src = s["_src"]
     els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
     name = lambda i: (els[i].get("name") or i) if i in els else i
     adj = defaultdict(set)
     ins = defaultdict(int)
-    sitemap = sitemap_mode(s)
+    for i, e in els.items():
+        if norm(e.get("type")) in FLOW_NODES:
+            W.append("F2 [%s] Site map khong co nut %s ('%s') - noi thang man hinh -> man hinh, goc dat bang "
+                     "\"root\"." % (src, norm(e.get("type")), i))
+        elif e.get("items") or e.get("fields"):
+            W.append("F2 [%s] Man hinh '%s' co 'items' - site map chi ghi ten man hinh, bo 'items'." % (src, name(i)))
     for r in s.get("relations", []):
         a, b = str(r.get("from")), str(r.get("to"))
         adj[a].add(b)
         ins[b] += 1
-        ta = norm(els.get(a, {}).get("type"))
-        if not sitemap and ta in ("screen", "page", "dialog", "popup") and not (r.get("trigger") or r.get("event") or r.get("label")):
-            I.append("F2 [%s] Dieu huong '%s' -> '%s' chua ghi thao tac kich hoat (\"trigger\", vd 'Nhan Dang nhap')."
-                     % (src, name(a), name(b)))
-    starts = [i for i, e in els.items() if norm(e.get("type")) == "initial"]
-    if not starts and s.get("root") in els:
-        starts = [s["root"]]
-    if not starts:
-        starts = [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]
+        if any(r.get(k) for k in NAV_LABELS):
+            W.append("F2 [%s] Dieu huong '%s' -> '%s' co nhan - site map ve mui ten khong nhan, bo %s."
+                     % (src, name(a), name(b), "/".join(k for k in NAV_LABELS if r.get(k))))
+    starts = [s["root"]] if s.get("root") in els else         [i for i, e in els.items() if norm(e.get("type")) == "initial"] or         [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]
     seen, todo = set(starts), list(starts)
     while todo:
         for n in adj[todo.pop()]:
@@ -398,7 +398,7 @@ def check_screenflow(s, E, W, I):
                 todo.append(n)
     for i, e in els.items():
         if norm(e.get("type")) in ("screen", "page", "dialog", "popup") and i not in seen:
-            W.append("F1 [%s] Man hinh '%s' khong toi duoc tu diem bat dau." % (src, name(i)))
+            W.append("F1 [%s] Man hinh '%s' khong toi duoc tu man hinh goc." % (src, name(i)))
 
 
 def check_bizcontext(s, E, W, I):

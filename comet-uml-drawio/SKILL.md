@@ -1,6 +1,6 @@
 ---
 name: comet-uml-drawio
-description: Vẽ sơ đồ UML chuẩn cú pháp theo phương pháp COMET (Gomaa) và xuất ra draw.io (qua draw.io MCP hoặc file .drawio) với bố cục tự động KHÔNG chồng/dính hình. Dùng khi người dùng muốn vẽ use case, context, class/entity, communication (collaboration), sequence, statechart, activity, component, deployment, package diagram, ERD (sơ đồ thực thể quan hệ, ký pháp Chen – hình thoi), screen flow (luồng màn hình), context diagram nghiệp vụ (hình tròn trung tâm); khi nhắc tới COMET, Gomaa, «entity»/«boundary»/«control», draw.io, drawio, diagrams.net, hoặc "vẽ sơ đồ UML".
+description: Vẽ sơ đồ UML chuẩn cú pháp theo phương pháp COMET (Gomaa) và xuất ra draw.io (qua draw.io MCP hoặc file .drawio) với bố cục tự động KHÔNG chồng/dính hình. Dùng khi người dùng muốn vẽ use case, context, class/entity, communication (collaboration), sequence, statechart, activity, component, deployment, package diagram, ERD (sơ đồ thực thể quan hệ, ký pháp Chen – hình thoi), screen flow (sơ đồ trang / site map – cây điều hướng màn hình), context diagram nghiệp vụ (hình tròn trung tâm); khi nhắc tới COMET, Gomaa, «entity»/«boundary»/«control», draw.io, drawio, diagrams.net, hoặc "vẽ sơ đồ UML".
 ---
 
 # Bé tập vẽ – COMET UML → draw.io

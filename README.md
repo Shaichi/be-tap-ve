@@ -45,7 +45,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
 | `/uml-erd` | **ERD (ký pháp Chen)** | thực thể chữ nhật + hình thoi quan hệ có tên, bản số `1` / `N` / `M`, quan hệ đệ quy, bậc 3 |
-| `/uml-screenflow` | **Screen flow** | màn hình, dialog, điều hướng `thao tác [điều kiện]`; hoặc **sơ đồ trang (site map)** dạng cây từ Home |
+| `/uml-screenflow` | **Screen flow (sơ đồ trang / site map)** | cây điều hướng từ Home, ô chỉ ghi tên màn hình, popup bo góc, mũi tên không nhãn |
 | `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp vòng quanh, luồng dữ liệu hai chiều |
 | `/uml-comet` | Trọn bộ COMET | use case → context → class → communication + sequence → statechart → (activity, package, component, deployment) |
 
@@ -126,8 +126,7 @@ Mở phiên mới sau khi cài để Claude nạp skill, rồi gõ lệnh kèm m
 /uml-usecase Hệ thống thư viện: độc giả mượn/trả sách, thủ thư quản lý sách, hệ thống email gửi nhắc hạn
 /uml-activity Quy trình rút tiền ATM, 3 làn: Khách hàng, ATM, Ngân hàng
 /uml-erd App học tiếng Anh: User, Role, Topic, Question, Comment (bình luận trả lời nhau), File đính kèm
-/uml-screenflow Luồng đăng ký tài khoản và đăng nhập của app đặt đồ ăn
-/uml-screenflow Sơ đồ trang (site map) hệ thống học trực tuyến: Home, đăng nhập, khoá học, bài viết, quản trị
+/uml-screenflow Hệ thống học trực tuyến: Home, đăng nhập, khoá học, bài viết, quản trị
 /uml-bizcontext Cửa hàng trực tuyến: khách hàng, nhà cung cấp, ngân hàng, đơn vị vận chuyển, cơ quan thuế
 /uml-comet Hệ thống ATM của ngân hàng (đủ 10 bước)
 ```
@@ -298,7 +297,7 @@ Nhóm luật của `comet_check.py`:
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
 | E1–E3 | ERD (quan hệ nối đúng thực thể, đủ bản số 2 đầu, hình thoi có tên) |
-| F1–F2 | Screen flow (màn hình tới được, có thao tác kích hoạt; site map bỏ qua F2 vì mũi tên không nhãn) |
+| F1–F2 | Screen flow (mọi màn hình tới được từ gốc; chỉ màn hình/popup + mũi tên không nhãn) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 
 `--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
@@ -323,7 +322,7 @@ be-tap-ve/
     │   ├── install.py         ← cài vào Claude Code / Antigravity
     │   └── mcp_smoke.py       ← thử draw.io MCP server
     ├── references/            ← spec-format, uml-notation, comet-method, drawio-mcp
-    ├── examples/              ← 15 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
+    ├── examples/              ← 14 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
     └── tests/                 ← run_tests.py + fuzz_specs.py
 ```
 

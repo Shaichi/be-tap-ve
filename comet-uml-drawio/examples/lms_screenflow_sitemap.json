@@ -1,7 +1,6 @@
 {
   "diagram": "screenflow",
   "title": "Online Learning - Screen flow",
-  "layout": "tree",
   "root": "home",
   "elements": [
     {"id": "home", "type": "screen", "name": "Home"},

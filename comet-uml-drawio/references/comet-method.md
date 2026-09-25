@@ -79,7 +79,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | A1–A6 | Activity hợp lệ: guard của decision; fork/join; initial/final; merge; ngõ cụt; không join/fork ngầm trên action | ERROR/WARN |
 | C1–C2 | Class diagram: thuộc tính có kiểu; multiplicity ở hai đầu association/aggregation/composition (WARN), association có tên/role (INFO) | WARN/INFO |
 | E1–E3 | ERD (Chen): quan hệ tham chiếu đúng thực thể (ERROR); đủ bản số 2 đầu `1`/`N`/`M` (WARN); quan hệ / hình thoi có tên (WARN) |
-| F1–F2 | Screen flow: mọi màn hình tới được từ điểm bắt đầu (WARN); điều hướng từ màn hình có thao tác kích hoạt (INFO) | WARN/INFO |
+| F1–F2 | Screen flow (site map): mọi màn hình tới được từ màn hình gốc; không initial/decision, không `items`, mũi tên không nhãn | WARN |
 | B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).

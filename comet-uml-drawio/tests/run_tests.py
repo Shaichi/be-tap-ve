@@ -865,26 +865,37 @@ class TestGenerator(unittest.TestCase):
         warns = gen(attr)[1]
         self.assertTrue(any("khong ve thuoc tinh" in w for w in warns), warns)         # thuoc tinh bi bo qua
 
-    def test_screenflow(self):
+    def test_screenflow_legacy_flow_spec(self):
+        # spec kieu luong chi tiet cu (initial/decision/items/trigger) -> van ve thanh site map, kem canh bao
         sp = {"diagram": "screenflow", "title": "SF", "elements": [
             {"id": "s", "type": "initial"},
-            {"id": "a", "type": "screen", "name": "Đăng nhập", "items": ["Email", "[Đăng nhập]"]},
-            {"id": "e", "type": "dialog", "name": "Lỗi", "items": ["[OK]"]},
-            {"id": "h", "type": "page", "name": "Trang chủ"}], "relations": [
+            {"id": "a", "type": "screen", "name": "Login", "items": ["Email", "[Login]"]},
+            {"id": "d", "type": "decision", "question": "Valid?"},
+            {"id": "e", "type": "dialog", "name": "Error"},
+            {"id": "h", "type": "page", "name": "Home"}], "relations": [
             {"type": "navigate", "from": "s", "to": "a"},
-            {"type": "navigate", "from": "a", "to": "h", "trigger": "Đăng nhập", "guard": "hợp lệ"},
-            {"type": "navigate", "from": "a", "to": "e", "trigger": "Đăng nhập", "guard": "sai"},
+            {"type": "navigate", "from": "a", "to": "d", "trigger": "Login"},
+            {"type": "navigate", "from": "d", "to": "h", "guard": "yes"},
+            {"type": "navigate", "from": "d", "to": "e", "guard": "no"},
             {"type": "navigate", "from": "e", "to": "a", "trigger": "OK"}]}
-        xml, cs, G = self.clean(sp)
-        self.assertEqual(style(cs["a"]).get("_base"), "swimlane")
-        self.assertEqual(text(cs["a__ui"]), "Email\n[Đăng nhập]")
-        self.assertEqual(style(cs["e"]).get("dashed"), "1")
-        self.assertIn("«dialog»", text(cs["e"]))
-        self.assertEqual(text(edge_between(cs, "a", "h")), "Đăng nhập [hợp lệ]")
-        R = rects(G)
-        self.assertLess(R["a"][2], R["h"][0])                                          # mac dinh trai -> phai
-        self.assertEqual(check(sp)[:2], ([], []))
-        self.assertFalse(U.sitemap_mode(sp))
+        xml, warns = gen(sp)
+        self.assertEqual(report(xml)[:2], ([], []))
+        for k in ("nut initial", "nut decision", "'items' cua 'Login'", "nhan cua 4 dieu huong"):
+            self.assertTrue(any(k in w for w in warns), k)
+        cs = cells(xml)
+        self.assertNotIn("s", cs)
+        self.assertNotIn("d", cs)
+        self.assertNotIn("a__ui", cs)
+        self.assertEqual(text(cs["a"]), "Login")
+        self.assertEqual(style(cs["e"]).get("rounded"), "1")                           # dialog bo goc
+        self.assertIsNotNone(edge_between(cs, "a", "h"))                              # noi thang qua decision
+        self.assertIsNotNone(edge_between(cs, "a", "e"))
+        for e in edges(cs):
+            self.assertEqual(text(e), "")
+        self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))
+        W = check(sp, partial=True)[1]
+        for k in ("nut initial", "nut decision", "'Login' co 'items'", "co nhan"):
+            self.assertTrue(any("F2" in w and k in w for w in W), k)
 
     def test_screenflow_sitemap_tree(self):
         sp = json.loads((EXAMPLES / "lms_screenflow_sitemap.json").read_text(encoding="utf-8"))
@@ -917,15 +928,7 @@ class TestGenerator(unittest.TestCase):
         self.assertEqual(ex, [1.0, 1.0])                                               # toa tu canh phai
         self.assertEqual(float(style(edge_between(cs, "posts", "addpost")).get("exitY", -1)), 1.0)
         self.assertTrue(U.sitemap_mode(sp))
-        self.assertEqual(check(sp, partial=True)[:2], ([], []))                        # F2 bo qua
-        auto = copy.deepcopy(sp)
-        del auto["layout"]
-        self.assertTrue(U.sitemap_mode(auto))                                          # tu nhan dien
-        auto["layout"] = "layered"
-        self.assertFalse(U.sitemap_mode(auto))
-        auto["relations"][0]["trigger"] = "Nhấn"
-        del auto["layout"]
-        self.assertFalse(U.sitemap_mode(auto))
+        self.assertEqual(check(sp, partial=True)[:2], ([], []))
 
     def test_bizcontext_ring(self):
         sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))
@@ -1138,7 +1141,7 @@ class TestCometCheck(unittest.TestCase):
         self.expect_one(act(*ACT_OK, {"from": "a", "to": "f"}), "W", "A6", "fork ngam")
 
     def test_erd_screenflow_bizcontext_rules(self):
-        for f in ("elearn_erd", "atm_screenflow", "shop_bizcontext"):
+        for f in ("elearn_erd", "lms_screenflow_sitemap", "shop_bizcontext"):
             sp = json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
             self.assertEqual(check(sp), ([], [], []), f)
         erd = {"diagram": "erd", "title": "E", "elements": [
@@ -1159,7 +1162,8 @@ class TestCometCheck(unittest.TestCase):
             {"id": "b", "type": "screen", "name": "B"}, {"id": "c", "type": "dialog", "name": "C"}], "relations": [
             {"from": "s", "to": "a"}, {"from": "a", "to": "c"}, {"from": "b", "to": "a", "trigger": "x"}]}
         self.expect_one(sf, "W", "F1", "'B' khong toi duoc")
-        self.expect_one(sf, "I", "F2", "'A' -> 'C'")
+        self.expect_one(sf, "W", "F2", "'B' -> 'A' co nhan")
+        self.expect_one(sf, "W", "F2", "nut initial")
         bz = {"diagram": "bizcontext", "title": "B", "elements": [
             {"id": "s", "type": "system", "name": "S"}, {"id": "x", "type": "external", "name": "X"},
             {"id": "y", "type": "external", "name": "Y"}, {"id": "z", "type": "external", "name": "Z"}], "relations": [

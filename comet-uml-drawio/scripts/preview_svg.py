@@ -193,6 +193,9 @@ def render_svg(model):
         elif base == "rhombus":
             S.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="#fff" stroke="#000"/>'
                      % (x + w / 2, y, x + w, y + h / 2, x + w / 2, y + h, x, y + h / 2))
+            if st.get("double") == "1":  # ERD Chen: quan he xac dinh -> hinh thoi vien kep
+                S.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="none" stroke="#000"/>'
+                         % (x + w / 2, y + 5, x + w - 9, y + h / 2, x + w / 2, y + h - 5, x + 9, y + h / 2))
         elif sh == "folder":
             tw, th = float(st.get("tabWidth", 60)), float(st.get("tabHeight", 20))
             S.append('<path d="M%.1f %.1f h%.1f v%.1f h%.1f v%.1f h%.1f z" fill="#fff" stroke="#000"/>'
@@ -250,6 +253,9 @@ def render_svg(model):
             f = "#000" if fill == "#000000" else ("none" if fill == "none" else "#fff")
             S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%.1f" fill="%s" stroke="%s"%s/>'
                      % (x, y, w, h, rx, f, stroke, dash))
+            if st.get("double") == "1":  # ERD Chen: thuc the yeu -> vien kep
+                S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="none" stroke="#000"/>'
+                         % (x + 3, y + 3, w - 6, h - 6))
             if sh == "module":
                 S.append('<rect x="%.1f" y="%.1f" width="8" height="4" fill="#fff" stroke="#000"/>'
                          '<rect x="%.1f" y="%.1f" width="8" height="4" fill="#fff" stroke="#000"/>'

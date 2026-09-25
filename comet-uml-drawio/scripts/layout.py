@@ -894,6 +894,7 @@ TREE = {
     "stub": 14,      # tam con up/down cach mep hinh cha it nhat ngan nay (truc doc nhin thay duoc)
     "grid_m": 12,    # le cua bo dinh tuyen canh ngoai cay (khoang cach duong di toi hinh)
     "bend": 40,      # phat moi lan be goc (bo dinh tuyen)
+    "side_port": 400,  # phat khi noi vao diem 1/4-3/4 canh hinh thay vi giua canh (giua da bi chiem)
 }
 
 
@@ -1207,15 +1208,22 @@ def _route(R, su, tv, segs, C):
     for a, b, c, d in rects:
         xs |= {a - m, c + m}
         ys |= {b - m, d + m}
+    # vanh ngoai cung: luon con duong vong khi moi hang/cot sat hinh da bi canh khac chiem
+    xs |= {min(r[0] for r in rects) - 2 * m, max(r[2] for r in rects) + 2 * m}
+    ys |= {min(r[1] for r in rects) - 2 * m, max(r[3] for r in rects) + 2 * m}
 
-    def ports(k):   # (diem tren mep, diem ra ngoai grid_m, huong ra)
+    def ports(k):   # (diem tren mep, diem ra ngoai grid_m, huong ra, phi them)
         a, b, w, h = R[k]
-        cx, cy = a + w / 2, b + h / 2
-        return [((a + w, cy), (a + w + m, cy), (1, 0)), ((a, cy), (a - m, cy), (-1, 0)),
-                ((cx, b + h), (cx, b + h + m), (0, 1)), ((cx, b), (cx, b - m), (0, -1))]
+        res = []
+        # giua canh truoc; diem 1/4 - 3/4 chi dung khi giua canh da bi canh khac chiem
+        for f, pen in ((0.5, 0.0), (0.25, C["side_port"]), (0.75, C["side_port"])):
+            x, y = a + w * f, b + h * f
+            res += [((a + w, y), (a + w + m, y), (1, 0), pen), ((a, y), (a - m, y), (-1, 0), pen),
+                    ((x, b + h), (x, b + h + m), (0, 1), pen), ((x, b), (x, b - m), (0, -1), pen)]
+        return res
 
     SP, TP = ports(su), ports(tv)
-    for _, (x, y), _ in SP + TP:
+    for _, (x, y), _, _ in SP + TP:
         xs.add(x)
         ys.add(y)
     xs, ys = sorted(xs), sorted(ys)
@@ -1246,14 +1254,19 @@ def _route(R, su, tv, segs, C):
                 return 10000.0
         return 0.0
 
-    targets = {(xi[x], yi[y]): (tp, (-dv[0], -dv[1])) for tp, (x, y), dv in TP}
+    targets = {}
+    for tp, (x, y), dv, pen in sorted(TP, key=lambda t: -t[3]):   # trung o luoi: giu cong re hon
+        targets[(xi[x], yi[y])] = (tp, (-dv[0], -dv[1]), pen)
     pq, best, prev, cnt = [], {}, {}, 0
-    for sp, (x, y), dv in SP:
+    for sp, (x, y), dv, pen in SP:
         st = (xi[x], yi[y], dv)
         if free(st[0], st[1]):
-            best[st] = 0.0
+            c0 = pen + overlap_pen(sp, (x, y))    # doan cong ra cung khong duoc chong khit canh da co
+            if c0 >= best.get(st, math.inf):
+                continue
+            best[st] = c0
             prev[st] = (None, sp)
-            heapq.heappush(pq, (0.0, cnt, st))
+            heapq.heappush(pq, (c0, cnt, st))
             cnt += 1
     goal = None
     while pq:
@@ -1264,8 +1277,8 @@ def _route(R, su, tv, segs, C):
             break
         i, j, dv = st
         if (i, j) in targets:
-            tp, need = targets[(i, j)]
-            fin = c + (0 if dv == need else C["bend"])
+            tp, need, pen = targets[(i, j)]
+            fin = c + pen + (0 if dv == need else C["bend"]) + overlap_pen((xs[i], ys[j]), tp)
             if goal is None or fin < goal[0]:
                 goal = (fin, st, tp)
         for nd in ((1, 0), (-1, 0), (0, 1), (0, -1)):
