@@ -36,7 +36,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 |---|---|---|
 | `/uml-usecase` | Use case | actor chính bên trái, actor phụ bên phải, «include»/«extend» |
 | `/uml-context` | Context diagram (COMET) | «software system» + các lớp «external input device», «external system»… |
-| `/uml-class` | Class / entity class | thuộc tính, multiplicity, generalization, aggregation, composition |
+| `/uml-class` | Class / entity class / design class | visibility `+ - # ~`, kiểu, operation, multiplicity, role, chiều điều hướng, aggregation, composition, generalization, lớp trừu tượng |
 | `/uml-communication` | Communication (collaboration) | message đánh số, mũi tên hướng tự đặt theo bố cục |
 | `/uml-sequence` | Sequence | sync/async/reply/create, fragment `alt`/`opt`/`loop`/`par` |
 | `/uml-statechart` | Statechart | composite state, choice, history, `Event [guard] / action` |
@@ -52,6 +52,9 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 <p align="center">
   <img src="docs/img/banking_erd.png" width="48%" alt="ERD">
   <img src="docs/img/atm_screenflow.png" width="48%" alt="Screen flow">
+</p>
+<p align="center">
+  <img src="docs/img/order_design_class.png" width="70%" alt="Design class diagram">
 </p>
 <p align="center">
   <img src="docs/img/atm_comm_validate_pin.png" width="48%" alt="Communication diagram">
@@ -291,7 +294,7 @@ be-tap-ve/
     │   ├── install.py         ← cài vào Claude Code / Antigravity
     │   └── mcp_smoke.py       ← thử draw.io MCP server
     ├── references/            ← spec-format, uml-notation, comet-method, drawio-mcp
-    ├── examples/              ← 13 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
+    ├── examples/              ← 14 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
     └── tests/                 ← run_tests.py + fuzz_specs.py
 ```
 
@@ -303,7 +306,7 @@ be-tap-ve/
 python comet-uml-drawio/tests/run_tests.py
 ```
 
-Bộ test gồm 76 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
+Bộ test gồm 77 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
 với code, và fuzz trên spec ngẫu nhiên. Các biến môi trường điều chỉnh:
 - `COMET_FUZZ_SEEDS=300`: số spec fuzz (mặc định 80).
 - `COMET_TEST_PNG=0`: bỏ test xuất PNG.

@@ -1,6 +1,6 @@
 ---
 name: uml-class
-description: Vẽ class diagram UML – entity class model theo COMET (Gomaa) hoặc design class diagram – ra draw.io, thuộc tính có kiểu, association có tên + multiplicity, bố cục tự động không chồng hình. Dùng khi người dùng gọi /uml-class hoặc chỉ cần vẽ riêng sơ đồ lớp.
+description: Vẽ class diagram UML – entity class model theo COMET (Gomaa) hoặc design class diagram – ra draw.io, đủ ký hiệu: lớp 3 ngăn, thuộc tính/thao tác có visibility + kiểu, association có tên + multiplicity + role + chiều điều hướng, aggregation/composition, generalization, lớp trừu tượng – bố cục tự động không chồng hình. Dùng khi người dùng gọi /uml-class hoặc chỉ cần vẽ riêng sơ đồ lớp.
 argument-hint: "<hệ thống hoặc danh sách lớp/quan hệ cần vẽ>"
 user-invocable: true
 ---
@@ -18,13 +18,22 @@ thông tin cốt lõi thì hỏi lại một câu ngắn rồi mới vẽ.
 làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ khác.
 
 ## 1. Đọc bắt buộc (chưa đọc xong thì chưa viết spec)
-- `<ENGINE>/examples/atm_entity.json` — khuôn chuẩn: chép cấu trúc, thay nội dung.
+- `<ENGINE>/examples/atm_entity.json` — khuôn **entity class model** (pha phân tích COMET): chép cấu trúc, thay
+  nội dung.
+- `<ENGINE>/examples/order_design_class.json` — khuôn **design class diagram**: đủ visibility, operation, role,
+  navigable, aggregation, abstract, generalization.
 - `<ENGINE>/references/spec-format.md` — mục *Phần tử* (`class`, `enumeration`), *Quan hệ*.
 - `<ENGINE>/references/uml-notation.md` — bảng *Quan hệ (edge)* và *Quy tắc trình bày*.
 - Spec đã có của cùng hệ thống (vd `./uml/*.json`) → lớp entity phải trùng tên đối tượng «entity» trong sơ đồ
   tương tác (R5).
 
-## 2. Quy tắc (entity class model – COMET, pha phân tích)
+## 2. Chọn loại
+- Mặc định (theo COMET, hoặc người dùng nói "entity class", "mô hình lớp phân tích") → **entity class model**:
+  mục 3, không có operation.
+- Người dùng nói "design class", "sơ đồ lớp thiết kế", "có phương thức", hoặc đưa lớp kèm hàm → **design class
+  diagram**: mục 3 + mục 4.
+
+## 3. Quy tắc chung (entity class model – COMET, pha phân tích)
 - `"diagram": "class"`, `"title"` (vd "Food Delivery System - Entity Class Model").
 - Lớp: `{"type": "class", "stereotype": "entity", "attributes": [...]}` — dữ liệu lưu lâu dài (khách hàng, đơn hàng,
   tài khoản…). Tên lớp: danh từ số ít, viết hoa chữ đầu mỗi từ.
@@ -40,10 +49,39 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
   `"from"` = **toàn thể** → `"to"` = bộ phận, có multiplicity.
 - **Generalization**: `"from"` lớp **con** → `"to"` lớp **cha**; lớp cha trừu tượng đặt `"abstract": true`; không
   đặt multiplicity/tên trên generalization.
+- **Role** (vai trò của lớp ở một đầu quan hệ, vd Order –◇ OrderDetail đóng vai "line item"): `"fromRole"` /
+  `"toRole"`, in cạnh multiplicity ở đầu tương ứng. Có role thì có thể bỏ `label`.
 - Không đưa lớp boundary/control (thuộc sơ đồ tương tác) vào entity class model.
 - Thứ tự khai báo ảnh hưởng bố cục khi hoà: khai báo lớp trung tâm trước, các lớp liên quan ngay sau.
 
-## 3. Chạy – sửa đến sạch
+## 4. Bổ sung cho design class diagram
+- **Visibility cho mọi thuộc tính và thao tác**: `+` public, `-` private, `#` protected, `~` package. Mặc định
+  thuộc tính `-`, thao tác `+`, thuộc tính lớp cha cho lớp con dùng → `#`.
+  `"attributes": ["-quantity: int", "#amount: float"]`.
+- **Operations**: `"+tên(thamSo: Kiểu): KiểuTrả"`, vd `"+getPriceForQuantity(qty: int): float"`,
+  `"+inStock(): boolean"`. Không có giá trị trả về → bỏ `: Kiểu` hoặc ghi `: void`.
+- **Chiều điều hướng**: chỉ lớp `from` biết lớp `to` → `"navigable": true` (mũi tên mở ở đầu `to`); hai chiều thì
+  bỏ trống.
+- Lớp trừu tượng (`"abstract": true`) có thể có thao tác trừu tượng; các lớp con khai báo lại thao tác đó.
+- Không gắn stereotype «entity» cho lớp thiết kế nếu lớp đó có operation (R10 chỉ áp dụng cho «entity»).
+
+## 5. Tự soát đủ ký hiệu trước khi chạy
+Mỗi dòng dưới đây: mô tả của người dùng có thông tin tương ứng → spec **phải** có trường đó.
+
+| Ký hiệu | Trường trong spec |
+|---|---|
+| Lớp 3 ngăn (tên / thuộc tính / thao tác) | `type: class`, `attributes`, `operations` |
+| Thuộc tính có visibility + kiểu | `"-name: String"` |
+| Thao tác | `"+calcTotal(): float"` |
+| Association có tên | `type: association`, `label` |
+| Multiplicity cả 2 đầu | `fromMult`, `toMult` |
+| Aggregation (◇) / composition (◆) ở phía toàn thể | `type: aggregation` / `composition`, `from` = toàn thể |
+| Role | `fromRole` / `toRole` |
+| Chiều điều hướng | `navigable: true` |
+| Lớp trừu tượng (tên nghiêng) | `abstract: true` |
+| Generalization (△ ở lớp cha) | `type: generalization`, `from` = con, `to` = cha |
+
+## 6. Chạy – sửa đến sạch
 ```bash
 python "<ENGINE>/scripts/uml2drawio.py" ./uml/class.json -o ./uml/class.drawio
 python "<ENGINE>/scripts/comet_check.py" --partial ./uml/class.json
@@ -55,9 +93,10 @@ python "<ENGINE>/scripts/preview_svg.py" ./uml/class.drawio -o ./uml/class.html 
    spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó không đúng ngữ cảnh — khi đó nêu mã luật + lý do cho người
    dùng. Không biện minh kiểu "chỉ là cảnh báo nhỏ".
 3. **Mở ảnh** `./uml/class.png` bằng công cụ đọc file (xem như ảnh) và tự soát: chữ đọc được, không hình/nhãn chồng
-   nhau, thoi aggregation/composition ở phía toàn thể, tam giác generalization chỉ vào lớp cha.
+   nhau, thoi aggregation/composition ở phía toàn thể, tam giác generalization chỉ vào lớp cha, mũi tên navigable
+   chỉ vào lớp được biết tới, role/multiplicity nằm đúng đầu, tên lớp trừu tượng in nghiêng.
 
-## 4. Giao
+## 7. Giao
 - Có tool draw.io MCP `open_drawio_xml` → đọc file `.drawio` vừa sinh, truyền **nguyên văn** vào `content`;
   không bật `postLayout`/auto-layout (phá bố cục).
 - Không có MCP → đưa đường dẫn `./uml/class.drawio` (+ `class.png`).

@@ -265,7 +265,7 @@ def shop():
 class TestExamples(unittest.TestCase):
     def test_one_example_per_diagram_type(self):
         kinds = [json.loads(p.read_text(encoding="utf-8"))["diagram"] for p in EXAMPLE_FILES]
-        self.assertEqual(sorted(kinds), sorted(U.FRAME_KIND))
+        self.assertEqual(set(kinds), set(U.FRAME_KIND))   # moi loai so do co it nhat 1 vi du
 
     def test_each_example_clean(self):
         for p in EXAMPLE_FILES:
@@ -793,6 +793,23 @@ class TestGenerator(unittest.TestCase):
         cs = cells(gen(dict(sp, frame=False))[0])
         self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))
 
+
+    def test_design_class_full_notation(self):
+        sp = json.loads((EXAMPLES / "order_design_class.json").read_text(encoding="utf-8"))
+        xml, cs, G = self.clean(sp)
+        vals = " ".join(c.get("value") or "" for c in cs.values())
+        for s in ("-name: String", "#amount: float", "+getPriceForQuantity(qty: int): float"):
+            self.assertIn(s, vals)                                                     # visibility + kieu + operation
+        self.assertIn("<i>Payment</i>", cs["pay"].get("value"))                        # abstract in nghieng
+        agg = edge_between(cs, "ord", "od")
+        self.assertEqual((style(agg).get("startArrow"), style(agg).get("startFill")), ("diamondThin", "0"))
+        self.assertIn("line item", " ".join(end_labels(cs, agg.get("id"))))             # role
+        nav = style(edge_between(cs, "od", "item"))
+        self.assertEqual(nav.get("endArrow"), "open")                                  # navigable
+        for c in ("cash", "chk", "cr"):
+            g = style(edge_between(cs, c, "pay"))
+            self.assertEqual((g.get("endArrow"), g.get("endFill")), ("block", "0"))      # generalization con -> cha
+        self.assertEqual(check(sp, partial=True), ([], [], []))
 
     def test_action_rounded_rect_and_decision_question(self):
         sp = {"diagram": "activity", "title": "T", "elements": [
