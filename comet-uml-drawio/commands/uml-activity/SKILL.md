@@ -31,8 +31,10 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
 - Nút: `initial` (đúng 1, không luồng vào, 1 luồng ra), `action` (động từ + bổ ngữ: "Enter PIN", "Validate Order"),
   `decision` (1 vào, ≥ 2 ra), `merge` (≥ 2 vào, 1 ra), `fork` / `join` (song song), `activityFinal` (kết thúc cả
   activity), `flowFinal` (kết thúc một luồng).
-- Luồng `{"type": "flow", "from", "to"}`; luồng ra khỏi `decision` **luôn có** `"guard"` (tối đa một `"else"`) — A1;
-  luồng thường không có guard.
+- Action vẽ thành hình chữ nhật bo góc. `decision` ghi **câu hỏi điều kiện** trong hình thoi:
+  `{"type": "decision", "question": "PIN hợp lệ?"}` (hình thoi tự nới cho vừa chữ; `merge` để trống).
+- Luồng `{"type": "flow", "from", "to"}`; luồng ra khỏi `decision` **luôn có** `"guard"` trả lời câu hỏi ("Có" /
+  "Không", "Yes" / "No"; tối đa một `"else"`) — A1; luồng thường không có guard.
 - **Action có ≥ 2 luồng vào là sai ngữ nghĩa** (join ngầm: chờ đủ mọi luồng → nhánh rẽ từ decision sẽ kẹt): gộp
   nhánh bằng `merge` rồi mới vào action (A6). Action có ≥ 2 luồng ra = fork ngầm → dùng `decision` + guard, hoặc
   `fork`.

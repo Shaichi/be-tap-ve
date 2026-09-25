@@ -30,7 +30,7 @@ except Exception:
     pass
 
 
-def _t(x, y, text, size=12, anchor="middle", bold=False, italic=False, valign="middle"):
+def _t(x, y, text, size=12, anchor="middle", bold=False, italic=False, valign="middle", underline=""):
     lines = text.split("\n")
     lh = size * 1.3
     if valign == "middle":
@@ -41,10 +41,14 @@ def _t(x, y, text, size=12, anchor="middle", bold=False, italic=False, valign="m
         y0 = y - (len(lines) - 1) * lh
     out = []
     for i, l in enumerate(lines):
+        body = html.escape(l)
+        if underline and l.startswith(underline):   # <u>ten</u>: kieu -> chi gach chan phan ten
+            body = '<tspan text-decoration="underline">%s</tspan>%s' % (html.escape(underline),
+                                                                        html.escape(l[len(underline):]))
         out.append('<text x="%.1f" y="%.1f" font-size="%d" text-anchor="%s" dominant-baseline="%s"%s%s>%s</text>'
                    % (x, y0 + i * lh, size, anchor, "central" if valign == "middle" else "auto",
                       ' font-weight="bold"' if bold else "", ' font-style="italic"' if italic else "",
-                      html.escape(l)))
+                      body))
     return "".join(out)
 
 
@@ -55,7 +59,8 @@ def _rich(value):
     rows = re.split(r"<br\s*/?>", v, flags=re.I)
     out = []
     for r in rows:
-        out.append((plain(r), "<b>" in r, "<i>" in r))
+        m = re.match(r"\s*<u>(.*?)</u>", r)
+        out.append((plain(r), "<b>" in r, "<i>" in r, plain(m.group(1)) if m else ""))
     return out
 
 
@@ -66,7 +71,8 @@ def _lines_block(x, y, rows, size=12, anchor="middle", valign="middle"):
         y0 = y - (n - 1) * lh / 2
     else:
         y0 = y + lh / 2
-    return "".join(_t(x, y0 + i * lh, t, size, anchor, b, it) for i, (t, b, it) in enumerate(rows))
+    return "".join(_t(x, y0 + i * lh, r[0], size, anchor, r[1], r[2], underline=r[3] if len(r) > 3 else "")
+                   for i, r in enumerate(rows))
 
 
 def marker(kind, fill, p, q, size=10):
@@ -85,6 +91,14 @@ def marker(kind, fill, p, q, size=10):
         b = (p[0] - ux * size - nx * size * 0.45, p[1] - uy * size - ny * size * 0.45)
         return '<polyline points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="none" stroke="#000"/>' % (
             a[0], a[1], p[0], p[1], b[0], b[1])
+    if kind.startswith("ER"):   # crow's foot (ERD)
+        at = lambda d, o=0.0: (p[0] - ux * d + nx * o, p[1] - uy * d + ny * o)
+        seg = lambda a, b: '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#000"/>' % (a + b)
+        bar = lambda d: seg(at(d, -6), at(d, 6))
+        ring = lambda d: '<circle cx="%.1f" cy="%.1f" r="4" fill="#fff" stroke="#000"/>' % at(d)
+        foot = seg(at(12), at(0, -7)) + seg(at(12), at(0, 7)) + seg(at(12), at(0))
+        return {"ERone": bar(8), "ERmandOne": bar(6) + bar(11), "ERzeroToOne": bar(6) + ring(15),
+                "ERmany": foot, "ERoneToMany": foot + bar(15), "ERzeroToMany": foot + ring(18)}.get(kind, "")
     if kind in ("diamond", "diamondThin"):
         s = 16
         m = (p[0] - ux * s / 2, p[1] - uy * s / 2)
@@ -201,8 +215,8 @@ def render_svg(model):
             ss = float(st.get("startSize", 26))
             rx = 12 if st.get("rounded") == "1" else 0
             hf = fill if fill not in ("none", "#ffffff") else "#fff"
-            S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%d" fill="#fff" stroke="#000"/>'
-                     % (x, y, w, h, rx))
+            S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%d" fill="#fff" stroke="#000"%s/>'
+                     % (x, y, w, h, rx, dash))
             if st.get("horizontal") == "0":  # tieu de doc ben trai
                 S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="#000"/>'
                          % (x, y, ss, h, hf))
@@ -212,8 +226,8 @@ def render_svg(model):
                             html.escape(" ".join(r[0] for r in rows))))
             else:
                 if hf != "#fff":
-                    S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" stroke="#000"/>'
-                             % (x, y, w, ss, hf))
+                    S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%d" fill="%s" stroke="#000"%s/>'
+                             % (x, y, w, ss, rx, hf, dash))
                 S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#000"/>' % (x, y + ss, x + w, y + ss))
                 S.append(_lines_block(x + w / 2, y + ss / 2, rows))
             continue

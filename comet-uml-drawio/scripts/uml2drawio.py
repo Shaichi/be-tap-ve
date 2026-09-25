@@ -10,7 +10,7 @@ Cach dung:
 
 Loai so do (truong "diagram"):
   usecase | context | class | communication | sequence | state | activity |
-  component | deployment | package
+  component | deployment | package | erd | screenflow | bizcontext
 
 Xem references/spec-format.md de biet dinh dang spec day du.
 """
@@ -124,8 +124,25 @@ FRAME_KIND = {
     "usecase": "uc", "class": "class", "context": "class", "communication": "sd",
     "sequence": "sd", "state": "stm", "activity": "act", "component": "cmp",
     "deployment": "deployment", "package": "pkg",
+    # so do nghiep vu / du lieu (khong phai UML): khung chi ghi ten
+    "erd": "", "screenflow": "", "bizcontext": "",
 }
-DEFAULT_DIR = {"usecase": "LR", "communication": "LR"}
+DEFAULT_DIR = {"usecase": "LR", "communication": "LR", "screenflow": "LR"}
+# quan he khong ghi "type": mac dinh theo loai so do (activity/state: luong co guard; erd: relationship...)
+DEFAULT_REL = {"activity": "flow", "state": "transition", "erd": "relationship", "screenflow": "navigate"}
+
+# ERD (crow's foot): cardinality -> marker draw.io
+ER_END = {
+    "1": "ERmandOne", "1..1": "ERmandOne", "one": "ERmandOne", "||": "ERmandOne",
+    "0..1": "ERzeroToOne", "zero or one": "ERzeroToOne", "|o": "ERzeroToOne", "o|": "ERzeroToOne",
+    "1..*": "ERoneToMany", "1..n": "ERoneToMany", "one or many": "ERoneToMany", "|<": "ERoneToMany",
+    ">|": "ERoneToMany",
+    "0..*": "ERzeroToMany", "*": "ERzeroToMany", "0..n": "ERzeroToMany", "zero or many": "ERzeroToMany",
+    "o<": "ERzeroToMany", ">o": "ERzeroToMany",
+    "n": "ERmany", "m": "ERmany", "many": "ERmany",
+}
+ER_REL = {"relationship", "relation", "association", "identifying", "nonidentifying", "non-identifying"}
+SCREEN_KINDS = {"screen", "page", "dialog", "popup"}
 
 EDGE_BASE = "html=1;rounded=0;fontSize=11;labelBackgroundColor=#ffffff;jumpStyle=arc;jumpSize=6;endSize=10;startSize=10;"
 
@@ -247,6 +264,11 @@ def render(sp, direction, diagram):
         el.perim = "ellipse"
         return el
 
+    if diagram == "erd" and k in ("entity", "table", "class"):
+        return render_er_entity(el, sp, name)
+    if k in SCREEN_KINDS:
+        return render_screen(el, sp, name)
+
     if k in CLASSLIKE:
         head = _header_lines(sp, k)
         attrs = [str(a) for a in sp.get("attributes", sp.get("literals", [])) or []]
@@ -301,7 +323,9 @@ def render(sp, direction, diagram):
                            "html=1;whiteSpace=wrap;", 0, hh, w, ah))
             el.box(w, hh + ah)
         else:
-            el.style = "rounded=1;whiteSpace=wrap;html=1;arcSize=%d;" % (40 if k == "state" else 50)
+            # state: bo tron nhieu; action (UML 2.5): chu nhat bo goc nho (ban kinh ~10px), khong phai hinh vien thuoc
+            el.style = ("rounded=1;whiteSpace=wrap;html=1;arcSize=40;" if k == "state" else
+                        "rounded=1;absoluteArcSize=1;arcSize=20;whiteSpace=wrap;html=1;")
             el.value = "<br>".join(esc(l) for l in lines)
             el.box(max(100, lw + 36), max(40, lh + 20))
         el.perim = "rounded"
@@ -334,11 +358,27 @@ def render(sp, direction, diagram):
             el.box(14, 14)
             el.perim = "ellipse"
             return el
-        label = sp.get("name") if sp.get("showName") else ""
-        el.value = esc(label or "")
-        el.style = "rhombus;html=1;whiteSpace=wrap;"
-        s = 40 if not label else max(60, text_size(label)[0] * 1.6)
-        el.box(s, 40 if not label else s * 0.66)
+        # decision/choice: in cau hoi dieu kien ("PIN hop le?") trong thoi - lay `question`, hoac `name` neu co;
+        # merge chi in ten khi showName. showName=false -> an.
+        if sp.get("showName") is False:
+            label = ""
+        elif k == "merge":
+            label = sp.get("question") or (sp.get("name") if sp.get("showName") else "")
+        else:
+            label = sp.get("question") or sp.get("name") or ""
+        label = str(label).strip()
+        el.style = "rhombus;html=1;whiteSpace=wrap;fontSize=11;spacing=0;"
+        if not label:
+            el.box(40, 40)
+        else:
+            lines = wrap(label, 90)
+            lw, lh = text_size("\n".join(lines), 11)
+            el.value = "<br>".join(esc(l) for l in lines)
+            # hinh chu nhat chu (lw x lh) nam tron trong thoi khi lw/w + lh/h <= 1 -> w = 2(lw+pad), h = 2(lh+pad);
+            # tang h de thoi khong qua det (rong <= 2.2 x cao) - chi lam thoi to hon nen chu van nam trong
+            w = max(60, math.ceil(2 * (lw + 8)))
+            h = max(44, math.ceil(2 * (lh + 6)), math.ceil(w / 2.2))
+            el.box(max(w, math.ceil(h * 1.3)), h)
         el.perim = "rhombus"
         return el
     if k in ("fork", "join"):
@@ -403,6 +443,87 @@ def render(sp, direction, diagram):
     return el
 
 
+_KEY_RE = re.compile(r"^\s*((?:PK|FK|UK|AK)(?:\s*[,/]\s*(?:PK|FK|UK|AK))*)\s+(.+)$", re.I)
+
+
+def er_attr(a):
+    """Thuoc tinh ERD -> (khoa, ten, kieu). Dang chuoi "PK maKH: INT" / "FK,PK x: T" hoac
+    dict {"name", "type", "key": "PK"|"FK"|"PK,FK"|"UK", "pk": true, "fk": true}."""
+    if isinstance(a, dict):
+        keys = [str(x).strip().upper() for x in re.split(r"[,/]", str(a.get("key") or "")) if str(x).strip()]
+        if a.get("pk") and "PK" not in keys:
+            keys.insert(0, "PK")
+        if a.get("fk") and "FK" not in keys:
+            keys.append("FK")
+        return ",".join(keys), str(a.get("name", "")).strip(), (str(a["type"]).strip() if a.get("type") else "")
+    s = str(a).strip()
+    key = ""
+    m = _KEY_RE.match(s)
+    if m:
+        key = ",".join(x.strip().upper() for x in re.split(r"[,/]", m.group(1)))
+        s = m.group(2).strip()
+    nm, _, ty = s.partition(":")
+    return key, nm.strip(), ty.strip()
+
+
+def render_er_entity(el, sp, name):
+    """Entity ERD dang bang: tieu de dam; cot khoa (PK/FK) + cot thuoc tinh; PK gach chan."""
+    rows = [er_attr(a) for a in sp.get("attributes", []) or []]
+    head = [(l, True, False) for l in wrap(name, 220)]
+    if sp.get("stereotype"):
+        head.insert(0, (stereo(sp["stereotype"]), False, False))
+    kw = max([text_size(k, 12, True)[0] for k, _, _ in rows if k] or [0])
+    kw = kw + 10 if kw else 0
+    texts = [(n + (": " + t if t else "")) for _, n, t in rows]
+    cw = max([text_size(t)[0] for t in texts] or [0])
+    w = max([140, kw + cw + 22] + [text_size(t, 12, b)[0] + 24 for t, b, _ in head])
+    hh = len(head) * 16 + 12
+    el.value = _html_lines(head)
+    el.style = ("swimlane;fontStyle=0;align=center;verticalAlign=top;horizontal=1;startSize=%d;collapsible=0;"
+                "html=1;whiteSpace=wrap;fillColor=#dae8fc;swimlaneFillColor=#ffffff;" % hh)
+    if sp.get("weak"):   # thuc the yeu: vien kep
+        el.style += "strokeWidth=2;"
+    ah = len(rows) * 18 + 8 if rows else 12
+    tst = ("text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;"
+           "overflow=hidden;rotatable=0;whiteSpace=wrap;html=1;")
+    if rows:
+        if kw:
+            el.sub.append(("keys", "<br>".join("<b>%s</b>" % esc(k) if k else "&nbsp;" for k, _, _ in rows),
+                           tst, 0, hh, kw + 4, ah))
+        cells = []
+        for k, n, t in rows:
+            s = ("<u>%s</u>" % esc(n)) if "PK" in k.split(",") else esc(n)
+            cells.append(s + (": " + esc(t) if t else ""))
+        el.sub.append(("attrs", "<br>".join(cells), tst, kw, hh, w - kw, ah))
+    el.box(w, hh + ah)
+    return el
+
+
+def render_screen(el, sp, name):
+    """Screen flow: man hinh = cua so co thanh tieu de (ten) + than liet ke thanh phan UI (`items`).
+    dialog/popup: net dut, tieu de mau vang, «dialog»."""
+    k = el.kind
+    dialog = k in ("dialog", "popup")
+    st = sp.get("stereotype") or ("dialog" if dialog else None)
+    head = ([(stereo(st), False, False)] if st else []) + [(l, True, False) for l in wrap(name, 200)]
+    items = [str(x) for x in sp.get("items", sp.get("fields", [])) or []]
+    lines = [l for it in items for l in wrap(it, 240)]
+    w = max([150] + [text_size(t, 12, b)[0] + 24 for t, b, _ in head] + [text_size(l)[0] + 20 for l in lines])
+    hh = len(head) * 16 + 10
+    ah = max(44, len(lines) * 18 + 12)
+    el.value = _html_lines(head)
+    el.style = ("swimlane;rounded=1;arcSize=8;absoluteArcSize=1;startSize=%d;html=1;whiteSpace=wrap;collapsible=0;"
+                "fontStyle=0;childLayout=stackLayout;horizontal=1;horizontalStack=0;resizeParent=1;resizeLast=0;"
+                "marginBottom=0;swimlaneFillColor=#ffffff;fillColor=%s;%s"
+                % (hh, "#fff2cc" if dialog else "#dae8fc", "dashed=1;" if dialog else ""))
+    el.sub.append(("ui", "<br>".join(esc(l) for l in lines),
+                   "text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingTop=2;"
+                   "html=1;whiteSpace=wrap;fontColor=#333333;", 0, hh, w, ah))
+    el.box(w, hh + ah)
+    el.perim = "rounded"
+    return el
+
+
 def render_container(el, sp, direction):
     """Container (composite state, package/subsystem, node, component...) - kich thuoc dat sau."""
     k = el.kind
@@ -447,7 +568,7 @@ def finish_container(el):
 # =============================================================== relation styles
 def rel_style(rel, diagram, to_ball=False):
     """-> (style, label, src_label, dst_label, layout_reverse)"""
-    t = str(rel.get("type", "association")).lower()
+    t = str(rel.get("type") or DEFAULT_REL.get(diagram, "association")).lower()
     if to_ball and t == "realization":
         t = "provides"
     label = rel.get("label", rel.get("name"))
@@ -455,6 +576,19 @@ def rel_style(rel, diagram, to_ball=False):
     d_lab = "\n".join(str(x) for x in (rel.get("toRole"), rel.get("toMult")) if x)
     lrev = False
     nav = rel.get("navigable")
+    if diagram == "erd" and t in ER_REL:
+        # crow's foot: ky hieu cardinality nam o dau mut; chi ghi chu so khi showCard
+        fc = rel.get("fromCard", rel.get("fromMult"))
+        tc = rel.get("toCard", rel.get("toMult"))
+        end = lambda c: ER_END.get(str(c).strip().lower(), "none") if c not in (None, "") else "none"
+        st = "startArrow=%s;endArrow=%s;startFill=0;endFill=0;startSize=14;endSize=14;" % (end(fc), end(tc))
+        if rel.get("identifying") is False or t in ("nonidentifying", "non-identifying"):
+            st += "dashed=1;"
+        s_lab = str(fc) if rel.get("showCard") and fc else ""
+        d_lab = str(tc) if rel.get("showCard") and tc else ""
+        if label:
+            label = "\n".join(wrap(str(label), 200))
+        return st, label, (s_lab or None), (d_lab or None), False
     if t == "association":
         st = "endArrow=%s;endFill=0;" % ("open" if nav else "none")
     elif t == "aggregation":
@@ -476,12 +610,13 @@ def rel_style(rel, diagram, to_ball=False):
     elif t == "extend":
         st, lrev = "endArrow=open;endFill=0;dashed=1;", True
         label = "«extend»" + (("\n[" + rel["condition"].strip("[]") + "]") if rel.get("condition") else "")
-    elif t in ("transition", "flow"):
+    elif t in ("transition", "flow", "navigate", "navigation"):
         st = "endArrow=open;endFill=0;"
         if not label:
             parts = []
-            if rel.get("event"):
-                parts.append(str(rel["event"]))
+            ev = rel.get("event") or rel.get("trigger")   # screen flow: trigger = thao tac nguoi dung
+            if ev:
+                parts.append(str(ev))
             if rel.get("guard"):
                 parts.append("[" + str(rel["guard"]).strip("[]") + "]")
             txt = " ".join(parts)
@@ -607,7 +742,7 @@ def build_graph(spec, warns, origin):
     E = OrderedDict((s["id"], render(s, direction, diagram)) for s in sps)
 
     # ------------------------------------------------ categories (COMET/UML conventions)
-    rels = [dict(r) for r in spec.get("relations", [])]
+    rels = [dict(r, type=r.get("type") or DEFAULT_REL.get(diagram, "association")) for r in spec.get("relations", [])]
     cat_margin = None
     if diagram == "usecase":
         starters = {str(r.get("from")) for r in rels if str(r.get("type", "association")) == "association"}
@@ -892,7 +1027,9 @@ def _partitions(spec, E, parent, rels, warns):
 
 
 def _widen(el, w):
-    el.sub = [(s, v, st, x, y, (w if sw_ == el.sr[2] else sw_), h) for (s, v, st, x, y, sw_, h) in el.sub]
+    # ngan con cham mep phai (vd ngan thuoc tinh, cot ten cua bang ERD) gian theo
+    el.sub = [(s, v, st, x, y, (w - x if abs(x + sw_ - el.sr[2]) < 0.5 else sw_), h)
+              for (s, v, st, x, y, sw_, h) in el.sub]
     el.box(w, el.sr[3])
 
 
@@ -1185,6 +1322,235 @@ def build_sequence(spec, warns, origin):
     return out
 
 
+# =============================================================== business context (so do nghiep vu)
+BIZ_CENTER = {"system", "process", "business", "center", "centre", "organization"}
+
+
+def _seg_hits(p, q, r, shrink=2.0):
+    """Doan pq di vao phan trong hinh chu nhat r=(x0,y0,x1,y1) (Liang-Barsky) - giong validator."""
+    x0, y0, x1, y1 = r[0] + shrink, r[1] + shrink, r[2] - shrink, r[3] - shrink
+    if x0 >= x1 or y0 >= y1:
+        return False
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    t0, t1 = 0.0, 1.0
+    for pp, qq in ((-dx, p[0] - x0), (dx, x1 - p[0]), (-dy, p[1] - y0), (dy, y1 - p[1])):
+        if abs(pp) < 1e-9:
+            if qq < 0:
+                return False
+        else:
+            t = qq / pp
+            if pp < 0:
+                t0 = max(t0, t)
+            else:
+                t1 = min(t1, t)
+            if t0 > t1:
+                return False
+    return t1 - t0 > 1e-6
+
+
+def _rects_hit(a, b, pad=0.0):
+    return a[0] < b[2] + pad and b[0] < a[2] + pad and a[1] < b[3] + pad and b[1] < a[3] + pad
+
+
+def build_bizcontext(spec, warns, origin):
+    """Context diagram nghiep vu: he thong/doanh nghiep la hinh tron o giua, thuc the ngoai xep deu tren mot
+    vong tron bao quanh; moi thuc the co toi da 2 mui ten thang (vao he thong / ra khoi he thong), nhieu luong
+    du lieu cung chieu gop thanh 1 mui ten nhieu dong nhan. Nhan dat ben ngoai cap mui ten -> khong cat duong
+    khac; ban kinh vong tu tang cho toi khi khong con chong hinh / nhan / duong."""
+    sps = [dict(s) for s in spec.get("elements", [])]
+    for s in sps:
+        s.setdefault("id", s.get("name"))
+        s["id"] = str(s["id"])
+    if not sps:
+        return Out()
+    cen = next((s for s in sps if str(s.get("type", "")).lower() in BIZ_CENTER), None)
+    if cen is None:
+        cen = sps[0]
+        warns.append("Khong co phan tu type 'system' lam trung tam -> dung '%s'." % cen["id"])
+    exts = [s for s in sps if s is not cen]
+
+    # ---- hinh
+    def lines_of(s, maxw):
+        st = [stereo(s["stereotype"])] if s.get("stereotype") else []
+        return st, wrap(str(s.get("name", s["id"])), maxw)
+
+    st_c, nm_c = lines_of(cen, 150)
+    tw, th = text_size("\n".join(st_c + nm_c), 12, True)
+    D = max(150.0, math.ceil(math.hypot(tw + 20, th + 20)))
+    R0 = D / 2
+    shapes = {}
+    for s in exts:
+        st, nm = lines_of(s, 160)
+        w, h = text_size("\n".join(st + nm), 12, True)
+        shapes[s["id"]] = (max(120.0, w + 28), max(54.0, h + 24), st, nm)
+
+    # ---- luong: gom theo (thuc the ngoai, chieu)
+    flows = OrderedDict()   # ext id -> {"in": [(rid, text)], "out": [...]}
+    ids = {s["id"] for s in sps}
+    for i, r in enumerate(spec.get("relations", spec.get("flows", [])) or []):
+        u, v = str(r.get("from")), str(r.get("to"))
+        text = r.get("label", r.get("name", r.get("data")))
+        rid = str(r.get("id") or "f%d" % (i + 1))
+        if u not in ids or v not in ids:
+            warns.append("Luong #%d: phan tu '%s' hoac '%s' khong ton tai -> bo qua." % (i + 1, u, v))
+            continue
+        if cen["id"] not in (u, v) or u == v:
+            warns.append("Luong #%d %s -> %s khong di qua he thong trung tam (context diagram chi ve luong giua "
+                         "he thong va ben ngoai) -> bo qua." % (i + 1, u, v))
+            continue
+        ext, d = (u, "in") if v == cen["id"] else (v, "out")
+        flows.setdefault(ext, {"in": [], "out": []})[d].append((rid, str(text or "")))
+    for s in exts:
+        if s["id"] not in flows:
+            warns.append("Thuc the ngoai '%s' khong co luong du lieu nao." % s.get("name", s["id"]))
+
+    arrows = []   # (ext, dir, rid, label_lines, offset_sign)
+    for s in exts:
+        f = flows.get(s["id"])
+        if not f:
+            continue
+        dirs = [d for d in ("in", "out") if f[d]]
+        for d in dirs:
+            lab = [l for _, t in f[d] for l in wrap(t, 170) if t]
+            sign = 0 if len(dirs) == 1 else (-1 if d == "in" else 1)
+            arrows.append((s["id"], d, f[d][0][0], lab, sign))
+
+    N = max(1, len(exts))
+    GAP = 28.0   # khoang cach 2 mui ten song song cua cung thuc the
+    ang = {s["id"]: -math.pi / 2 + 2 * math.pi * k / N for k, s in enumerate(exts)}
+    maxdiag = max([math.hypot(w, h) for w, h, _, _ in shapes.values()] or [0])
+    labsz = {}
+    for a in arrows:
+        labsz[a[2]] = text_size("\n".join(a[3]), 11) if a[3] else (0, 0)
+    maxlab = max([max(w, h) for w, h in labsz.values()] or [0])
+    R = R0 + maxdiag / 2 + max(90.0, maxlab * 0.6 + 40)
+    if N > 1:
+        R = max(R, (maxdiag + 40) / (2 * math.sin(math.pi / N)))
+
+    def layout(R):
+        rects = {cen["id"]: (-R0, -R0, R0, R0)}
+        ctr = {}
+        for s in exts:
+            w, h, _, _ = shapes[s["id"]]
+            cx, cy = R * math.cos(ang[s["id"]]), R * math.sin(ang[s["id"]])
+            ctr[s["id"]] = (cx, cy)
+            rects[s["id"]] = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+        lines = {}
+        for ext, d, rid, lab, sign in arrows:
+            th_ = ang[ext]
+            ux, uy = math.cos(th_), math.sin(th_)
+            nx, ny = -uy, ux
+            off = sign * GAP / 2
+            pc = (off * nx + math.sqrt(max(0.0, R0 * R0 - off * off)) * ux,
+                  off * ny + math.sqrt(max(0.0, R0 * R0 - off * off)) * uy)
+            # diem ra khoi hinh chu nhat cua thuc the ngoai, di nguoc tia ve tam
+            ex, ey = ctr[ext]
+            px, py = ex + off * nx, ey + off * ny
+            x0, y0, x1, y1 = rects[ext]
+            ts = []
+            for bound, p0, v in ((x0, px, -ux), (x1, px, -ux), (y0, py, -uy), (y1, py, -uy)):
+                if abs(v) > 1e-9:
+                    t = (bound - p0) / v
+                    if t > 0:
+                        ts.append(t)
+            t = min(ts) if ts else 0
+            pe = (px - ux * t, py - uy * t)
+            lines[rid] = (pc, pe, (ux, uy), (nx, ny), sign)
+        return rects, ctr, lines
+
+    for _ in range(80):
+        rects, ctr, lines = layout(R)
+        segs = {rid: (pc, pe) for rid, (pc, pe, _, _, _) in lines.items()}
+        ok = True
+        # hinh / hinh
+        keys = list(rects)
+        for i in range(len(keys)):
+            for j in range(i + 1, len(keys)):
+                if _rects_hit(rects[keys[i]], rects[keys[j]], 30):
+                    ok = False
+        # duong / hinh (tru 2 dau cua chinh no)
+        own = {a[2]: a[0] for a in arrows}
+        for rid, (p, q) in segs.items():
+            for k_, r in rects.items():
+                if k_ in (cen["id"], own[rid]):
+                    continue
+                if _seg_hits(p, q, r, 1.5):
+                    ok = False
+        # nhan: thu vai vi tri doc duong, ben ngoai cap mui ten
+        labs = {}
+        if ok:
+            for ext, d, rid, lab, sign in arrows:
+                if not lab:
+                    continue
+                lw, lh = labsz[rid]
+                pc, pe, (ux, uy), (nx, ny), sg = lines[rid]
+                side = sg or 1
+                half = (lw * abs(nx) + lh * abs(ny)) / 2
+                placed = None
+                for frac in (0.5, 0.42, 0.58, 0.34, 0.66):
+                    mx, my = pc[0] + (pe[0] - pc[0]) * frac, pc[1] + (pe[1] - pc[1]) * frac
+                    cx, cy = mx + side * nx * (half + 5), my + side * ny * (half + 5)
+                    r = (cx - lw / 2, cy - lh / 2, cx + lw / 2, cy + lh / 2)
+                    bad = any(_rects_hit(r, rr, 4) for rr in rects.values())
+                    bad = bad or any(_rects_hit(r, rr, 4) for rr in labs.values())
+                    bad = bad or any(_seg_hits(p, q, r, 0.0) for k_, (p, q) in segs.items() if k_ != rid)
+                    if not bad:
+                        placed = r
+                        break
+                if placed is None:
+                    ok = False
+                    break
+                labs[rid] = placed
+        if ok:
+            break
+        R += 30
+    else:
+        warns.append("Khong tim duoc ban kinh khong chong nhan - kiem tra lai (qua nhieu thuc the/nhan dai).")
+
+    # ---- dich toa do ve origin
+    allr = list(rects.values()) + list(labs.values())
+    minx = min(r[0] for r in allr)
+    miny = min(r[1] for r in allr)
+    dx, dy = origin[0] - minx, origin[1] - miny
+    T = lambda p: (p[0] + dx, p[1] + dy)
+
+    out = Out()
+    out.ids |= {s["id"] for s in sps}
+    cid = cen["id"]
+    val = "<br>".join([esc(x) for x in st_c] + ["<b>%s</b>" % esc(x) for x in nm_c])
+    out.vertex(cid, val, "ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeWidth=2;",
+               -R0 + dx, -R0 + dy, D, D)
+    for s in exts:
+        w, h, st, nm = shapes[s["id"]]
+        x0, y0, _, _ = rects[s["id"]]
+        val = "<br>".join([esc(x) for x in st] + ["<b>%s</b>" % esc(x) for x in nm])
+        out.vertex(s["id"], val, "rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;", x0 + dx, y0 + dy, w, h)
+
+    def frac_of(p, r):
+        x0, y0, x1, y1 = r
+        return (min(1, max(0, (p[0] - x0) / (x1 - x0))), min(1, max(0, (p[1] - y0) / (y1 - y0))))
+
+    for ext, d, rid, lab, sign in arrows:
+        pc, pe, _, _, _ = lines[rid]
+        fc, fe = frac_of(pc, rects[cid]), frac_of(pe, rects[ext])
+        if d == "in":
+            src, tgt, fs, ft, pts = ext, cid, fe, fc, [T(pe), T(pc)]
+        else:
+            src, tgt, fs, ft, pts = cid, ext, fc, fe, [T(pc), T(pe)]
+        style = (EDGE_BASE + "endArrow=block;endFill=1;"
+                 "exitX=%s;exitY=%s;exitDx=0;exitDy=0;exitPerimeter=0;"
+                 "entryX=%s;entryY=%s;entryDx=0;entryDy=0;entryPerimeter=0;"
+                 % (_n(fs[0], 4), _n(fs[1], 4), _n(ft[0], 4), _n(ft[1], 4)))
+        gx = off = None
+        if lab and rid in labs:
+            r = labs[rid]
+            gx, off = label_geometry(pts, T(((r[0] + r[2]) / 2, (r[1] + r[3]) / 2)))
+        out.edge(out.uid(rid), esc("\n".join(lab)) if lab else "", style, src, tgt, [], "1", gx, off)
+    for r in allr:
+        out.maxx, out.maxy = max(out.maxx, r[2] + dx), max(out.maxy, r[3] + dy)
+    return out
+
+
 # =============================================================== document assembly
 def build_page(spec, warns):
     diagram = str(spec.get("diagram", "class")).lower()
@@ -1197,6 +1563,8 @@ def build_page(spec, warns):
     origin = (40 + (24 if use_frame else 0), 40 + (44 if use_frame else 0))
     if diagram == "sequence":
         out = build_sequence(spec, warns, origin)
+    elif diagram == "bizcontext":
+        out = build_bizcontext(spec, warns, origin)
     else:
         out = build_graph(spec, warns, origin)
     if use_frame:

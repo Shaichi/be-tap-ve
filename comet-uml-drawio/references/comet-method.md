@@ -78,6 +78,9 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | S1–S5 | Statechart hợp lệ: initial không event/guard; final không có transition ra; guard của choice; tới được / có đường ra; tất định | ERROR/WARN |
 | A1–A6 | Activity hợp lệ: guard của decision; fork/join; initial/final; merge; ngõ cụt; không join/fork ngầm trên action | ERROR/WARN |
 | C1–C2 | Class diagram: thuộc tính có kiểu; multiplicity ở hai đầu association/aggregation/composition (WARN), association có tên/role (INFO) | WARN/INFO |
+| E1–E3 | ERD: entity có khoá chính; relationship tham chiếu đúng, đủ cardinality 2 đầu (WARN) và có tên (INFO); nhiều–nhiều nên tách bảng trung gian (INFO) | ERROR/WARN/INFO |
+| F1–F2 | Screen flow: mọi màn hình tới được từ điểm bắt đầu (WARN); điều hướng từ màn hình có thao tác kích hoạt (INFO) | WARN/INFO |
+| B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 `--partial` dùng khi mới vẽ một phần bộ sơ đồ; lần kiểm cuối cho cả bộ chạy **không** `--partial`.

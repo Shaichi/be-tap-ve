@@ -9,7 +9,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 
 | Trường | Bắt buộc | Ý nghĩa |
 |---|---|---|
-| `diagram` | ✔ | `usecase` · `context` · `class` · `communication` · `sequence` · `state` · `activity` · `component` · `deployment` · `package` |
+| `diagram` | ✔ | `usecase` · `context` · `class` · `communication` · `sequence` · `state` · `activity` · `component` · `deployment` · `package` · `erd` · `screenflow` · `bizcontext` |
 | `title` | | Tên hiển thị trên khung (`uc Title`, `sd Title`...) |
 | `useCase` | tương tác | Tên use case mà communication/sequence hiện thực (khớp R1) |
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
@@ -40,7 +40,7 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `state` | `activities[]` (vd `"entry / Display Welcome"`); con lồng qua `in` → composite state |
 | `action` | (activity diagram) |
 | `initial`, `final`, `activityFinal`, `flowFinal` | – |
-| `choice`, `decision`, `merge` | `showName`: true để in `name` trong thoi |
+| `choice`, `decision`, `merge` | `question` (hoặc `name`): câu hỏi điều kiện in trong thoi, vd `"PIN hợp lệ?"` – thoi tự nới cho vừa chữ; `showName: false` để ẩn; `merge` chỉ in khi `showName: true` |
 | `junction` | – |
 | `fork`, `join` | `length` (mặc định 120) |
 | `history`, `deephistory` | – |
@@ -49,6 +49,9 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `node`, `device`, `executionEnvironment` | stereotype mặc định «node»/«device»/«execution environment»; chứa component/artifact |
 | `artifact` | – |
 | `package`, `subsystem` | chứa phần tử con qua `in` |
+| `entity`, `table` (ERD) | `attributes[]`: chuỗi `"PK maKH: INT"` / `"FK x: T"` / `"PK,FK x: T"` / `"ten: T"` hoặc object `{"name", "type", "key"}` (`key`: `PK`, `FK`, `PK,FK`, `UK`; hoặc `pk`/`fk`: true); `weak`: true (viền đậm) |
+| `screen`, `page`, `dialog`, `popup` (screen flow) | `items[]` (hoặc `fields[]`): thành phần trên màn hình, nút viết `[OK]`; dialog/popup nền vàng nét đứt «dialog» |
+| `system` (bizcontext) | hình tròn trung tâm – đúng 1 |
 
 Context diagram: đúng 1 `{"type": "system", "stereotype": "software system"}` và các lớp ngoài
 `{"type": "external", "stereotype": ...}` với `"external input device"` / `"external output device"` /
@@ -62,7 +65,7 @@ Communication/sequence: đối tượng `type: "object"`, `class`, `stereotype` 
 
 ## Quan hệ (`relations[]`)
 
-Trường chung: `type`, `from`, `to`, `label`/`name`, `id`.
+Trường chung: `type`, `from`, `to`, `label`/`name`, `id`. Bỏ trống `type` → mặc định theo loại sơ đồ: `activity` → `flow`, `state` → `transition`, `erd` → `relationship`, `screenflow` → `navigate`, còn lại → `association`.
 
 | `type` | Trường riêng | Hướng `from → to` |
 |---|---|---|
@@ -79,6 +82,9 @@ Trường chung: `type`, `from`, `to`, `label`/`name`, `id`.
 | `anchor` | – | note → phần tử |
 | `communicationpath`, `connector` | `stereotype`, mult | node ↔ node |
 | `link` | – | (communication – thường tự sinh từ messages) |
+| `relationship` (ERD) | `fromCard`, `toCard`: `1` · `0..1` · `1..*` · `0..*` (hoặc `many`), `label` (động từ), `identifying: false` → nét đứt, `showCard: true` → ghi thêm chữ | bất kỳ; thường cha → con |
+| `navigate` (screen flow) | `trigger` (thao tác người dùng), `guard` → nhãn `trigger [guard]` | màn nguồn → màn đích |
+| (bizcontext) luồng | `label` / `data`: tên dữ liệu trao đổi; `type` bỏ trống hoặc `flow` | một đầu phải là `system` |
 
 Quan hệ có thể nối phần tử ở các cấp lồng khác nhau (vd component trong node A → artifact trong node B).
 
@@ -173,3 +179,44 @@ Quan hệ có thể nối phần tử ở các cấp lồng khác nhau (vd compo
 
 Ví dụ đầy đủ cho mọi loại COMET: thư mục `examples/` (hệ ATM/Banking của Gomaa), gồm cả
 `atm_activity_withdraw.json` (swimlane), `banking_component.json`, `banking_package.json`.
+
+### ERD (ký pháp chân chim)
+
+```json
+{"diagram": "erd", "title": "Banking – ERD", "elements": [
+  {"id": "customer", "type": "entity", "name": "Customer", "attributes": ["PK customerId: INT", "name: VARCHAR(80)"]},
+  {"id": "card", "type": "entity", "name": "ATMCard", "attributes": ["PK cardId: CHAR(16)", "FK customerId: INT"]}],
+ "relations": [{"type": "relationship", "from": "customer", "to": "card", "fromCard": "1", "toCard": "0..*", "label": "owns"}]}
+```
+Ví dụ đầy đủ: `examples/banking_erd.json`. comet_check E1–E3.
+
+### Screen flow
+
+```json
+{"diagram": "screenflow", "title": "Đăng nhập", "elements": [
+  {"id": "s", "type": "initial"},
+  {"id": "login", "type": "screen", "name": "Đăng nhập", "items": ["Email", "Mật khẩu", "[Đăng nhập]"]},
+  {"id": "err", "type": "dialog", "name": "Sai mật khẩu", "items": ["[OK]"]},
+  {"id": "home", "type": "screen", "name": "Trang chủ"}],
+ "relations": [
+  {"type": "navigate", "from": "s", "to": "login"},
+  {"type": "navigate", "from": "login", "to": "home", "trigger": "Đăng nhập", "guard": "hợp lệ"},
+  {"type": "navigate", "from": "login", "to": "err", "trigger": "Đăng nhập", "guard": "sai"},
+  {"type": "navigate", "from": "err", "to": "login", "trigger": "OK"}]}
+```
+Mặc định `direction: "LR"`. Ví dụ đầy đủ: `examples/atm_screenflow.json`. comet_check F1–F2.
+
+### Context diagram nghiệp vụ
+
+```json
+{"diagram": "bizcontext", "title": "Cửa hàng – ngữ cảnh", "elements": [
+  {"id": "shop", "type": "system", "name": "Hệ thống bán hàng"},
+  {"id": "kh", "type": "external", "name": "Khách hàng"}],
+ "relations": [
+  {"from": "kh", "to": "shop", "label": "Đơn đặt hàng"},
+  {"from": "shop", "to": "kh", "label": "Hoá đơn"}]}
+```
+Hệ thống là hình tròn giữa; thực thể ngoài xếp vòng theo chiều kim đồng hồ từ đỉnh (thứ tự `elements`); luồng
+cùng cặp + cùng chiều gộp 1 mũi tên nhiều dòng, hai chiều → 2 mũi tên thẳng song song; bán kính tự nới tới khi
+không nhãn nào đè hình/đường. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
+comet_check B1–B3.

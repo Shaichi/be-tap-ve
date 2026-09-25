@@ -25,6 +25,7 @@ import contextlib
 import copy
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -62,7 +63,7 @@ COMMAND_SRC = ENGINE / "commands"
 HAS_COMMANDS = COMMAND_SRC.is_dir()
 EXPECTED_COMMANDS = {"uml-usecase", "uml-context", "uml-class", "uml-communication", "uml-sequence",
                      "uml-statechart", "uml-activity", "uml-package", "uml-component", "uml-deployment",
-                     "uml-comet"}
+                     "uml-comet", "uml-erd", "uml-screenflow", "uml-bizcontext"}
 FUZZ_SEEDS = int(os.environ.get("COMET_FUZZ_SEEDS", "80"))
 # bo cuc fuzz da biet con WARN (nhan multiplicity bi canh song song cung cap lop cat qua) - van 0 ERROR
 FUZZ_KNOWN_WARN = {("class", 52), ("class", 63), ("class", 64), ("state", 299)}
@@ -793,6 +794,83 @@ class TestGenerator(unittest.TestCase):
         self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))
 
 
+    def test_action_rounded_rect_and_decision_question(self):
+        sp = {"diagram": "activity", "title": "T", "elements": [
+            {"id": "s", "type": "initial"}, {"id": "a", "type": "action", "name": "Nhập số tiền"},
+            {"id": "d", "type": "decision", "question": "Số dư có đủ để rút không?"},
+            {"id": "b", "type": "action", "name": "Rút tiền"}, {"id": "m", "type": "merge"},
+            {"id": "f", "type": "activityFinal"}], "relations": [
+            {"from": "s", "to": "a"}, {"from": "a", "to": "d"}, {"from": "d", "to": "b", "guard": "Có"},
+            {"from": "d", "to": "m", "guard": "Không"}, {"from": "b", "to": "m"}, {"from": "m", "to": "f"}]}
+        xml, cs, G = self.clean(sp)
+        st = style(cs["a"])
+        self.assertEqual((st.get("rounded"), st.get("absoluteArcSize")), ("1", "1"))   # chu nhat bo goc
+        self.assertEqual(style(cs["d"]).get("_base"), "rhombus")
+        self.assertEqual(" ".join(text(cs["d"]).split()), "Số dư có đủ để rút không?")   # tu xuong dong
+        self.assertEqual(text(cs["m"]), "")                                            # merge de trong
+        R = rects(G)
+        self.assertGreater(R["d"][2] - R["d"][0], R["m"][2] - R["m"][0])               # thoi noi cho vua chu
+        self.assertEqual(text(edge_between(cs, "d", "b")), "[Có]")
+
+    def test_erd_crowfoot(self):
+        sp = {"diagram": "erd", "title": "ERD", "elements": [
+            {"id": "c", "type": "entity", "name": "Customer", "attributes": ["PK id: INT", "name: VARCHAR(80)"]},
+            {"id": "o", "type": "entity", "name": "Order", "weak": True, "attributes": [
+                {"name": "no", "type": "INT", "key": "PK"}, "FK customerId: INT"]}], "relations": [
+            {"type": "relationship", "from": "c", "to": "o", "fromCard": "1", "toCard": "0..*", "label": "places"},
+            {"type": "relationship", "from": "o", "to": "c", "fromCard": "0..1", "toCard": "1..*",
+             "identifying": False, "label": "x"}]}
+        xml, cs, G = self.clean(sp)
+        self.assertEqual(style(cs["c"]).get("_base"), "swimlane")
+        self.assertEqual(style(cs["o"]).get("strokeWidth"), "2")                       # weak entity
+        self.assertIn("<u>id</u>", cs["c__attrs"].get("value"))                        # PK gach chan
+        self.assertEqual(text(cs["o__keys"]).split()[:2], ["PK", "FK"])
+        e = style(edge_between(cs, "c", "o"))
+        self.assertEqual((e.get("startArrow"), e.get("endArrow")), ("ERmandOne", "ERzeroToMany"))
+        self.assertNotEqual(e.get("dashed"), "1")
+        e = style(edge_between(cs, "o", "c"))
+        self.assertEqual((e.get("startArrow"), e.get("endArrow"), e.get("dashed")),
+                         ("ERzeroToOne", "ERoneToMany", "1"))
+        self.assertEqual(check(sp)[:2], ([], []))
+
+    def test_screenflow(self):
+        sp = {"diagram": "screenflow", "title": "SF", "elements": [
+            {"id": "s", "type": "initial"},
+            {"id": "a", "type": "screen", "name": "Đăng nhập", "items": ["Email", "[Đăng nhập]"]},
+            {"id": "e", "type": "dialog", "name": "Lỗi", "items": ["[OK]"]},
+            {"id": "h", "type": "page", "name": "Trang chủ"}], "relations": [
+            {"type": "navigate", "from": "s", "to": "a"},
+            {"type": "navigate", "from": "a", "to": "h", "trigger": "Đăng nhập", "guard": "hợp lệ"},
+            {"type": "navigate", "from": "a", "to": "e", "trigger": "Đăng nhập", "guard": "sai"},
+            {"type": "navigate", "from": "e", "to": "a", "trigger": "OK"}]}
+        xml, cs, G = self.clean(sp)
+        self.assertEqual(style(cs["a"]).get("_base"), "swimlane")
+        self.assertEqual(text(cs["a__ui"]), "Email\n[Đăng nhập]")
+        self.assertEqual(style(cs["e"]).get("dashed"), "1")
+        self.assertIn("«dialog»", text(cs["e"]))
+        self.assertEqual(text(edge_between(cs, "a", "h")), "Đăng nhập [hợp lệ]")
+        R = rects(G)
+        self.assertLess(R["a"][2], R["h"][0])                                          # mac dinh trai -> phai
+        self.assertEqual(check(sp)[:2], ([], []))
+
+    def test_bizcontext_ring(self):
+        sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))
+        xml, cs, G = self.clean(sp)
+        R = rects(G)
+        self.assertEqual(style(cs["shop"]).get("_base"), "ellipse")
+        c = R["shop"]
+        self.assertAlmostEqual(c[2] - c[0], c[3] - c[1], delta=0.5)                   # hinh tron
+        cx, cy = (c[0] + c[2]) / 2, (c[1] + c[3]) / 2
+        ext = [e["id"] for e in sp["elements"] if e["type"] == "external"]
+        dist = [math.hypot((R[i][0] + R[i][2]) / 2 - cx, (R[i][1] + R[i][3]) / 2 - cy) for i in ext]
+        self.assertLess(max(dist) - min(dist), 0.35 * max(dist))                      # xep vong quanh tam
+        es = edges(cs)
+        self.assertEqual(len(es), 11)                                                  # luong cung chieu da gop
+        for e in es:
+            self.assertIn("shop", (e.get("source"), e.get("target")))
+            self.assertIsNone(e.find("mxGeometry/Array"))                              # mui ten thang
+        self.assertEqual(text(edge_between(cs, "kh", "shop")), "Đơn đặt hàng\nThông tin thanh toán")
+
 # ============================================================ 5. comet_check
 def stm(*rels, extra=(), initial=True):
     els = ([{"id": "i", "type": "initial"}] if initial else []) + [
@@ -984,6 +1062,36 @@ class TestCometCheck(unittest.TestCase):
                             {"from": "d", "to": "b", "guard": "y"}, {"from": "a", "to": "b"}, ACT_OK[2], extra=[DEC]),
                         "W", "A6", "join ngam")
         self.expect_one(act(*ACT_OK, {"from": "a", "to": "f"}), "W", "A6", "fork ngam")
+
+    def test_erd_screenflow_bizcontext_rules(self):
+        for f in ("banking_erd", "atm_screenflow", "shop_bizcontext"):
+            sp = json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
+            self.assertEqual(check(sp), ([], [], []), f)
+        erd = {"diagram": "erd", "title": "E", "elements": [
+            {"id": "a", "type": "entity", "name": "A", "attributes": ["x: INT"]},
+            {"id": "b", "type": "entity", "name": "B", "attributes": [{"name": "id", "pk": True}]}], "relations": [
+            {"from": "a", "to": "b", "fromCard": "0..*", "toCard": "1..*", "label": "r"},
+            {"from": "a", "to": "b", "fromCard": "1"}, {"from": "a", "to": "zz", "fromCard": "1", "toCard": "1"}]}
+        self.expect_one(erd, "W", "E1", "'A' chua co khoa chinh")
+        self.expect_one(erd, "W", "E2", "o dau 'B'")
+        self.expect_one(erd, "E", "E2", "khong ton tai")
+        self.expect_one(erd, "I", "E3", "nhieu-nhieu")
+        self.assertFalse(any("'B' chua co khoa" in w for w in check(erd)[1]))
+        sf = {"diagram": "screenflow", "title": "S", "elements": [
+            {"id": "s", "type": "initial"}, {"id": "a", "type": "screen", "name": "A"},
+            {"id": "b", "type": "screen", "name": "B"}, {"id": "c", "type": "dialog", "name": "C"}], "relations": [
+            {"from": "s", "to": "a"}, {"from": "a", "to": "c"}, {"from": "b", "to": "a", "trigger": "x"}]}
+        self.expect_one(sf, "W", "F1", "'B' khong toi duoc")
+        self.expect_one(sf, "I", "F2", "'A' -> 'C'")
+        bz = {"diagram": "bizcontext", "title": "B", "elements": [
+            {"id": "s", "type": "system", "name": "S"}, {"id": "x", "type": "external", "name": "X"},
+            {"id": "y", "type": "external", "name": "Y"}, {"id": "z", "type": "external", "name": "Z"}], "relations": [
+            {"from": "x", "to": "s"}, {"from": "x", "to": "y", "label": "d"}]}
+        self.expect_one(bz, "W", "B2", "chua co ten")
+        self.expect_one(bz, "W", "B2", "khong di qua")
+        self.expect_one(bz, "W", "B3", "'Z'")
+        bz["elements"].append({"id": "t", "type": "system", "name": "T"})
+        self.expect_one(bz, "E", "B1", "dang co 2")
 
     def test_class_rules(self):
         base = {"diagram": "class", "title": "T", "elements": [
@@ -1178,10 +1286,10 @@ class TestDocs(unittest.TestCase):
                     self.assertTrue((ENGINE / rel).is_file())
 
     def test_rule_codes_documented(self):
-        emitted = set(re.findall(r'"([RSAC]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
+        emitted = set(re.findall(r'"([RSACEFB]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
         documented = set()
         doc = (REFS / "comet-method.md").read_text(encoding="utf-8")
-        for a, b in re.findall(r"(?m)^\| ([RSAC]\d{1,2})(?:–([RSAC]\d{1,2}))? \|", doc):
+        for a, b in re.findall(r"(?m)^\| ([RSACEFB]\d{1,2})(?:–([RSACEFB]\d{1,2}))? \|", doc):
             documented |= {"%s%d" % (a[0], k) for k in range(int(a[1:]), int((b or a)[1:]) + 1)}
         self.assertEqual(emitted, documented)
 

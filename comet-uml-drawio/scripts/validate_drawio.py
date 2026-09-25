@@ -69,6 +69,9 @@ KNOWN_STEREOTYPES = {
     "specification", "realization", "process", "thread", "table", "layer", "network",
     "communication path", "tcp/ip", "http", "https", "lan", "wan", "ethernet", "rs-232", "usb",
     "external", "asynchronous", "synchronous", "stereotype",
+    # screen flow / ERD / nghiep vu
+    "screen", "page", "dialog", "popup", "form", "report", "weak entity", "associative entity",
+    "business", "business process", "organization", "external entity",
 }
 
 

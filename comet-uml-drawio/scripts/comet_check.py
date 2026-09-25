@@ -47,6 +47,10 @@ Activity diagram (well-formedness UML, ap dung cho moi spec "activity"):
 Class diagram (ap dung cho moi spec "class"):
   C1  Thuoc tinh phai co kieu: "ten: Kieu".
   C2  Association/aggregation/composition co multiplicity o ca 2 dau (WARN); association co ten/role (INFO).
+ERD / screen flow / context diagram nghiep vu:
+  E1  Entity co khoa chinh (PK). E2 Relationship co cardinality 2 dau + ten. E3 Nhieu-nhieu -> entity trung gian.
+  F1  Moi man hinh toi duoc tu diem bat dau. F2 Dieu huong co thao tac kich hoat (trigger).
+  B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
 """
@@ -331,6 +335,98 @@ def check_class(s, E, W, I):
                      % (src, name(a), name(b)))
 
 
+def _er_keys(a):
+    if isinstance(a, dict):
+        ks = {x.strip().upper() for x in re.split(r"[,/]", str(a.get("key") or "")) if x.strip()}
+        return ks | ({"PK"} if a.get("pk") else set()) | ({"FK"} if a.get("fk") else set())
+    m = re.match(r"^\s*((?:PK|FK|UK|AK)(?:\s*[,/]\s*(?:PK|FK|UK|AK))*)\s+", str(a), re.I)
+    return {x.strip().upper() for x in re.split(r"[,/]", m.group(1))} if m else set()
+
+
+def check_erd(s, E, W, I):
+    """E1-E3: ERD - moi entity co khoa chinh; relationship co cardinality 2 dau; nhieu-nhieu -> bang trung gian."""
+    src = s["_src"]
+    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    name = lambda i: (els[i].get("name") or i) if i in els else i
+    for i, e in els.items():
+        if norm(e.get("type")) not in ("entity", "table", "class"):
+            continue
+        if not any("PK" in _er_keys(a) for a in e.get("attributes") or []):
+            W.append("E1 [%s] Entity '%s' chua co khoa chinh (thuoc tinh 'PK ten: Kieu' hoac {\"key\": \"PK\"})."
+                     % (src, name(i)))
+    many = ("*", "0..*", "1..*", "0..n", "1..n", "n", "m", "many")
+    for r in s.get("relations", []):
+        a, b = str(r.get("from")), str(r.get("to"))
+        if a not in els or b not in els:
+            E.append("E2 [%s] Relationship tham chieu entity khong ton tai (%s -> %s)." % (src, a, b))
+            continue
+        fc, tc = r.get("fromCard", r.get("fromMult")), r.get("toCard", r.get("toMult"))
+        miss = [name(x) for x, c in ((a, fc), (b, tc)) if not str(c or "").strip()]
+        if miss:
+            W.append("E2 [%s] Relationship '%s' - '%s' thieu cardinality o dau %s (\"fromCard\"/\"toCard\": \"1\", "
+                     "\"0..1\", \"1..*\", \"0..*\")." % (src, name(a), name(b), " va ".join("'%s'" % m for m in miss)))
+        elif str(fc).strip().lower() in many and str(tc).strip().lower() in many:
+            I.append("E3 [%s] '%s' - '%s' la quan he nhieu-nhieu: o muc logic/vat ly nen tach thanh entity trung gian "
+                     "(associative entity) voi 2 quan he 1-nhieu." % (src, name(a), name(b)))
+        if not (r.get("label") or r.get("name")):
+            I.append("E2 [%s] Relationship '%s' - '%s' chua co ten (dong tu, vd 'places')." % (src, name(a), name(b)))
+
+
+def check_screenflow(s, E, W, I):
+    """F1-F2: screen flow - moi man hinh toi duoc tu diem bat dau; dieu huong co thao tac kich hoat."""
+    src = s["_src"]
+    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    name = lambda i: (els[i].get("name") or i) if i in els else i
+    adj = defaultdict(set)
+    ins = defaultdict(int)
+    for r in s.get("relations", []):
+        a, b = str(r.get("from")), str(r.get("to"))
+        adj[a].add(b)
+        ins[b] += 1
+        ta = norm(els.get(a, {}).get("type"))
+        if ta in ("screen", "page", "dialog", "popup") and not (r.get("trigger") or r.get("event") or r.get("label")):
+            I.append("F2 [%s] Dieu huong '%s' -> '%s' chua ghi thao tac kich hoat (\"trigger\", vd 'Nhan Dang nhap')."
+                     % (src, name(a), name(b)))
+    starts = [i for i, e in els.items() if norm(e.get("type")) == "initial"]
+    if not starts:
+        starts = [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]
+    seen, todo = set(starts), list(starts)
+    while todo:
+        for n in adj[todo.pop()]:
+            if n not in seen:
+                seen.add(n)
+                todo.append(n)
+    for i, e in els.items():
+        if norm(e.get("type")) in ("screen", "page", "dialog", "popup") and i not in seen:
+            W.append("F1 [%s] Man hinh '%s' khong toi duoc tu diem bat dau." % (src, name(i)))
+
+
+def check_bizcontext(s, E, W, I):
+    """B1-B3: context diagram nghiep vu - 1 he thong trung tam; luong co ten, noi he thong voi ben ngoai."""
+    src = s["_src"]
+    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    name = lambda i: (els[i].get("name") or i) if i in els else i
+    centers = [i for i, e in els.items()
+               if norm(e.get("type")) in ("system", "process", "business", "center", "centre", "organization")]
+    if len(centers) != 1:
+        E.append("B1 [%s] Can dung 1 he thong/doanh nghiep trung tam (type \"system\"), dang co %d."
+                 % (src, len(centers)))
+        return
+    c = centers[0]
+    used = set()
+    for r in s.get("relations", s.get("flows", [])) or []:
+        a, b = str(r.get("from")), str(r.get("to"))
+        used |= {a, b}
+        if c not in (a, b):
+            W.append("B2 [%s] Luong '%s' -> '%s' khong di qua he thong trung tam - luong giua cac ben ngoai nam ngoai "
+                     "pham vi context diagram." % (src, name(a), name(b)))
+        if not (r.get("label") or r.get("name") or r.get("data")):
+            W.append("B2 [%s] Luong '%s' -> '%s' chua co ten du lieu (vd 'Don dat hang')." % (src, name(a), name(b)))
+    for i in els:
+        if i != c and i not in used:
+            W.append("B3 [%s] Thuc the ngoai '%s' khong trao doi luong du lieu nao voi he thong." % (src, name(i)))
+
+
 def check(specs, partial=False):
     E, W, I = [], [], []
     MISS = I if partial else W   # "thieu so do doi ung": chi la ghi chu khi co y kiem mot phan bo so do
@@ -529,6 +625,13 @@ def check(specs, partial=False):
     # C1-C2
     for s in by["class"]:
         check_class(s, E, W, I)
+    # E1-E3, F1-F2, B1-B3
+    for s in by["erd"]:
+        check_erd(s, E, W, I)
+    for s in by["screenflow"]:
+        check_screenflow(s, E, W, I)
+    for s in by["bizcontext"]:
+        check_bizcontext(s, E, W, I)
     return E, W, I
 
 

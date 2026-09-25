@@ -22,3 +22,13 @@ ENV/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Cau hinh cuc bo cua Claude Code / may ca nhan - khong dua len repo
+.claude/
+**/.claude/
+
+# Ket qua sinh ra khi chay thu (tai tao bang scripts/uml2drawio.py); anh minh hoa README nam o docs/img/
+comet-uml-drawio/out/
+
+# Thu nghiem cuc bo (log agent, ban nhap)
+trials/

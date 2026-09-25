@@ -36,8 +36,11 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
 | 8 | Package – kiến trúc subsystem | [/uml-package](../uml-package/SKILL.md) | `08_package.json` |
 | 9 | Component | [/uml-component](../uml-component/SKILL.md) | `09_component.json` |
 | 10 | Deployment | [/uml-deployment](../uml-deployment/SKILL.md) | `10_deployment.json` |
+| + | ERD – thiết kế CSDL từ lớp «entity» | [/uml-erd](../uml-erd/SKILL.md) | `11_erd.json` |
+| + | Screen flow – lớp «user interaction» / màn hình | [/uml-screenflow](../uml-screenflow/SKILL.md) | `12_sf_<use-case>.json` |
+| + | Context nghiệp vụ (cho người dùng nghiệp vụ) | [/uml-bizcontext](../uml-bizcontext/SKILL.md) | `00_bizcontext.json` |
 
-- Mặc định làm **bước 1–6** (mô hình yêu cầu + phân tích). Bước 7–10 khi người dùng yêu cầu thiết kế / "đủ bộ".
+- Mặc định làm **bước 1–6** (mô hình yêu cầu + phân tích). Bước 7–10 khi người dùng yêu cầu thiết kế / "đủ bộ". Các dòng `+` (ERD, screen flow, context nghiệp vụ) ngoài COMET gốc – chỉ vẽ khi người dùng yêu cầu.
 - `./uml/` đã có spec từ lệnh lẻ (vd `usecase.json`, `comm_<use-case>.json`) → dùng lại và **đổi tên** theo cột
   cuối (không viết lại từ đầu, không để hai file cùng một sơ đồ: glob `./uml/*.json` sẽ gộp cả hai). File JSON
   không phải spec thì để ngoài `./uml/`.

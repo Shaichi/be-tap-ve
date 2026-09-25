@@ -1,0 +1,28 @@
+{
+  "diagram": "bizcontext",
+  "title": "Sơ đồ ngữ cảnh nghiệp vụ - Cửa hàng trực tuyến",
+  "elements": [
+    {"id": "shop", "type": "system", "name": "Hệ thống bán hàng trực tuyến"},
+    {"id": "kh", "type": "external", "name": "Khách hàng"},
+    {"id": "ncc", "type": "external", "name": "Nhà cung cấp"},
+    {"id": "nh", "type": "external", "name": "Ngân hàng / Cổng thanh toán"},
+    {"id": "vc", "type": "external", "name": "Đơn vị vận chuyển"},
+    {"id": "bgd", "type": "external", "name": "Ban giám đốc"},
+    {"id": "thue", "type": "external", "name": "Cơ quan thuế"}
+  ],
+  "relations": [
+    {"from": "kh", "to": "shop", "label": "Đơn đặt hàng"},
+    {"from": "kh", "to": "shop", "label": "Thông tin thanh toán"},
+    {"from": "shop", "to": "kh", "label": "Xác nhận đơn hàng"},
+    {"from": "shop", "to": "kh", "label": "Hoá đơn điện tử"},
+    {"from": "shop", "to": "ncc", "label": "Đơn nhập hàng"},
+    {"from": "ncc", "to": "shop", "label": "Phiếu giao hàng"},
+    {"from": "shop", "to": "nh", "label": "Yêu cầu thanh toán"},
+    {"from": "nh", "to": "shop", "label": "Kết quả giao dịch"},
+    {"from": "shop", "to": "vc", "label": "Yêu cầu giao hàng"},
+    {"from": "vc", "to": "shop", "label": "Trạng thái vận đơn"},
+    {"from": "shop", "to": "bgd", "label": "Báo cáo doanh thu"},
+    {"from": "bgd", "to": "shop", "label": "Chính sách giá"},
+    {"from": "shop", "to": "thue", "label": "Tờ khai thuế"}
+  ]
+}

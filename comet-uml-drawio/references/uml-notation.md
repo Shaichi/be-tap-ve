@@ -60,11 +60,11 @@ Multiplicity/role đặt sát đầu mút: `fromMult`, `toMult`, `fromRole`, `to
 | Initial | chấm tròn đặc | `initial` |
 | Final | chấm tròn đặc trong vòng tròn | `final` |
 | Flow final | vòng tròn có dấu X | `flowFinal` |
-| Choice / decision / merge | hình thoi | `choice`, `decision`, `merge` |
+| Choice / decision / merge | hình thoi; decision ghi câu hỏi điều kiện bên trong (`question`) | `choice`, `decision`, `merge` |
 | Junction | chấm đặc nhỏ | `junction` |
 | Fork / join | thanh đen dày | `fork`, `join` |
 | History | vòng tròn H / H* | `history`, `deephistory` |
-| Action (activity) | chữ nhật bo tròn | `action` |
+| Action (activity) | chữ nhật bo góc (góc nhỏ, khác state bo tròn nhiều) | `action` |
 | Activity partition (swimlane) | làn dọc (TB) / ngang (LR) có tiêu đề, xếp sát nhau | `partitions` + `partition` |
 | Note | tờ giấy gập góc | `note` |
 | Component | chữ nhật + biểu tượng component, «component» | `component` |
@@ -91,7 +91,8 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 
 ## Activity diagram – quy tắc hợp lệ (comet_check A1–A6)
 
-- Decision: 1 luồng vào, ≥ 2 luồng ra, **mỗi luồng ra có guard**, tối đa một `[else]` (A1).
+- Decision: 1 luồng vào, ≥ 2 luồng ra, **mỗi luồng ra có guard**, tối đa một `[else]` (A1). Câu hỏi điều kiện
+  ghi trong hình thoi (`"question": "Đủ số dư?"`), guard là câu trả lời (`[Có]` / `[Không]`).
 - Merge: ≥ 2 luồng vào, 1 luồng ra (không dùng để rẽ nhánh) (A4). Fork: 1 vào/≥ 2 ra; join: ≥ 2 vào/1 ra (A2).
 - Initial: không có luồng vào, đúng 1 luồng ra. Activity final / flow final: không có luồng ra (A3).
 - Mỗi action có luồng vào và luồng ra (không ngõ cụt) (A5).
@@ -110,3 +111,35 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 - Mọi state tới được từ initial và có đường ra, trừ trạng thái kết thúc có chủ đích (S4).
 - Cùng state, cùng event → guard phải phân biệt, nếu không state machine không tất định (S5).
 - Nhãn transition: `Event [guard] / action1, action2`; self-transition (`from == to`) hợp lệ.
+
+## ERD – ký pháp chân chim (comet_check E1–E3)
+
+| Cardinality (`fromCard`/`toCard`) | Ký hiệu ở đầu đường nối | draw.io |
+|---|---|---|
+| `1` (đúng một) | hai gạch ‖ | `ERmandOne` |
+| `0..1` (không hoặc một) | vòng + gạch | `ERzeroToOne` |
+| `1..*` (một hoặc nhiều) | gạch + chân chim | `ERoneToMany` |
+| `0..*` (không hoặc nhiều) | vòng + chân chim | `ERzeroToMany` |
+| `many` / `n` | chân chim | `ERmany` |
+
+- Entity: hộp tiêu đề xanh + 2 cột (khoá | tên: kiểu); cột PK gạch chân. Weak entity viền đậm.
+- Identifying relationship nét liền; non-identifying (`identifying: false`) nét đứt.
+- Mỗi entity có khoá chính (E1); mỗi relationship đủ cardinality 2 đầu và có tên động từ (E2); nhiều–nhiều nên
+  tách bảng trung gian ở mức logic (E3). Bảng phía "nhiều" giữ FK.
+
+## Screen flow (comet_check F1–F2)
+
+- Màn hình (`screen`/`page`): khung bo góc, tiêu đề xanh, thân liệt kê thành phần; dialog/popup nền vàng, nét
+  đứt, «dialog».
+- Điều hướng: mũi tên liền, nhãn `thao tác [điều kiện]`. Decision (hình thoi có câu hỏi) khi hệ thống quyết định
+  màn hình tiếp theo; nhánh ra có guard.
+- Mọi màn hình tới được từ điểm bắt đầu (F1); điều hướng từ màn hình ghi thao tác kích hoạt (F2).
+
+## Context diagram nghiệp vụ (comet_check B1–B3)
+
+- Dạng DFD mức 0 / business context: **hình tròn** ở giữa = hệ thống / doanh nghiệp / quy trình nghiệp vụ; hình
+  chữ nhật xung quanh = thực thể ngoài (người, tổ chức, bộ phận, hệ thống khác).
+- Mũi tên thẳng, đầu tam giác đặc, ghi **tên dữ liệu** (danh từ: "Đơn đặt hàng", "Hoá đơn"), không ghi hành động.
+- Đúng 1 hình tròn trung tâm (B1); mọi luồng có tên và nối trung tâm với bên ngoài (B2); thực thể ngoài không có
+  luồng thì bỏ (B3). Không vẽ luồng giữa hai thực thể ngoài, không vẽ kho dữ liệu hay tiến trình con.
+- Khác context diagram COMET (`context`): cái đó là class diagram «software system» / «external …» cho kỹ sư.
