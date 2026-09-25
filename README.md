@@ -51,7 +51,6 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 
 <p align="center">
   <img src="docs/img/banking_erd.png" width="48%" alt="ERD">
-  <img src="docs/img/atm_screenflow.png" width="48%" alt="Screen flow">
 </p>
 <p align="center">
   <img src="docs/img/order_design_class.png" width="70%" alt="Design class diagram">
