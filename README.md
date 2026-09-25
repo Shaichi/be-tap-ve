@@ -128,6 +128,7 @@ Mở phiên mới sau khi cài để Claude nạp skill, rồi gõ lệnh kèm m
 /uml-activity Quy trình rút tiền ATM, 3 làn: Khách hàng, ATM, Ngân hàng
 /uml-erd Cơ sở dữ liệu bán hàng: khách hàng, đơn hàng, chi tiết đơn, sản phẩm, danh mục
 /uml-screenflow Luồng đăng ký tài khoản và đăng nhập của app đặt đồ ăn
+/uml-screenflow Sơ đồ trang (site map) hệ thống học trực tuyến: Home, đăng nhập, khoá học, bài viết, quản trị
 /uml-bizcontext Cửa hàng trực tuyến: khách hàng, nhà cung cấp, ngân hàng, đơn vị vận chuyển, cơ quan thuế
 /uml-comet Hệ thống ATM của ngân hàng (đủ 10 bước)
 ```
@@ -296,7 +297,7 @@ Nhóm luật của `comet_check.py`:
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
 | E1–E3 | ERD (khoá chính, cardinality, nhiều–nhiều) |
-| F1–F2 | Screen flow (màn hình tới được, có thao tác kích hoạt) |
+| F1–F2 | Screen flow (màn hình tới được, có thao tác kích hoạt; site map bỏ qua F2 vì mũi tên không nhãn) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 
 `--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
