@@ -1,0 +1,23 @@
+{
+  "diagram": "package",
+  "title": "Food Delivery Packages",
+  "elements": [
+    {"id": "pkg_ui", "type": "package", "name": "UI Layer"},
+    {"id": "pkg_biz", "type": "package", "name": "Business Logic Layer"},
+    {"id": "pkg_data", "type": "package", "name": "Data Layer"},
+    
+    {"id": "cust_ui", "type": "subsystem", "name": "Customer UI", "in": "pkg_ui"},
+    {"id": "rest_ui", "type": "subsystem", "name": "Restaurant UI", "in": "pkg_ui"},
+    {"id": "ship_ui", "type": "subsystem", "name": "Shipper UI", "in": "pkg_ui"},
+    
+    {"id": "ord_proc", "type": "subsystem", "name": "Order Processing", "in": "pkg_biz"},
+    {"id": "pay_proc", "type": "subsystem", "name": "Payment Processing", "in": "pkg_biz"},
+    {"id": "del_proc", "type": "subsystem", "name": "Delivery Management", "in": "pkg_biz"},
+    
+    {"id": "db_ord", "type": "subsystem", "name": "Order DB Access", "in": "pkg_data"}
+  ],
+  "relations": [
+    {"type": "dependency", "from": "pkg_ui", "to": "pkg_biz"},
+    {"type": "dependency", "from": "pkg_biz", "to": "pkg_data"}
+  ]
+}

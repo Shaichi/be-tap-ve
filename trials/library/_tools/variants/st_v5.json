@@ -1,0 +1,147 @@
+{
+ "diagram": "state",
+ "title": "Book Copy Control",
+ "stateMachineOf": "Book Copy Control",
+ "elements": [
+  {
+   "id": "resv",
+   "type": "state",
+   "name": "Reserved"
+  },
+  {
+   "id": "i",
+   "type": "initial"
+  },
+  {
+   "id": "avail",
+   "type": "state",
+   "name": "Available"
+  },
+  {
+   "id": "onloan",
+   "type": "state",
+   "name": "On Loan"
+  },
+  {
+   "id": "overdue",
+   "type": "state",
+   "name": "Overdue"
+  },
+  {
+   "id": "lost",
+   "type": "state",
+   "name": "Lost"
+  },
+  {
+   "id": "ret",
+   "type": "choice"
+  },
+  {
+   "id": "f",
+   "type": "final"
+  }
+ ],
+ "relations": [
+  {
+   "type": "transition",
+   "from": "resv",
+   "to": "avail",
+   "event": "Reservation Expired",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "resv",
+   "to": "onloan",
+   "event": "Check Out Copy",
+   "action": [
+    "Update Copy Status",
+    "Copy Checked Out"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "i",
+   "to": "avail"
+  },
+  {
+   "type": "transition",
+   "from": "avail",
+   "to": "onloan",
+   "event": "Check Out Copy",
+   "action": [
+    "Update Copy Status",
+    "Copy Checked Out"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "overdue",
+   "event": "Due Date Passed",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "ret",
+   "event": "Return Copy",
+   "action": "Copy Returned"
+  },
+  {
+   "type": "transition",
+   "from": "overdue",
+   "to": "ret",
+   "event": "Return Copy",
+   "action": "Copy Returned Late"
+  },
+  {
+   "type": "transition",
+   "from": "ret",
+   "to": "resv",
+   "guard": "reservation pending",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "ret",
+   "to": "avail",
+   "guard": "else",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "lost",
+   "event": "Copy Reported Lost",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "overdue",
+   "to": "lost",
+   "event": "Copy Reported Lost",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "lost",
+   "to": "avail",
+   "event": "Lost Copy Found",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "lost",
+   "to": "f",
+   "event": "Copy Written Off"
+  },
+  {
+   "type": "transition",
+   "from": "avail",
+   "to": "f",
+   "event": "Copy Withdrawn"
+  }
+ ],
+ "direction": "LR"
+}

@@ -1,0 +1,34 @@
+{
+  "diagram": "usecase",
+  "title": "Banking System - Use Case Model",
+  "system": "Banking System",
+  "elements": [
+    {"id": "cust", "type": "actor", "name": "ATM Customer"},
+    {"id": "op", "type": "actor", "name": "Operator"},
+    {"id": "bank", "type": "actor", "name": "Bank Server", "stereotype": "system actor", "side": "right"},
+    {"id": "uc_pin", "type": "usecase", "name": "Validate PIN"},
+    {"id": "uc_wd", "type": "usecase", "name": "Withdraw Funds"},
+    {"id": "uc_q", "type": "usecase", "name": "Query Account"},
+    {"id": "uc_tr", "type": "usecase", "name": "Transfer Funds"},
+    {"id": "uc_rc", "type": "usecase", "name": "Print Receipt"},
+    {"id": "uc_add", "type": "usecase", "name": "Add Cash"},
+    {"id": "uc_start", "type": "usecase", "name": "Startup"},
+    {"id": "uc_stop", "type": "usecase", "name": "Shutdown"}
+  ],
+  "relations": [
+    {"type": "association", "from": "cust", "to": "uc_wd"},
+    {"type": "association", "from": "cust", "to": "uc_q"},
+    {"type": "association", "from": "cust", "to": "uc_tr"},
+    {"type": "association", "from": "op", "to": "uc_add"},
+    {"type": "association", "from": "op", "to": "uc_start"},
+    {"type": "association", "from": "op", "to": "uc_stop"},
+    {"type": "include", "from": "uc_wd", "to": "uc_pin"},
+    {"type": "include", "from": "uc_q", "to": "uc_pin"},
+    {"type": "include", "from": "uc_tr", "to": "uc_pin"},
+    {"type": "extend", "from": "uc_rc", "to": "uc_wd", "condition": "receipt requested"},
+    {"type": "association", "from": "uc_pin", "to": "bank"},
+    {"type": "association", "from": "uc_wd", "to": "bank"},
+    {"type": "association", "from": "uc_q", "to": "bank"},
+    {"type": "association", "from": "uc_tr", "to": "bank"}
+  ]
+}

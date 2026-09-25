@@ -1,0 +1,27 @@
+{
+  "diagram": "component",
+  "title": "Banking System - Component Architecture",
+  "elements": [
+    {"id": "atm", "type": "component", "name": "ATM Client", "stereotype": "client subsystem"},
+    {"id": "crd", "type": "component", "name": "Card Reader Interface", "stereotype": "input", "in": "atm"},
+    {"id": "ctl", "type": "component", "name": "ATM Control", "stereotype": "state dependent control", "in": "atm"},
+    {"id": "cash", "type": "component", "name": "Cash Dispenser Interface", "stereotype": "output", "in": "atm"},
+    {"id": "ibank", "type": "interface", "name": "IBankService", "notation": "lollipop"},
+    {"id": "bs", "type": "component", "name": "Banking Service", "stereotype": "service subsystem"},
+    {"id": "coord", "type": "component", "name": "Bank Transaction Coordinator", "stereotype": "coordinator", "in": "bs"},
+    {"id": "pinmgr", "type": "component", "name": "PIN Validation Transaction Manager", "stereotype": "business logic", "in": "bs"},
+    {"id": "wdmgr", "type": "component", "name": "Withdrawal Transaction Manager", "stereotype": "business logic", "in": "bs"},
+    {"id": "iacct", "type": "interface", "name": "IAccountData", "notation": "lollipop"},
+    {"id": "db", "type": "component", "name": "Account Database", "stereotype": "database wrapper"}
+  ],
+  "relations": [
+    {"type": "usage", "from": "crd", "to": "ctl"},
+    {"type": "usage", "from": "ctl", "to": "cash"},
+    {"type": "requires", "from": "atm", "to": "ibank"},
+    {"type": "provides", "from": "bs", "to": "ibank"},
+    {"type": "usage", "from": "coord", "to": "pinmgr"},
+    {"type": "usage", "from": "coord", "to": "wdmgr"},
+    {"type": "requires", "from": "bs", "to": "iacct"},
+    {"type": "provides", "from": "db", "to": "iacct"}
+  ]
+}

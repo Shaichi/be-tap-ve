@@ -1,0 +1,149 @@
+{
+ "diagram": "state",
+ "title": "Book Copy Control",
+ "stateMachineOf": "Book Copy Control",
+ "elements": [
+  {
+   "id": "resv",
+   "type": "state",
+   "name": "Reserved"
+  },
+  {
+   "id": "i",
+   "type": "initial"
+  },
+  {
+   "id": "avail",
+   "type": "state",
+   "name": "Available"
+  },
+  {
+   "id": "co",
+   "type": "state",
+   "name": "Checked Out"
+  },
+  {
+   "id": "ci",
+   "type": "initial",
+   "in": "co"
+  },
+  {
+   "id": "onloan",
+   "type": "state",
+   "name": "On Loan",
+   "in": "co"
+  },
+  {
+   "id": "overdue",
+   "type": "state",
+   "name": "Overdue",
+   "in": "co"
+  },
+  {
+   "id": "ret",
+   "type": "choice"
+  },
+  {
+   "id": "lost",
+   "type": "state",
+   "name": "Lost"
+  },
+  {
+   "id": "f",
+   "type": "final"
+  }
+ ],
+ "relations": [
+  {
+   "type": "transition",
+   "from": "resv",
+   "to": "avail",
+   "event": "Reservation Expired",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "resv",
+   "to": "co",
+   "event": "Check Out Copy",
+   "action": [
+    "Update Copy Status",
+    "Copy Checked Out"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "i",
+   "to": "avail"
+  },
+  {
+   "type": "transition",
+   "from": "avail",
+   "to": "co",
+   "event": "Check Out Copy",
+   "action": [
+    "Update Copy Status",
+    "Copy Checked Out"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "ci",
+   "to": "onloan"
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "overdue",
+   "event": "Due Date Passed",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "co",
+   "to": "ret",
+   "event": "Return Copy",
+   "action": "Copy Returned"
+  },
+  {
+   "type": "transition",
+   "from": "ret",
+   "to": "resv",
+   "guard": "reservation pending",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "ret",
+   "to": "avail",
+   "guard": "else",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "co",
+   "to": "lost",
+   "event": "Copy Reported Lost",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "lost",
+   "to": "avail",
+   "event": "Lost Copy Found",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "lost",
+   "to": "f",
+   "event": "Copy Written Off"
+  },
+  {
+   "type": "transition",
+   "from": "avail",
+   "to": "f",
+   "event": "Copy Withdrawn"
+  }
+ ]
+}

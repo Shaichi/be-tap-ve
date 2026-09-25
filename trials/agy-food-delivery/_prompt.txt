@@ -1,0 +1,15 @@
+Tôi đang làm đồ án phân tích thiết kế "Hệ thống giao đồ ăn trực tuyến" theo phương pháp COMET của Gomaa.
+Mô tả: Khách hàng duyệt thực đơn, đặt món và thanh toán online qua Cổng thanh toán (hệ thống ngoài); Nhà hàng xác nhận và chuẩn bị món; Shipper nhận đơn và giao hàng; khách có thể theo dõi và huỷ đơn khi nhà hàng chưa xác nhận.
+
+Hãy vẽ cho tôi các sơ đồ UML sau và lưu thành file draw.io (.drawio) trong thư mục hiện tại:
+1. Use case diagram.
+2. Activity diagram cho use case "Place Order" có chia swimlane (Customer, Food Delivery System, Restaurant, Payment Gateway).
+3. Software system context diagram.
+4. Entity class diagram (có multiplicity).
+5. Sequence diagram cho use case "Place Order".
+6. Statechart cho đối tượng điều khiển đơn hàng (Order Control), có cả trường hợp huỷ đơn.
+7. Component diagram có provided/required interface.
+8. Package diagram chia subsystem.
+
+Yêu cầu: đúng ký hiệu UML và COMET, các hình không chồng/dính nhau, đường nối không cắt qua hình. Chỉ cần tạo file, KHÔNG mở trình duyệt hay ứng dụng draw.io.
+Cuối cùng báo cáo ngắn bằng tiếng Việt: đã dùng công cụ/skill gì, các file đã tạo, kết quả kiểm tra, điểm nào chưa chắc chắn.

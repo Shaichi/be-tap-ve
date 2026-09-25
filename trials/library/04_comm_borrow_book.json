@@ -1,0 +1,34 @@
+{
+  "diagram": "communication",
+  "title": "Borrow Book - Communication",
+  "useCase": "Borrow Book",
+  "elements": [
+    {"id": "reader", "type": "actor", "name": "Reader"},
+    {"id": "ri", "type": "object", "class": "Reader Interaction", "stereotype": "user interaction"},
+    {"id": "lc", "type": "object", "class": "Loan Coordinator", "stereotype": "coordinator"},
+    {"id": "bcc", "type": "object", "class": "Book Copy Control", "stereotype": "state dependent control"},
+    {"id": "br", "type": "object", "class": "Borrowing Rules", "stereotype": "business logic"},
+    {"id": "ra", "type": "object", "class": "Reader Account", "stereotype": "entity"},
+    {"id": "loan", "type": "object", "class": "Loan", "stereotype": "entity"},
+    {"id": "copy", "type": "object", "class": "Book Copy", "stereotype": "entity"}
+  ],
+  "messages": [
+    {"seq": "1", "from": "reader", "to": "ri", "name": "Borrow Book Input"},
+    {"seq": "2", "from": "ri", "to": "lc", "name": "Borrow Request"},
+    {"seq": "3", "from": "lc", "to": "br", "name": "Check Eligibility"},
+    {"seq": "4", "from": "br", "to": "ra", "name": "Read Reader Account"},
+    {"seq": "5", "from": "ra", "to": "br", "name": "Reader Account Data"},
+    {"seq": "6", "from": "br", "to": "loan", "name": "Count Active Loans"},
+    {"seq": "7", "from": "loan", "to": "br", "name": "Active Loan Count"},
+    {"seq": "8", "from": "br", "to": "lc", "name": "Reader Eligible"},
+    {"seq": "9", "from": "lc", "to": "bcc", "name": "Check Out Copy"},
+    {"seq": "10", "from": "bcc", "to": "copy", "name": "Update Copy Status"},
+    {"seq": "11", "from": "bcc", "to": "lc", "name": "Copy Checked Out"},
+    {"seq": "12", "from": "lc", "to": "loan", "name": "Create Loan"},
+    {"seq": "13", "from": "lc", "to": "ri", "name": "Borrow Confirmation"},
+    {"seq": "14", "from": "ri", "to": "reader", "name": "Loan Receipt"},
+    {"seq": "8a", "from": "br", "to": "lc", "name": "Reader Not Eligible"},
+    {"seq": "9a", "from": "lc", "to": "ri", "name": "Borrow Rejected"},
+    {"seq": "10a", "from": "ri", "to": "reader", "name": "Rejection Notice"}
+  ]
+}

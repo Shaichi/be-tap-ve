@@ -1,0 +1,111 @@
+{
+ "diagram": "state",
+ "title": "Fuzz state 299",
+ "elements": [
+  {
+   "id": "init",
+   "type": "initial"
+  },
+  {
+   "id": "s0",
+   "type": "state",
+   "name": "State 0"
+  },
+  {
+   "id": "s1",
+   "type": "state",
+   "name": "State 1"
+  },
+  {
+   "id": "s2",
+   "type": "state",
+   "name": "State 2",
+   "in": "s0"
+  },
+  {
+   "id": "s3",
+   "type": "state",
+   "name": "State 3"
+  },
+  {
+   "id": "s4",
+   "type": "state",
+   "name": "State 4",
+   "activities": [
+    "entry / Do 4"
+   ]
+  },
+  {
+   "id": "s5",
+   "type": "state",
+   "name": "State 5"
+  }
+ ],
+ "relations": [
+  {
+   "type": "transition",
+   "from": "s2",
+   "to": "s3",
+   "event": "Cancel"
+  },
+  {
+   "type": "transition",
+   "from": "s3",
+   "to": "s5",
+   "event": "Cancel"
+  },
+  {
+   "type": "transition",
+   "from": "s2",
+   "to": "s1",
+   "event": "Card Inserted"
+  },
+  {
+   "type": "transition",
+   "from": "s3",
+   "to": "s2",
+   "event": "Cancel",
+   "action": "Display Menu"
+  },
+  {
+   "type": "transition",
+   "from": "s0",
+   "to": "s5",
+   "event": "Timeout"
+  },
+  {
+   "type": "transition",
+   "from": "s0",
+   "to": "s2",
+   "event": "PIN Entered"
+  },
+  {
+   "type": "transition",
+   "from": "init",
+   "to": "s2"
+  },
+  {
+   "type": "transition",
+   "from": "s1",
+   "to": "s4",
+   "event": "Cancel"
+  },
+  {
+   "type": "transition",
+   "from": "s5",
+   "to": "s0",
+   "event": "PIN Entered"
+  },
+  {
+   "type": "transition",
+   "from": "s0",
+   "to": "s1",
+   "event": "Card Inserted"
+  },
+  {
+   "type": "transition",
+   "from": "init",
+   "to": "s0"
+  }
+ ]
+}

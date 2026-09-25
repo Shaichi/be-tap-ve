@@ -1,0 +1,158 @@
+{
+ "diagram": "state",
+ "title": "Book Copy Control",
+ "stateMachineOf": "Book Copy Control",
+ "elements": [
+  {
+   "id": "i",
+   "type": "initial"
+  },
+  {
+   "id": "avail",
+   "type": "state",
+   "name": "Available"
+  },
+  {
+   "id": "resv",
+   "type": "state",
+   "name": "Reserved"
+  },
+  {
+   "id": "onloan",
+   "type": "state",
+   "name": "On Loan"
+  },
+  {
+   "id": "overdue",
+   "type": "state",
+   "name": "Overdue"
+  },
+  {
+   "id": "lost",
+   "type": "state",
+   "name": "Lost"
+  },
+  {
+   "id": "f",
+   "type": "final"
+  }
+ ],
+ "relations": [
+  {
+   "type": "transition",
+   "from": "i",
+   "to": "avail"
+  },
+  {
+   "type": "transition",
+   "from": "avail",
+   "to": "onloan",
+   "event": "Check Out Copy",
+   "action": [
+    "Update Copy Status",
+    "Copy Checked Out"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "resv",
+   "to": "onloan",
+   "event": "Check Out Copy",
+   "action": [
+    "Update Copy Status",
+    "Copy Checked Out"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "overdue",
+   "event": "Due Date Passed",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "resv",
+   "event": "Return Copy",
+   "guard": "reservation pending",
+   "action": [
+    "Update Copy Status",
+    "Copy Returned"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "avail",
+   "event": "Return Copy",
+   "guard": "else",
+   "action": [
+    "Update Copy Status",
+    "Copy Returned"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "overdue",
+   "to": "resv",
+   "event": "Return Copy",
+   "guard": "reservation pending",
+   "action": [
+    "Update Copy Status",
+    "Copy Returned Late"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "overdue",
+   "to": "avail",
+   "event": "Return Copy",
+   "guard": "else",
+   "action": [
+    "Update Copy Status",
+    "Copy Returned Late"
+   ]
+  },
+  {
+   "type": "transition",
+   "from": "resv",
+   "to": "avail",
+   "event": "Reservation Expired",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "onloan",
+   "to": "lost",
+   "event": "Copy Reported Lost",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "overdue",
+   "to": "lost",
+   "event": "Copy Reported Lost",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "lost",
+   "to": "avail",
+   "event": "Lost Copy Found",
+   "action": "Update Copy Status"
+  },
+  {
+   "type": "transition",
+   "from": "lost",
+   "to": "f",
+   "event": "Copy Written Off"
+  },
+  {
+   "type": "transition",
+   "from": "avail",
+   "to": "f",
+   "event": "Copy Withdrawn"
+  }
+ ]
+}

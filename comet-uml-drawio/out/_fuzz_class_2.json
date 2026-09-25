@@ -1,0 +1,76 @@
+{
+ "diagram": "class",
+ "title": "Fuzz class 2",
+ "elements": [
+  {
+   "id": "c0",
+   "type": "class",
+   "name": "Class0X",
+   "stereotype": "entity",
+   "attributes": []
+  },
+  {
+   "id": "c1",
+   "type": "class",
+   "name": "Class1XXXX",
+   "stereotype": "entity",
+   "attributes": [
+    "attr0: String"
+   ]
+  },
+  {
+   "id": "c2",
+   "type": "class",
+   "name": "Class2",
+   "attributes": [
+    "attr0: String"
+   ]
+  },
+  {
+   "id": "c3",
+   "type": "class",
+   "name": "Class3XXXXXX",
+   "stereotype": "entity",
+   "attributes": [
+    "attr0: String",
+    "attr1: String",
+    "attr2: String"
+   ]
+  }
+ ],
+ "relations": [
+  {
+   "type": "association",
+   "from": "c3",
+   "to": "c2",
+   "toMult": "0..1"
+  },
+  {
+   "type": "generalization",
+   "from": "c2",
+   "to": "c3"
+  },
+  {
+   "type": "composition",
+   "from": "c0",
+   "to": "c1",
+   "fromMult": "1",
+   "toMult": "1"
+  },
+  {
+   "type": "generalization",
+   "from": "c2",
+   "to": "c1"
+  },
+  {
+   "type": "dependency",
+   "from": "c3",
+   "to": "c2"
+  },
+  {
+   "type": "generalization",
+   "from": "c2",
+   "to": "c2"
+  }
+ ]
+}

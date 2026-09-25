@@ -1,0 +1,155 @@
+{
+ "diagram": "class",
+ "title": "Library System - Entity Class Model",
+ "elements": [
+  {
+   "id": "title",
+   "type": "class",
+   "name": "Book Title",
+   "stereotype": "entity",
+   "attributes": [
+    "isbn: String",
+    "title: String",
+    "author: String",
+    "publisher: String",
+    "publicationYear: Integer",
+    "category: String"
+   ]
+  },
+  {
+   "id": "copy",
+   "type": "class",
+   "name": "Book Copy",
+   "stereotype": "entity",
+   "attributes": [
+    "copyId: String",
+    "shelfLocation: String",
+    "acquisitionDate: Date",
+    "status: CopyStatus"
+   ]
+  },
+  {
+   "id": "reader",
+   "type": "class",
+   "name": "Reader Account",
+   "stereotype": "entity",
+   "attributes": [
+    "readerId: String",
+    "name: String",
+    "email: String",
+    "phone: String",
+    "address: String",
+    "cardExpiryDate: Date",
+    "accountStatus: String"
+   ]
+  },
+  {
+   "id": "loan",
+   "type": "class",
+   "name": "Loan",
+   "stereotype": "entity",
+   "attributes": [
+    "loanId: String",
+    "borrowDate: Date",
+    "dueDate: Date",
+    "returnDate: Date",
+    "renewalCount: Integer"
+   ]
+  },
+  {
+   "id": "resv",
+   "type": "class",
+   "name": "Reservation",
+   "stereotype": "entity",
+   "attributes": [
+    "reservationId: String",
+    "reservationDate: Date",
+    "expiryDate: Date",
+    "reservationStatus: String"
+   ]
+  },
+  {
+   "id": "fine",
+   "type": "class",
+   "name": "Fine",
+   "stereotype": "entity",
+   "attributes": [
+    "fineId: String",
+    "amount: Real",
+    "reason: String",
+    "issueDate: Date",
+    "paid: Boolean"
+   ]
+  },
+  {
+   "id": "cs",
+   "type": "enumeration",
+   "name": "CopyStatus",
+   "literals": [
+    "Available",
+    "Reserved",
+    "OnLoan",
+    "Overdue",
+    "Lost"
+   ]
+  }
+ ],
+ "relations": [
+  {
+   "type": "association",
+   "from": "title",
+   "to": "copy",
+   "label": "Has",
+   "fromMult": "1",
+   "toMult": "1..*"
+  },
+  {
+   "type": "association",
+   "from": "reader",
+   "to": "loan",
+   "label": "Makes",
+   "fromMult": "1",
+   "toMult": "0..*"
+  },
+  {
+   "type": "association",
+   "from": "copy",
+   "to": "loan",
+   "label": "Is lent in",
+   "fromMult": "1",
+   "toMult": "0..*"
+  },
+  {
+   "type": "association",
+   "from": "reader",
+   "to": "resv",
+   "label": "Places",
+   "fromMult": "1",
+   "toMult": "0..*"
+  },
+  {
+   "type": "association",
+   "from": "title",
+   "to": "resv",
+   "label": "Is reserved in",
+   "fromMult": "1",
+   "toMult": "0..*"
+  },
+  {
+   "type": "association",
+   "from": "copy",
+   "to": "resv",
+   "label": "Is held for",
+   "fromMult": "0..1",
+   "toMult": "0..1"
+  },
+  {
+   "type": "association",
+   "from": "loan",
+   "to": "fine",
+   "label": "Incurs",
+   "fromMult": "1",
+   "toMult": "0..*"
+  }
+ ]
+}

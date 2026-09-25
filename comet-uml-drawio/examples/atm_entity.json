@@ -1,0 +1,29 @@
+{
+  "diagram": "class",
+  "title": "Banking System - Entity Class Model",
+  "elements": [
+    {"id": "bank", "type": "class", "name": "Bank", "stereotype": "entity", "attributes": ["bankName: String", "bankAddress: String", "bankId: String"]},
+    {"id": "cust", "type": "class", "name": "Customer", "stereotype": "entity", "attributes": ["customerName: String", "customerId: String", "customerAddress: String"]},
+    {"id": "acc", "type": "class", "name": "Account", "stereotype": "entity", "abstract": true, "attributes": ["accountNumber: Integer", "balance: Real"]},
+    {"id": "chk", "type": "class", "name": "Checking Account", "stereotype": "entity", "attributes": ["lastDepositAmount: Real"]},
+    {"id": "sav", "type": "class", "name": "Savings Account", "stereotype": "entity", "attributes": ["interest: Real"]},
+    {"id": "card", "type": "class", "name": "Debit Card", "stereotype": "entity", "attributes": ["cardId: String", "PIN: String", "startDate: Date", "expirationDate: Date", "status: Integer", "limit: Real", "total: Real"]},
+    {"id": "trx", "type": "class", "name": "ATM Transaction", "stereotype": "entity", "attributes": ["transactionType: String", "cardId: String", "PIN: String", "date: Date", "time: Time", "status: Integer"]},
+    {"id": "wd", "type": "class", "name": "Withdrawal Transaction", "stereotype": "entity", "attributes": ["accountNumber: Integer", "amount: Real", "balance: Real"]},
+    {"id": "tr", "type": "class", "name": "Transfer Transaction", "stereotype": "entity", "attributes": ["fromAccountNumber: Integer", "toAccountNumber: Integer", "amount: Real"]},
+    {"id": "atm", "type": "class", "name": "ATM Info", "stereotype": "entity", "attributes": ["ATMId: String", "ATMLocation: String", "ATMAddress: String"]}
+  ],
+  "relations": [
+    {"type": "association", "from": "bank", "to": "atm", "label": "Maintains", "fromMult": "1", "toMult": "1..*"},
+    {"type": "association", "from": "bank", "to": "cust", "label": "Manages", "fromMult": "1", "toMult": "1..*"},
+    {"type": "association", "from": "cust", "to": "acc", "label": "Owns", "fromMult": "1..*", "toMult": "1..*"},
+    {"type": "association", "from": "cust", "to": "card", "label": "Owns", "fromMult": "1", "toMult": "0..*"},
+    {"type": "association", "from": "card", "to": "acc", "label": "Provides access to", "fromMult": "0..*", "toMult": "1..*"},
+    {"type": "association", "from": "cust", "to": "trx", "label": "Performs", "fromMult": "1", "toMult": "0..*"},
+    {"type": "association", "from": "card", "to": "trx", "label": "Identifies", "fromMult": "1", "toMult": "0..*"},
+    {"type": "generalization", "from": "chk", "to": "acc"},
+    {"type": "generalization", "from": "sav", "to": "acc"},
+    {"type": "generalization", "from": "wd", "to": "trx"},
+    {"type": "generalization", "from": "tr", "to": "trx"}
+  ]
+}
