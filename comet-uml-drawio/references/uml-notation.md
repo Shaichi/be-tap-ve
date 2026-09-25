@@ -112,20 +112,14 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 - Cùng state, cùng event → guard phải phân biệt, nếu không state machine không tất định (S5).
 - Nhãn transition: `Event [guard] / action1, action2`; self-transition (`from == to`) hợp lệ.
 
-## ERD – ký pháp chân chim (comet_check E1–E3)
+## ERD – ký pháp Chen (comet_check E1–E3)
 
-| Cardinality (`fromCard`/`toCard`) | Ký hiệu ở đầu đường nối | draw.io |
-|---|---|---|
-| `1` (đúng một) | hai gạch ‖ | `ERmandOne` |
-| `0..1` (không hoặc một) | vòng + gạch | `ERzeroToOne` |
-| `1..*` (một hoặc nhiều) | gạch + chân chim | `ERoneToMany` |
-| `0..*` (không hoặc nhiều) | vòng + chân chim | `ERzeroToMany` |
-| `many` / `n` | chân chim | `ERmany` |
-
-- Entity: hộp tiêu đề xanh + 2 cột (khoá | tên: kiểu); cột PK gạch chân. Weak entity viền đậm.
-- Identifying relationship nét liền; non-identifying (`identifying: false`) nét đứt.
-- Mỗi entity có khoá chính (E1); mỗi relationship đủ cardinality 2 đầu và có tên động từ (E2); nhiều–nhiều nên
-  tách bảng trung gian ở mức logic (E3). Bảng phía "nhiều" giữ FK.
+- Thực thể: ô chữ nhật, tên in đậm, không liệt kê thuộc tính; thực thể yếu viền kép.
+- Quan hệ: hình thoi ghi tên (động từ / `has_xxx`) nằm giữa các thực thể, nối bằng đường liền **không mũi tên**.
+- Bản số ghi chữ ở đầu đường nối phía thực thể: `1`, `N`, `M` (1–1, 1–N, M–N). Quan hệ đệ quy: hình thoi nối 2
+  lần vào cùng thực thể (vd Comment –replies– Comment, `1`/`N`).
+- M–N hợp lệ ở mức khái niệm; khi chuyển sang mức logic mới tách bảng trung gian.
+- Quan hệ nối đúng thực thể (E1); đủ bản số 2 đầu (E2); mỗi hình thoi có tên (E3).
 
 ## Screen flow (comet_check F1–F2)
 

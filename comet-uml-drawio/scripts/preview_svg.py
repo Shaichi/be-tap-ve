@@ -91,14 +91,6 @@ def marker(kind, fill, p, q, size=10):
         b = (p[0] - ux * size - nx * size * 0.45, p[1] - uy * size - ny * size * 0.45)
         return '<polyline points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="none" stroke="#000"/>' % (
             a[0], a[1], p[0], p[1], b[0], b[1])
-    if kind.startswith("ER"):   # crow's foot (ERD)
-        at = lambda d, o=0.0: (p[0] - ux * d + nx * o, p[1] - uy * d + ny * o)
-        seg = lambda a, b: '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#000"/>' % (a + b)
-        bar = lambda d: seg(at(d, -6), at(d, 6))
-        ring = lambda d: '<circle cx="%.1f" cy="%.1f" r="4" fill="#fff" stroke="#000"/>' % at(d)
-        foot = seg(at(12), at(0, -7)) + seg(at(12), at(0, 7)) + seg(at(12), at(0))
-        return {"ERone": bar(8), "ERmandOne": bar(6) + bar(11), "ERzeroToOne": bar(6) + ring(15),
-                "ERmany": foot, "ERoneToMany": foot + bar(15), "ERzeroToMany": foot + ring(18)}.get(kind, "")
     if kind in ("diamond", "diamondThin"):
         s = 16
         m = (p[0] - ux * s / 2, p[1] - uy * s / 2)
@@ -148,6 +140,9 @@ def render_svg(model):
         stroke = "none" if stroke == "none" else ("#000" if stroke in ("inherit", "default") else stroke)
         dash = ' stroke-dasharray="6 4"' if st.get("dashed") == "1" else ""
         rows = _rich(v.value)
+        fs = str(st.get("fontStyle", "0"))
+        if fs.isdigit() and int(fs) & 1:   # fontStyle=1: ca o in dam
+            rows = [(r[0], True) + tuple(r[2:]) for r in rows]
         base = st.get("_base", "")
         if sh == "umlActor":
             cx = x + w / 2

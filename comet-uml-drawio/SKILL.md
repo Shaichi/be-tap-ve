@@ -1,6 +1,6 @@
 ---
 name: comet-uml-drawio
-description: Vẽ sơ đồ UML chuẩn cú pháp theo phương pháp COMET (Gomaa) và xuất ra draw.io (qua draw.io MCP hoặc file .drawio) với bố cục tự động KHÔNG chồng/dính hình. Dùng khi người dùng muốn vẽ use case, context, class/entity, communication (collaboration), sequence, statechart, activity, component, deployment, package diagram, ERD (sơ đồ thực thể quan hệ, chân chim), screen flow (luồng màn hình), context diagram nghiệp vụ (hình tròn trung tâm); khi nhắc tới COMET, Gomaa, «entity»/«boundary»/«control», draw.io, drawio, diagrams.net, hoặc "vẽ sơ đồ UML".
+description: Vẽ sơ đồ UML chuẩn cú pháp theo phương pháp COMET (Gomaa) và xuất ra draw.io (qua draw.io MCP hoặc file .drawio) với bố cục tự động KHÔNG chồng/dính hình. Dùng khi người dùng muốn vẽ use case, context, class/entity, communication (collaboration), sequence, statechart, activity, component, deployment, package diagram, ERD (sơ đồ thực thể quan hệ, ký pháp Chen – hình thoi), screen flow (luồng màn hình), context diagram nghiệp vụ (hình tròn trung tâm); khi nhắc tới COMET, Gomaa, «entity»/«boundary»/«control», draw.io, drawio, diagrams.net, hoặc "vẽ sơ đồ UML".
 ---
 
 # Bé tập vẽ – COMET UML → draw.io
@@ -31,7 +31,7 @@ diagram cho…") → đọc file lệnh tương ứng trước khi viết spec.
 | Class / entity | [/uml-class](../uml-class/SKILL.md) | Package / subsystem | [/uml-package](../uml-package/SKILL.md) |
 | Communication | [/uml-communication](../uml-communication/SKILL.md) | Component | [/uml-component](../uml-component/SKILL.md) |
 | Sequence | [/uml-sequence](../uml-sequence/SKILL.md) | Deployment | [/uml-deployment](../uml-deployment/SKILL.md) |
-| ERD (chân chim) | [/uml-erd](../uml-erd/SKILL.md) | Screen flow | [/uml-screenflow](../uml-screenflow/SKILL.md) |
+| ERD (Chen) | [/uml-erd](../uml-erd/SKILL.md) | Screen flow | [/uml-screenflow](../uml-screenflow/SKILL.md) |
 | Context nghiệp vụ (hình tròn) | [/uml-bizcontext](../uml-bizcontext/SKILL.md) | | |
 
 Cả bộ theo thứ tự COMET, ra 1 file nhiều trang: [/uml-comet](../uml-comet/SKILL.md).

@@ -131,17 +131,6 @@ DEFAULT_DIR = {"usecase": "LR", "communication": "LR", "screenflow": "LR"}
 # quan he khong ghi "type": mac dinh theo loai so do (activity/state: luong co guard; erd: relationship...)
 DEFAULT_REL = {"activity": "flow", "state": "transition", "erd": "relationship", "screenflow": "navigate"}
 
-# ERD (crow's foot): cardinality -> marker draw.io
-ER_END = {
-    "1": "ERmandOne", "1..1": "ERmandOne", "one": "ERmandOne", "||": "ERmandOne",
-    "0..1": "ERzeroToOne", "zero or one": "ERzeroToOne", "|o": "ERzeroToOne", "o|": "ERzeroToOne",
-    "1..*": "ERoneToMany", "1..n": "ERoneToMany", "one or many": "ERoneToMany", "|<": "ERoneToMany",
-    ">|": "ERoneToMany",
-    "0..*": "ERzeroToMany", "*": "ERzeroToMany", "0..n": "ERzeroToMany", "zero or many": "ERzeroToMany",
-    "o<": "ERzeroToMany", ">o": "ERzeroToMany",
-    "n": "ERmany", "m": "ERmany", "many": "ERmany",
-}
-ER_REL = {"relationship", "relation", "association", "identifying", "nonidentifying", "non-identifying"}
 SCREEN_KINDS = {"screen", "page", "dialog", "popup"}
 FLOW_NODES = {"initial", "final", "activityfinal", "flowfinal", "decision", "choice", "merge", "junction"}
 
@@ -160,6 +149,60 @@ def sitemap_mode(spec):
             return False
     return not any(r.get(k) for r in spec.get("relations", [])
                    for k in ("trigger", "event", "guard", "label", "name", "action"))
+
+CHEN_REL = {"relationship", "diamond", "relation"}
+
+
+def chen_mode(spec):
+    """ERD luon ve theo ky hieu Chen (muc khai niem): thuc the = o chi ghi ten, quan he = hinh thoi,
+    ban so 1/N/M o dau noi phia thuc the."""
+    return str(spec.get("diagram", "")).lower() == "erd"
+
+
+def chen_expand(spec, warns=None):
+    """Spec Chen -> spec do thi: moi relationship giua 2 entity (from/to + name) sinh 1 hinh thoi o giua va 2 canh
+    khong mui ten; ban so (fromCard/toCard) ghi o dau phia entity. Relation noi thang vao phan tu hinh thoi
+    (`"type": "relationship"`, cho quan he bac 3+) giu nguyen, ban so lay tu `card`."""
+    sp = dict(spec)
+    els = [dict(e, _chen=True) for e in spec.get("elements", [])]
+    if warns is not None:
+        for e in els:
+            if e.get("attributes"):
+                warns.append("ERD Chen khong ve thuoc tinh: bo qua 'attributes' cua '%s'." % e.get("name", e.get("id")))
+    ids = {str(e.get("id", e.get("name"))) for e in els}
+    dia = {str(e.get("id", e.get("name"))) for e in els if str(e.get("type", "")).lower() in CHEN_REL}
+    rels = []
+
+    def uid(base):
+        base = re.sub(r"\W+", "_", base).strip("_") or "rel"
+        i, c = 1, base
+        while c in ids:
+            i += 1
+            c = "%s_%d" % (base, i)
+        ids.add(c)
+        return c
+
+    for i, r in enumerate(spec.get("relations", [])):
+        a, b = str(r.get("from")), str(r.get("to"))
+        fc = r.get("fromCard", r.get("fromMult"))
+        tc = r.get("toCard", r.get("toMult"))
+        base = {k: v for k, v in r.items() if k in ("from", "to")}
+        if a in dia or b in dia:
+            card = r.get("card", r.get("cardinality"))
+            rels.append(dict(base, type="chenlink", id=r.get("id") or "e%d" % (i + 1),
+                             _sc=(fc if fc not in (None, "") else card) if b in dia else None,
+                             _dc=(tc if tc not in (None, "") else card) if a in dia else None))
+            continue
+        name = r.get("name", r.get("label")) or ""
+        rid = uid(str(r.get("id") or "r_%s" % (name or "%s_%s" % (a, b))))
+        els.append({"id": rid, "type": "relationship", "name": name, "_chen": True,
+                    "identifying": r.get("identifying")})
+        rels.append({"type": "chenlink", "id": rid + "_a", "from": a, "to": rid, "_sc": fc})
+        rels.append({"type": "chenlink", "id": rid + "_b", "from": rid, "to": b, "_dc": tc})
+    sp["elements"], sp["relations"] = els, rels
+    sp.setdefault("direction", "TB")
+    return sp
+
 
 EDGE_BASE = "html=1;rounded=0;fontSize=11;labelBackgroundColor=#ffffff;jumpStyle=arc;jumpSize=6;endSize=10;startSize=10;"
 
@@ -281,8 +324,8 @@ def render(sp, direction, diagram):
         el.perim = "ellipse"
         return el
 
-    if diagram == "erd" and k in ("entity", "table", "class"):
-        return render_er_entity(el, sp, name)
+    if diagram == "erd" and sp.get("_chen"):
+        return render_chen(el, sp, name)
     if k in SCREEN_KINDS:
         return render_screen(el, sp, name)
 
@@ -460,59 +503,25 @@ def render(sp, direction, diagram):
     return el
 
 
-_KEY_RE = re.compile(r"^\s*((?:PK|FK|UK|AK)(?:\s*[,/]\s*(?:PK|FK|UK|AK))*)\s+(.+)$", re.I)
-
-
-def er_attr(a):
-    """Thuoc tinh ERD -> (khoa, ten, kieu). Dang chuoi "PK maKH: INT" / "FK,PK x: T" hoac
-    dict {"name", "type", "key": "PK"|"FK"|"PK,FK"|"UK", "pk": true, "fk": true}."""
-    if isinstance(a, dict):
-        keys = [str(x).strip().upper() for x in re.split(r"[,/]", str(a.get("key") or "")) if str(x).strip()]
-        if a.get("pk") and "PK" not in keys:
-            keys.insert(0, "PK")
-        if a.get("fk") and "FK" not in keys:
-            keys.append("FK")
-        return ",".join(keys), str(a.get("name", "")).strip(), (str(a["type"]).strip() if a.get("type") else "")
-    s = str(a).strip()
-    key = ""
-    m = _KEY_RE.match(s)
-    if m:
-        key = ",".join(x.strip().upper() for x in re.split(r"[,/]", m.group(1)))
-        s = m.group(2).strip()
-    nm, _, ty = s.partition(":")
-    return key, nm.strip(), ty.strip()
-
-
-def render_er_entity(el, sp, name):
-    """Entity ERD dang bang: tieu de dam; cot khoa (PK/FK) + cot thuoc tinh; PK gach chan."""
-    rows = [er_attr(a) for a in sp.get("attributes", []) or []]
-    head = [(l, True, False) for l in wrap(name, 220)]
-    if sp.get("stereotype"):
-        head.insert(0, (stereo(sp["stereotype"]), False, False))
-    kw = max([text_size(k, 12, True)[0] for k, _, _ in rows if k] or [0])
-    kw = kw + 10 if kw else 0
-    texts = [(n + (": " + t if t else "")) for _, n, t in rows]
-    cw = max([text_size(t)[0] for t in texts] or [0])
-    w = max([140, kw + cw + 22] + [text_size(t, 12, b)[0] + 24 for t, b, _ in head])
-    hh = len(head) * 16 + 12
-    el.value = _html_lines(head)
-    el.style = ("swimlane;fontStyle=0;align=center;verticalAlign=top;horizontal=1;startSize=%d;collapsible=0;"
-                "html=1;whiteSpace=wrap;fillColor=#dae8fc;swimlaneFillColor=#ffffff;" % hh)
-    if sp.get("weak"):   # thuc the yeu: vien kep
-        el.style += "strokeWidth=2;"
-    ah = len(rows) * 18 + 8 if rows else 12
-    tst = ("text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;spacingRight=4;"
-           "overflow=hidden;rotatable=0;whiteSpace=wrap;html=1;")
-    if rows:
-        if kw:
-            el.sub.append(("keys", "<br>".join("<b>%s</b>" % esc(k) if k else "&nbsp;" for k, _, _ in rows),
-                           tst, 0, hh, kw + 4, ah))
-        cells = []
-        for k, n, t in rows:
-            s = ("<u>%s</u>" % esc(n)) if "PK" in k.split(",") else esc(n)
-            cells.append(s + (": " + esc(t) if t else ""))
-        el.sub.append(("attrs", "<br>".join(cells), tst, kw, hh, w - kw, ah))
-    el.box(w, hh + ah)
+def render_chen(el, sp, name):
+    """ERD Chen: entity = o chu nhat ten dam (thuc the yeu: vien kep); relationship = hinh thoi ten thuong."""
+    if el.kind in CHEN_REL:
+        lines = wrap(name, 140)
+        lw, lh = text_size("\n".join(lines), 11)
+        el.value = "<br>".join(esc(l) for l in lines)
+        el.style = "rhombus;whiteSpace=wrap;html=1;fontSize=11;spacing=0;fillColor=#ffe6cc;"
+        if el.sp.get("identifying"):
+            el.style += "double=1;"
+        el.box(max(72, math.ceil(lw * 1.35 + 14)), max(40, math.ceil(lh * 2 + 12)))
+        el.perim = "rhombus"
+        return el
+    lines = wrap(name, 200)
+    lw, lh = text_size("\n".join(lines), 12, True)
+    el.value = "<br>".join(esc(l) for l in lines)
+    el.style = "rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fillColor=#dae8fc;"
+    if sp.get("weak"):
+        el.style = "shape=ext;double=1;" + el.style
+    el.box(max(90, math.ceil(lw + 24)), max(30, math.ceil(lh + 14)))
     return el
 
 
@@ -603,19 +612,10 @@ def rel_style(rel, diagram, to_ball=False):
     d_lab = "\n".join(str(x) for x in (rel.get("toRole"), rel.get("toMult")) if x)
     lrev = False
     nav = rel.get("navigable")
-    if diagram == "erd" and t in ER_REL:
-        # crow's foot: ky hieu cardinality nam o dau mut; chi ghi chu so khi showCard
-        fc = rel.get("fromCard", rel.get("fromMult"))
-        tc = rel.get("toCard", rel.get("toMult"))
-        end = lambda c: ER_END.get(str(c).strip().lower(), "none") if c not in (None, "") else "none"
-        st = "startArrow=%s;endArrow=%s;startFill=0;endFill=0;startSize=14;endSize=14;" % (end(fc), end(tc))
-        if rel.get("identifying") is False or t in ("nonidentifying", "non-identifying"):
-            st += "dashed=1;"
-        s_lab = str(fc) if rel.get("showCard") and fc else ""
-        d_lab = str(tc) if rel.get("showCard") and tc else ""
-        if label:
-            label = "\n".join(wrap(str(label), 200))
-        return st, label, (s_lab or None), (d_lab or None), False
+    if t == "chenlink":   # ERD Chen: duong lien khong mui ten, ban so o dau phia entity
+        sc, dc = rel.get("_sc"), rel.get("_dc")
+        return ("endArrow=none;startArrow=none;", None, (str(sc) if sc not in (None, "") else None),
+                (str(dc) if dc not in (None, "") else None), False)
     if t == "association":
         st = "endArrow=%s;endFill=0;" % ("open" if nav else "none")
     elif t == "aggregation":
@@ -1586,7 +1586,7 @@ def build_bizcontext(spec, warns, origin):
 def build_page(spec, warns):
     diagram = str(spec.get("diagram", "class")).lower()
     spec["diagram"] = diagram
-    use_frame = spec.get("frame", not sitemap_mode(spec))
+    use_frame = spec.get("frame", not (sitemap_mode(spec) or chen_mode(spec)))
     title = spec.get("title") or spec.get("useCase") or spec.get("name") or diagram
     kind = FRAME_KIND.get(diagram, "")
     flabel = "%s %s" % (kind, title) if kind else title
@@ -1597,7 +1597,7 @@ def build_page(spec, warns):
     elif diagram == "bizcontext":
         out = build_bizcontext(spec, warns, origin)
     else:
-        out = build_graph(spec, warns, origin)
+        out = build_graph(chen_expand(spec, warns) if chen_mode(spec) else spec, warns, origin)
     if use_frame:
         x0, y0 = 40, 40
         x1 = max(out.maxx + 24, x0 + fw + 60)

@@ -829,26 +829,41 @@ class TestGenerator(unittest.TestCase):
         self.assertGreater(R["d"][2] - R["d"][0], R["m"][2] - R["m"][0])               # thoi noi cho vua chu
         self.assertEqual(text(edge_between(cs, "d", "b")), "[Có]")
 
-    def test_erd_crowfoot(self):
-        sp = {"diagram": "erd", "title": "ERD", "elements": [
-            {"id": "c", "type": "entity", "name": "Customer", "attributes": ["PK id: INT", "name: VARCHAR(80)"]},
-            {"id": "o", "type": "entity", "name": "Order", "weak": True, "attributes": [
-                {"name": "no", "type": "INT", "key": "PK"}, "FK customerId: INT"]}], "relations": [
-            {"type": "relationship", "from": "c", "to": "o", "fromCard": "1", "toCard": "0..*", "label": "places"},
-            {"type": "relationship", "from": "o", "to": "c", "fromCard": "0..1", "toCard": "1..*",
-             "identifying": False, "label": "x"}]}
+    def test_erd_chen(self):
+        sp = {"diagram": "erd", "title": "Chen", "elements": [
+            {"id": "u", "type": "entity", "name": "User"},
+            {"id": "r", "type": "entity", "name": "Role"},
+            {"id": "c", "type": "entity", "name": "Comment", "weak": True},
+            {"id": "s", "type": "entity", "name": "Student"}, {"id": "k", "type": "entity", "name": "Course"},
+            {"id": "enr", "type": "relationship", "name": "enrolls"}], "relations": [
+            {"from": "r", "to": "u", "name": "has_role", "fromCard": "M", "toCard": "N"},
+            {"from": "u", "to": "c", "name": "comments", "fromCard": "1", "toCard": "N"},
+            {"from": "c", "to": "c", "name": "replies", "fromCard": "1", "toCard": "N"},
+            {"from": "s", "to": "enr", "card": "N"}, {"from": "enr", "to": "k", "card": "M"},
+            {"from": "u", "to": "enr", "card": "1"}]}
         xml, cs, G = self.clean(sp)
-        self.assertEqual(style(cs["c"]).get("_base"), "swimlane")
-        self.assertEqual(style(cs["o"]).get("strokeWidth"), "2")                       # weak entity
-        self.assertIn("<u>id</u>", cs["c__attrs"].get("value"))                        # PK gach chan
-        self.assertEqual(text(cs["o__keys"]).split()[:2], ["PK", "FK"])
-        e = style(edge_between(cs, "c", "o"))
-        self.assertEqual((e.get("startArrow"), e.get("endArrow")), ("ERmandOne", "ERzeroToMany"))
-        self.assertNotEqual(e.get("dashed"), "1")
-        e = style(edge_between(cs, "o", "c"))
-        self.assertEqual((e.get("startArrow"), e.get("endArrow"), e.get("dashed")),
-                         ("ERzeroToOne", "ERoneToMany", "1"))
-        self.assertEqual(check(sp)[:2], ([], []))
+        self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))   # khong khung
+        self.assertEqual(text(cs["u"]), "User")                                        # o chi ghi ten, in dam
+        self.assertEqual(style(cs["u"]).get("fontStyle"), "1")
+        self.assertEqual(style(cs["c"]).get("double"), "1")                            # thuc the yeu: vien kep
+        dia = {text(c): k for k, c in cs.items() if style(c).get("_base") == "rhombus"}
+        self.assertEqual(sorted(dia), ["comments", "enrolls", "has_role", "replies"])
+        for e in edges(cs):                                                            # duong lien khong mui ten
+            st = style(e)
+            self.assertEqual((st.get("endArrow"), st.get("startArrow")), ("none", "none"))
+            self.assertEqual(text(e), "")
+        hr = dia["has_role"]
+        self.assertEqual(end_labels(cs, edge_between(cs, "r", hr).get("id")), {"M"})   # ban so phia thuc the
+        self.assertEqual(end_labels(cs, edge_between(cs, hr, "u").get("id")), {"N"})
+        rp = dia["replies"]
+        self.assertEqual(end_labels(cs, edge_between(cs, "c", rp).get("id")), {"1"})   # de quy
+        self.assertEqual(end_labels(cs, edge_between(cs, rp, "c").get("id")), {"N"})
+        self.assertEqual(end_labels(cs, edge_between(cs, "enr", "k").get("id")), {"M"})  # bac 3
+        self.assertEqual(check(sp), ([], [], []))
+        attr = copy.deepcopy(sp)
+        attr["elements"][0]["attributes"] = ["PK id: INT"]
+        warns = gen(attr)[1]
+        self.assertTrue(any("khong ve thuoc tinh" in w for w in warns), warns)         # thuoc tinh bi bo qua
 
     def test_screenflow(self):
         sp = {"diagram": "screenflow", "title": "SF", "elements": [
@@ -1123,19 +1138,22 @@ class TestCometCheck(unittest.TestCase):
         self.expect_one(act(*ACT_OK, {"from": "a", "to": "f"}), "W", "A6", "fork ngam")
 
     def test_erd_screenflow_bizcontext_rules(self):
-        for f in ("banking_erd", "atm_screenflow", "shop_bizcontext"):
+        for f in ("elearn_erd", "atm_screenflow", "shop_bizcontext"):
             sp = json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
             self.assertEqual(check(sp), ([], [], []), f)
         erd = {"diagram": "erd", "title": "E", "elements": [
-            {"id": "a", "type": "entity", "name": "A", "attributes": ["x: INT"]},
-            {"id": "b", "type": "entity", "name": "B", "attributes": [{"name": "id", "pk": True}]}], "relations": [
-            {"from": "a", "to": "b", "fromCard": "0..*", "toCard": "1..*", "label": "r"},
-            {"from": "a", "to": "b", "fromCard": "1"}, {"from": "a", "to": "zz", "fromCard": "1", "toCard": "1"}]}
-        self.expect_one(erd, "W", "E1", "'A' chua co khoa chinh")
+            {"id": "a", "type": "entity", "name": "A"}, {"id": "b", "type": "entity", "name": "B"},
+            {"id": "r", "type": "relationship"}], "relations": [
+            {"from": "a", "to": "b", "fromCard": "M", "toCard": "N", "name": "r"},
+            {"from": "a", "to": "b", "fromCard": "1", "name": "x"}, {"from": "a", "to": "zz", "fromCard": "1", "toCard": "1"},
+            {"from": "a", "to": "b", "fromCard": "1", "toCard": "N"},
+            {"from": "a", "to": "r", "card": "1"}, {"from": "r", "to": "b"}]}
+        self.expect_one(erd, "E", "E1", "khong ton tai")
         self.expect_one(erd, "W", "E2", "o dau 'B'")
-        self.expect_one(erd, "E", "E2", "khong ton tai")
-        self.expect_one(erd, "I", "E3", "nhieu-nhieu")
-        self.assertFalse(any("'B' chua co khoa" in w for w in check(erd)[1]))
+        self.expect_one(erd, "W", "E2", "hinh thoi 'r' thieu ban so")
+        self.expect_one(erd, "W", "E3", "'A' - 'B' chua co ten")
+        self.expect_one(erd, "W", "E3", "Hinh thoi quan he 'r' chua co ten")
+        self.assertEqual(check(erd)[2], [])                                            # nhieu-nhieu hop le
         sf = {"diagram": "screenflow", "title": "S", "elements": [
             {"id": "s", "type": "initial"}, {"id": "a", "type": "screen", "name": "A"},
             {"id": "b", "type": "screen", "name": "B"}, {"id": "c", "type": "dialog", "name": "C"}], "relations": [

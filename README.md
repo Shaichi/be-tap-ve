@@ -44,13 +44,13 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-package` | Package / subsystem | |
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
-| `/uml-erd` | **ERD (chân chim)** | PK/FK, khoá kép, cardinality `1`, `0..1`, `1..*`, `0..*`, identifying / non-identifying |
+| `/uml-erd` | **ERD (ký pháp Chen)** | thực thể chữ nhật + hình thoi quan hệ có tên, bản số `1` / `N` / `M`, quan hệ đệ quy, bậc 3 |
 | `/uml-screenflow` | **Screen flow** | màn hình, dialog, điều hướng `thao tác [điều kiện]`; hoặc **sơ đồ trang (site map)** dạng cây từ Home |
 | `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp vòng quanh, luồng dữ liệu hai chiều |
 | `/uml-comet` | Trọn bộ COMET | use case → context → class → communication + sequence → statechart → (activity, package, component, deployment) |
 
 <p align="center">
-  <img src="docs/img/banking_erd.png" width="48%" alt="ERD">
+  <img src="docs/img/elearn_erd.png" width="90%" alt="ERD - ký pháp Chen">
 </p>
 <p align="center">
   <img src="docs/img/order_design_class.png" width="70%" alt="Design class diagram">
@@ -125,7 +125,7 @@ Mở phiên mới sau khi cài để Claude nạp skill, rồi gõ lệnh kèm m
 ```text
 /uml-usecase Hệ thống thư viện: độc giả mượn/trả sách, thủ thư quản lý sách, hệ thống email gửi nhắc hạn
 /uml-activity Quy trình rút tiền ATM, 3 làn: Khách hàng, ATM, Ngân hàng
-/uml-erd Cơ sở dữ liệu bán hàng: khách hàng, đơn hàng, chi tiết đơn, sản phẩm, danh mục
+/uml-erd App học tiếng Anh: User, Role, Topic, Question, Comment (bình luận trả lời nhau), File đính kèm
 /uml-screenflow Luồng đăng ký tài khoản và đăng nhập của app đặt đồ ăn
 /uml-screenflow Sơ đồ trang (site map) hệ thống học trực tuyến: Home, đăng nhập, khoá học, bài viết, quản trị
 /uml-bizcontext Cửa hàng trực tuyến: khách hàng, nhà cung cấp, ngân hàng, đơn vị vận chuyển, cơ quan thuế
@@ -167,15 +167,15 @@ cd be-tap-ve/comet-uml-drawio
 ```
 
 ```bash
-python scripts/uml2drawio.py examples/banking_erd.json -o out/banking_erd.drawio
+python scripts/uml2drawio.py examples/elearn_erd.json -o out/elearn_erd.drawio
 ```
 
 ```bash
-python scripts/comet_check.py --partial examples/banking_erd.json
+python scripts/comet_check.py --partial examples/elearn_erd.json
 ```
 
 ```bash
-python scripts/preview_svg.py out/banking_erd.drawio -o out/banking_erd.html --png
+python scripts/preview_svg.py out/elearn_erd.drawio -o out/elearn_erd.html --png
 ```
 
 Gộp nhiều spec thành một file nhiều trang (glob để trong ngoặc kép, chạy được cả trên PowerShell/cmd):
@@ -240,16 +240,18 @@ Tuỳ chọn khác:
 }
 ```
 
-**ERD:**
+**ERD (Chen):**
 ```json
 {
   "diagram": "erd", "title": "Bán hàng",
   "elements": [
-    {"id": "kh", "type": "entity", "name": "KhachHang", "attributes": ["PK maKH: INT", "hoTen: NVARCHAR(80)"]},
-    {"id": "dh", "type": "entity", "name": "DonHang", "attributes": ["PK maDH: INT", "FK maKH: INT", "ngayDat: DATE"]}
+    {"id": "kh", "type": "entity", "name": "KhachHang"},
+    {"id": "dh", "type": "entity", "name": "DonHang"},
+    {"id": "sp", "type": "entity", "name": "SanPham"}
   ],
   "relations": [
-    {"type": "relationship", "from": "kh", "to": "dh", "fromCard": "1", "toCard": "0..*", "label": "đặt"}
+    {"from": "kh", "to": "dh", "name": "dat", "fromCard": "1", "toCard": "N"},
+    {"from": "dh", "to": "sp", "name": "gom", "fromCard": "M", "toCard": "N"}
   ]
 }
 ```
@@ -295,7 +297,7 @@ Nhóm luật của `comet_check.py`:
 | S1–S5 | Statechart hợp lệ |
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
-| E1–E3 | ERD (khoá chính, cardinality, nhiều–nhiều) |
+| E1–E3 | ERD (quan hệ nối đúng thực thể, đủ bản số 2 đầu, hình thoi có tên) |
 | F1–F2 | Screen flow (màn hình tới được, có thao tác kích hoạt; site map bỏ qua F2 vì mũi tên không nhãn) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 

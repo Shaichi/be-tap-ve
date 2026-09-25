@@ -49,7 +49,8 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `node`, `device`, `executionEnvironment` | stereotype mặc định «node»/«device»/«execution environment»; chứa component/artifact |
 | `artifact` | – |
 | `package`, `subsystem` | chứa phần tử con qua `in` |
-| `entity`, `table` (ERD) | `attributes[]`: chuỗi `"PK maKH: INT"` / `"FK x: T"` / `"PK,FK x: T"` / `"ten: T"` hoặc object `{"name", "type", "key"}` (`key`: `PK`, `FK`, `PK,FK`, `UK`; hoặc `pk`/`fk`: true); `weak`: true (viền đậm) |
+| `entity`, `table` (ERD) | chỉ `name`; `weak`: true (viền kép). Không vẽ thuộc tính |
+| `relationship` (ERD) | hình thoi quan hệ bậc 3+, `name`; nối bằng relation có `card` |
 | `screen`, `page`, `dialog`, `popup` (screen flow) | `items[]` (hoặc `fields[]`): thành phần trên màn hình, nút viết `[OK]`; dialog/popup nền vàng nét đứt «dialog». Không `items` → ô chữ nhật chỉ ghi tên (popup/dialog bo góc); site map: `branch: "side"` (con toả từ cạnh phải), `side` (vị trí so với cha) |
 | `system` (bizcontext) | hình tròn trung tâm – đúng 1 |
 
@@ -82,7 +83,7 @@ Trường chung: `type`, `from`, `to`, `label`/`name`, `id`. Bỏ trống `type`
 | `anchor` | – | note → phần tử |
 | `communicationpath`, `connector` | `stereotype`, mult | node ↔ node |
 | `link` | – | (communication – thường tự sinh từ messages) |
-| `relationship` (ERD) | `fromCard`, `toCard`: `1` · `0..1` · `1..*` · `0..*` (hoặc `many`), `label` (động từ), `identifying: false` → nét đứt, `showCard: true` → ghi thêm chữ | bất kỳ; thường cha → con |
+| (ERD) quan hệ | `name` (chữ trong hình thoi, bắt buộc), `fromCard`, `toCard`: `1` · `N` · `M`; `identifying: true` → hình thoi viền kép; nối vào phần tử hình thoi thì dùng `card` | thực thể → thực thể (hoặc thực thể ↔ hình thoi) |
 | `navigate` (screen flow) | `trigger` (thao tác người dùng), `guard` → nhãn `trigger [guard]` | màn nguồn → màn đích |
 | (bizcontext) luồng | `label` / `data`: tên dữ liệu trao đổi; `type` bỏ trống hoặc `flow` | một đầu phải là `system` |
 
@@ -180,15 +181,26 @@ Quan hệ có thể nối phần tử ở các cấp lồng khác nhau (vd compo
 Ví dụ đầy đủ cho mọi loại COMET: thư mục `examples/` (hệ ATM/Banking của Gomaa), gồm cả
 `atm_activity_withdraw.json` (swimlane), `banking_component.json`, `banking_package.json`.
 
-### ERD (ký pháp chân chim)
+### ERD (ký pháp Chen)
 
+Thực thể chỉ có tên, quan hệ là hình thoi có tên, bản số `1` / `N` / `M` ở đầu nối phía thực thể:
 ```json
-{"diagram": "erd", "title": "Banking – ERD", "elements": [
-  {"id": "customer", "type": "entity", "name": "Customer", "attributes": ["PK customerId: INT", "name: VARCHAR(80)"]},
-  {"id": "card", "type": "entity", "name": "ATMCard", "attributes": ["PK cardId: CHAR(16)", "FK customerId: INT"]}],
- "relations": [{"type": "relationship", "from": "customer", "to": "card", "fromCard": "1", "toCard": "0..*", "label": "owns"}]}
+{"diagram": "erd", "title": "LMS", "elements": [
+  {"id": "user", "type": "entity", "name": "User"},
+  {"id": "role", "type": "entity", "name": "Role"},
+  {"id": "comment", "type": "entity", "name": "Comment"}],
+ "relations": [
+  {"from": "role", "to": "user", "name": "has_role", "fromCard": "M", "toCard": "N"},
+  {"from": "user", "to": "comment", "name": "comments", "fromCard": "1", "toCard": "N"},
+  {"from": "comment", "to": "comment", "name": "replies", "fromCard": "1", "toCard": "N"}]}
 ```
-Ví dụ đầy đủ: `examples/banking_erd.json`. comet_check E1–E3.
+- Mỗi relation sinh 1 hình thoi ghi `name` ở giữa 2 thực thể; `fromCard` ghi cạnh `from`, `toCard` cạnh `to`.
+  `from` = `to` → quan hệ đệ quy. `identifying: true` → hình thoi viền kép.
+- Quan hệ bậc 3+: phần tử `{"id": "r", "type": "relationship", "name": "..."}` + relation
+  `{"from": "<entity>", "to": "r", "card": "N"}` cho từng thực thể.
+- Không vẽ thuộc tính (`attributes` bị bỏ qua kèm cảnh báo). `weak: true` → viền kép; không khung/tiêu đề (bật
+  bằng `frame: true`).
+- Ví dụ đầy đủ: `examples/elearn_erd.json`. comet_check E1–E3.
 
 ### Screen flow
 

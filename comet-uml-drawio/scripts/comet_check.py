@@ -48,7 +48,7 @@ Class diagram (ap dung cho moi spec "class"):
   C1  Thuoc tinh phai co kieu: "ten: Kieu".
   C2  Association/aggregation/composition co multiplicity o ca 2 dau (WARN); association co ten/role (INFO).
 ERD / screen flow / context diagram nghiep vu:
-  E1  Entity co khoa chinh (PK). E2 Relationship co cardinality 2 dau + ten. E3 Nhieu-nhieu -> entity trung gian.
+  E1  Relationship noi dung thuc the. E2 Du ban so 2 dau (1/N/M). E3 Quan he (hinh thoi) co ten.
   F1  Moi man hinh toi duoc tu diem bat dau. F2 Dieu huong co thao tac kich hoat (trigger) - bo qua voi
       so do trang ("layout": "tree" / site map: mui ten khong nhan).
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
@@ -65,7 +65,7 @@ import sys
 from collections import defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
-from uml2drawio import sitemap_mode  # noqa: E402
+from uml2drawio import CHEN_REL, sitemap_mode  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -339,41 +339,34 @@ def check_class(s, E, W, I):
                      % (src, name(a), name(b)))
 
 
-def _er_keys(a):
-    if isinstance(a, dict):
-        ks = {x.strip().upper() for x in re.split(r"[,/]", str(a.get("key") or "")) if x.strip()}
-        return ks | ({"PK"} if a.get("pk") else set()) | ({"FK"} if a.get("fk") else set())
-    m = re.match(r"^\s*((?:PK|FK|UK|AK)(?:\s*[,/]\s*(?:PK|FK|UK|AK))*)\s+", str(a), re.I)
-    return {x.strip().upper() for x in re.split(r"[,/]", m.group(1))} if m else set()
-
-
 def check_erd(s, E, W, I):
-    """E1-E3: ERD - moi entity co khoa chinh; relationship co cardinality 2 dau; nhieu-nhieu -> bang trung gian."""
+    """E1-E3: ERD ky hieu Chen - quan he noi dung phan tu; du ban so 2 dau (1/N/M); quan he (hinh thoi) co ten."""
     src = s["_src"]
     els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
     name = lambda i: (els[i].get("name") or i) if i in els else i
-    for i, e in els.items():
-        if norm(e.get("type")) not in ("entity", "table", "class"):
-            continue
-        if not any("PK" in _er_keys(a) for a in e.get("attributes") or []):
-            W.append("E1 [%s] Entity '%s' chua co khoa chinh (thuoc tinh 'PK ten: Kieu' hoac {\"key\": \"PK\"})."
-                     % (src, name(i)))
-    many = ("*", "0..*", "1..*", "0..n", "1..n", "n", "m", "many")
+    dia = {i for i, e in els.items() if norm(e.get("type")) in CHEN_REL}
     for r in s.get("relations", []):
         a, b = str(r.get("from")), str(r.get("to"))
         if a not in els or b not in els:
-            E.append("E2 [%s] Relationship tham chieu entity khong ton tai (%s -> %s)." % (src, a, b))
+            E.append("E1 [%s] Relationship tham chieu thuc the khong ton tai (%s -> %s)." % (src, a, b))
             continue
         fc, tc = r.get("fromCard", r.get("fromMult")), r.get("toCard", r.get("toMult"))
+        if a in dia or b in dia:   # canh noi thuc the voi hinh thoi (quan he bac 3+): ban so o dau thuc the
+            ent = b if a in dia else a
+            if not str((tc if a in dia else fc) or r.get("card") or r.get("cardinality") or "").strip():
+                W.append("E2 [%s] Canh '%s' - hinh thoi '%s' thieu ban so (\"card\": \"1\" / \"N\" / \"M\")."
+                         % (src, name(ent), name(a if a in dia else b)))
+            continue
         miss = [name(x) for x, c in ((a, fc), (b, tc)) if not str(c or "").strip()]
         if miss:
-            W.append("E2 [%s] Relationship '%s' - '%s' thieu cardinality o dau %s (\"fromCard\"/\"toCard\": \"1\", "
-                     "\"0..1\", \"1..*\", \"0..*\")." % (src, name(a), name(b), " va ".join("'%s'" % m for m in miss)))
-        elif str(fc).strip().lower() in many and str(tc).strip().lower() in many:
-            I.append("E3 [%s] '%s' - '%s' la quan he nhieu-nhieu: o muc logic/vat ly nen tach thanh entity trung gian "
-                     "(associative entity) voi 2 quan he 1-nhieu." % (src, name(a), name(b)))
+            W.append("E2 [%s] Relationship '%s' - '%s' thieu ban so o dau %s (\"fromCard\"/\"toCard\": \"1\", "
+                     "\"N\", \"M\")." % (src, name(a), name(b), " va ".join("'%s'" % m for m in miss)))
         if not (r.get("label") or r.get("name")):
-            I.append("E2 [%s] Relationship '%s' - '%s' chua co ten (dong tu, vd 'places')." % (src, name(a), name(b)))
+            W.append("E3 [%s] Relationship '%s' - '%s' chua co ten (dong tu, vd 'has_role') - hinh thoi se trong."
+                     % (src, name(a), name(b)))
+    for d in dia:
+        if not els[d].get("name"):
+            W.append("E3 [%s] Hinh thoi quan he '%s' chua co ten." % (src, d))
 
 
 def check_screenflow(s, E, W, I):
