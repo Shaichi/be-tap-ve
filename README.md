@@ -137,8 +137,9 @@ tự chọn đúng lệnh.
 **AI sẽ làm theo quy trình cố định:**
 1. Đọc ví dụ mẫu và quy tắc của loại sơ đồ.
 2. Viết spec vào `./uml/<tên>.json`.
-3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_model.py` (xây semantic model), rồi
-   `comet_check.py` (luật UML/COMET + traceability), rồi `preview_svg.py --png` (chụp ảnh).
+3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_model.py` (xây canonical semantic model v2),
+   `comet_check.py` (luật UML/COMET + traceability), rồi `comet_manifest.py` (model/consistency/repair), rồi
+   `preview_svg.py --png` (chụp ảnh).
 4. Sửa đến khi **0 ERROR** và hết WARN, rồi tự xem ảnh để soát lại.
 5. Nếu có draw.io MCP: mở sơ đồ trên diagrams.net. Nếu không: đưa đường dẫn file `.drawio` và `.png`.
 
@@ -173,14 +174,19 @@ python scripts/uml2drawio.py examples/elearn_erd.json -o out/elearn_erd.drawio
 python scripts/comet_check.py --partial examples/elearn_erd.json
 
 python scripts/comet_model.py "./uml/*.json" -o "./uml/<He_thong>.model.json"
-# semantic model: canonical IDs + nodes + links + coverage + impact map.
+# schema v2: canonical concepts + diagram-local representations + aliases + relationships + provenance + impact graph.
+# --legacy hoặc --schema-version 1 vẫn xuất model v1.
 
 python scripts/comet_check.py --strict "./uml/*.json"
 # --json: xuất report machine-readable và nhúng semantic model.
 # --strict: còn WARN cũng trả mã thoát 1, phù hợp CI/lần kiểm cuối.
 
 python scripts/comet_plan.py "./uml/*.json" -o "./uml/<He_thong>.repair.json"
-# repair plan: rule + severity + source + hướng sửa/regenerate; không tự sửa semantics.
+# repair plan v2: rule + canonical concept + impacted diagrams/specs + hướng sửa/regenerate.
+
+python scripts/comet_manifest.py "./uml/*.json" -o "./uml/<He_thong>"
+# sinh đồng bộ: <He_thong>.model.json + <He_thong>.consistency.json + <He_thong>.repair.json.
+# ba artifact dùng cùng modelFingerprint để agent/tool downstream làm việc trên cùng semantic snapshot.
 ```
 
 ```bash
