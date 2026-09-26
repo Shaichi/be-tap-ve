@@ -1450,6 +1450,14 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("WARN", r.stdout)
 
+        model_file = d / "model.json"
+        r = run("comet_model.py", EXAMPLES / "atm_usecase.json", EXAMPLES / "atm_context.json",
+                "-o", model_file)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        payload = json.loads(model_file.read_text(encoding="utf-8"))
+        self.assertEqual(payload["kind"], "comet-semantic-model")
+        self.assertIn("fingerprint", payload)
+
     def test_preview_svg(self):
         for p in EXAMPLE_FILES:
             for name, model in pages(gen(*U.load_specs([str(p)]))[0]):
