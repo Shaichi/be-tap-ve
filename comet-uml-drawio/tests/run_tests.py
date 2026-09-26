@@ -1509,8 +1509,11 @@ class TestSemanticModelV2(unittest.TestCase):
         isolated = copy.deepcopy(specs[0])
         isolated["bundle"] = "other-system"
         other = M.build_model(specs + [isolated])
-        ids = {c["id"] for c in other["concepts"].values() if c["nameKey"] == "client"}
-        self.assertEqual(len(ids), 2)
+        shop_id = M.canonical_concept_id("shop-v2", "id:customer.party")
+        other_id = M.canonical_concept_id("other-system", "id:customer.party")
+        self.assertIn(shop_id, other["concepts"])
+        self.assertIn(other_id, other["concepts"])
+        self.assertNotEqual(shop_id, other_id)
 
     def test_dependency_impact_propagation(self):
         model = M.build_model(copy.deepcopy(self.specs()))
