@@ -1431,6 +1431,138 @@ class TestCometCheck(unittest.TestCase):
                                              "messages": [{"from": "a", "to": "b"}]})), ["a", "b"])
 
 
+
+
+class TestSemanticModelV2(unittest.TestCase):
+    @staticmethod
+    def specs():
+        return [
+            {
+                "diagram": "usecase",
+                "bundle": "shop-v2",
+                "elements": [
+                    {"id": "customer", "type": "actor", "name": "Client", "conceptId": "customer.party"},
+                    {"id": "place", "type": "usecase", "name": "Place Order"},
+                ],
+                "relations": [{"from": "customer", "to": "place", "type": "association"}],
+            },
+            {
+                "diagram": "context",
+                "bundle": "shop-v2",
+                "elements": [
+                    {"id": "shop", "type": "system", "name": "Shop System", "stereotype": "software system"},
+                    {"id": "customer", "type": "external", "name": "Customer",
+                     "conceptId": "customer.party", "aliases": ["Buyer"]},
+                ],
+                "relations": [{"from": "shop", "to": "customer", "label": "orders"}],
+            },
+            {
+                "diagram": "class",
+                "bundle": "shop-v2",
+                "elements": [
+                    {"id": "customer", "type": "class", "name": "Customer",
+                     "conceptId": "customer.party", "stereotype": "entity", "attributes": ["id: String"]},
+                    {"id": "order", "type": "class", "name": "Order",
+                     "stereotype": "entity", "attributes": ["id: String"]},
+                ],
+                "relations": [{"from": "customer", "to": "order", "type": "association", "label": "places",
+                               "fromMult": "1", "toMult": "*"}],
+            },
+            {
+                "diagram": "communication",
+                "bundle": "shop-v2",
+                "useCase": "Place Order",
+                "elements": [
+                    {"id": "actor", "type": "actor", "name": "Client", "conceptId": "customer.party"},
+                    {"id": "control", "type": "object", "class": "Order Control", "stereotype": "control"},
+                    {"id": "order", "type": "object", "class": "Order", "conceptId": "order.entity",
+                     "stereotype": "entity"},
+                ],
+                "messages": [
+                    {"from": "actor", "to": "control", "name": "placeOrder", "seq": "1"},
+                    {"from": "control", "to": "order", "name": "saveOrder", "seq": "2"},
+                ],
+            },
+        ]
+
+    def test_canonical_identity_aliases_and_provenance(self):
+        model = M.build_model(copy.deepcopy(self.specs()))
+        customer = next(c for c in model["concepts"].values() if c["id"].endswith(
+            M.canonical_concept_id("shop-v2", "id:customer.party").split(":")[-1]))
+        self.assertEqual(customer["kind"], "canonical-concept")
+        self.assertIn("entity", customer["semanticKinds"])
+        self.assertIn("party", customer["semanticKinds"])
+        self.assertIn("Customer", customer["aliases"])
+        self.assertGreaterEqual(len(customer["representations"]), 3)
+        self.assertTrue(all("source" in p and "diagram" in p for p in customer["provenance"]))
+
+    def test_bundle_isolation_and_deterministic_fingerprint(self):
+        specs = self.specs()
+        first = M.build_model(copy.deepcopy(specs))
+        second = M.build_model(list(reversed(copy.deepcopy(specs))))
+        self.assertEqual(first["fingerprint"], second["fingerprint"])
+
+        isolated = copy.deepcopy(specs[0])
+        isolated["bundle"] = "other-system"
+        other = M.build_model(specs + [isolated])
+        ids = {c["id"] for c in other["concepts"].values() if c["nameKey"] == "client"}
+        self.assertEqual(len(ids), 2)
+
+    def test_dependency_impact_propagation(self):
+        model = M.build_model(copy.deepcopy(self.specs()))
+        customer = next(c for c in model["concepts"].values() if c["nameKey"] == "client")
+        order = next(c for c in model["concepts"].values() if c["nameKey"] == "order")
+        impact = model["conceptImpactMap"][customer["id"]]
+        self.assertIn(order["id"], impact["impactedConceptIds"])
+        self.assertIn("class", impact["impactedDiagramKinds"])
+        self.assertIn("class.json", impact["impactedSources"])
+        self.assertTrue(model["dependencyGraph"]["edges"])
+
+    def test_v1_backward_compatibility(self):
+        v1 = M.build_model_v1(copy.deepcopy(self.specs()))
+        self.assertEqual(v1["schemaVersion"], 1)
+        v2 = M.upgrade_v1_model(v1)
+        self.assertEqual(v2["schemaVersion"], 2)
+        self.assertEqual(v2["nodes"], v1["nodes"])
+        self.assertEqual(v2["links"], v1["links"])
+
+        legacy = M.model_for_schema(M.build_model(copy.deepcopy(self.specs())), 1)
+        self.assertEqual(legacy["schemaVersion"], 1)
+        self.assertIn("nodes", legacy)
+        self.assertNotIn("concepts", legacy)
+        self.assertNotIn("sourceOfTruth", legacy)
+        self.assertNotIn("conceptImpactMap", legacy)
+
+    def test_repair_plan_carries_canonical_impact(self):
+        specs = self.specs()
+        bad = copy.deepcopy(specs[-1])
+        bad["elements"][1]["stereotype"] = "invalid stereotype"
+        plan = CP.build_plan(specs[:-1] + [bad])
+        self.assertTrue(plan["steps"])
+        self.assertTrue(any(step["affectedConceptIds"] for step in plan["steps"]))
+
+    def test_authoritative_reconcile_detects_drift(self):
+        specs = self.specs()
+        canonical = M.build_model(copy.deepcopy(specs))
+        changed = copy.deepcopy(canonical)
+        customer = next(c for c in changed["concepts"].values() if c["nameKey"] == "client")
+        customer["name"] = "Buyer"
+        customer["nameKey"] = "buyer"
+        result = CR.reconcile(changed, M.build_model(copy.deepcopy(specs)))
+        self.assertEqual(result["status"], "drift")
+        self.assertTrue(any(x["rule"] == "M3" for x in result["drift"]))
+
+    def test_manifest_binds_authoritative_fingerprint(self):
+        specs = self.specs()
+        canonical = M.build_model(copy.deepcopy(specs))
+        model, consistency, repair = CM.build_manifests(copy.deepcopy(specs), canonical_model=canonical)
+        self.assertEqual(model["fingerprint"], canonical["fingerprint"])
+        self.assertEqual(consistency["modelFingerprint"], canonical["fingerprint"])
+        self.assertEqual(repair["modelFingerprint"], canonical["fingerprint"])
+        self.assertTrue(consistency["canonicalSourceOfTruth"])
+
+
+
 # ============================================================ 6. dong lenh
 class TestCLI(TmpMixin, unittest.TestCase):
     def test_uml2drawio(self):
