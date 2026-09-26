@@ -329,7 +329,7 @@ def build_model(specs):
                     "name": node["name"],
                     "actors": [],
                     "interactionSources": [],
-                    "activitySources": sorted(activity_sources.get((bundle_name, node["name"].lower()), [])),
+                    "activitySources": sorted(activity_sources.get((bundle_name, norm(node["name"])), [])),
                 }
             elif node["kind"] == "entity":
                 entities[nid] = {
