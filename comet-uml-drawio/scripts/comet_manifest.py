@@ -16,57 +16,20 @@ import argparse
 import json
 from pathlib import Path
 
-from comet_check import check, load
+from comet_check import load
 from comet_model import build_model
 from comet_plan import build_plan
-from comet_reconcile import reconcile, load_model
+from comet_reconcile import load_model
 
 
 def build_manifests(specs, canonical_model=None):
     projection_model = build_model(specs, schema_version=2)
-    errors, warnings, infos = check(specs)
-    plan = build_plan(specs)
-
-    reconciliation = None
-    if canonical_model is not None:
-        reconciliation = reconcile(canonical_model, projection_model)
-        plan["modelFingerprint"] = canonical_model["fingerprint"]
-        plan["canonicalModelFingerprint"] = canonical_model["fingerprint"]
-        plan["projectionFingerprint"] = projection_model["fingerprint"]
-        for drift in reconciliation["drift"]:
-            affected = sorted(set(drift.get("affectedConceptIds", [])))
-            impacted = set(affected)
-            for cid in affected:
-                impact = projection_model.get("impactMap", {}).get(cid)
-                if impact is None:
-                    impact = projection_model.get("conceptImpactMap", {}).get(cid, {})
-                impacted.update(impact.get("impactedConceptIds", []))
-            plan["steps"].append({
-                "id": "%s-%d" % (drift["rule"], len(plan["steps"]) + 1),
-                "rule": drift["rule"],
-                "severity": drift["severity"],
-                "message": drift["message"],
-                "action": drift.get("suggestion", ""),
-                "sources": drift.get("regenerateSources", []),
-                "affectedNodeIds": [],
-                "affectedConceptIds": affected,
-                "impactedConceptIds": sorted(impacted),
-                "affectedDiagramKinds": drift.get("affectedDiagramKinds", []),
-                "regenerateSources": drift.get("regenerateSources", []),
-            })
-        plan["summary"]["errors"] += reconciliation["summary"]["errors"]
-        plan["summary"]["warnings"] += reconciliation["summary"]["warnings"]
-        plan["summary"]["infos"] += reconciliation["summary"]["infos"]
-        plan["summary"]["steps"] = len(plan["steps"])
-        model = canonical_model
-    else:
-        model = projection_model
+    plan = build_plan(specs, canonical_model=canonical_model)
 
     violations = []
     impacted = set()
     regenerate = set()
     for step in plan["steps"]:
-        affected = sorted(set(step.get("affectedConceptIds", [])))
         impacted.update(step.get("impactedConceptIds", []))
         regenerate.update(step.get("regenerateSources", []))
         violations.append({
@@ -75,13 +38,14 @@ def build_manifests(specs, canonical_model=None):
             "severity": step["severity"],
             "message": step["message"],
             "sources": step.get("sources", []),
-            "affectedConceptIds": affected,
+            "affectedConceptIds": step.get("affectedConceptIds", []),
             "impactedConceptIds": step.get("impactedConceptIds", []),
             "affectedDiagramKinds": step.get("affectedDiagramKinds", []),
             "regenerateSources": step.get("regenerateSources", []),
             "action": step.get("action", ""),
         })
 
+    model = canonical_model if canonical_model is not None else projection_model
     consistency = {
         "schemaVersion": 1,
         "kind": "comet-consistency-manifest",
@@ -104,8 +68,8 @@ def build_manifests(specs, canonical_model=None):
             "edgeCount": len(projection_model.get("dependencyGraph", {}).get("edges", [])),
         },
     }
-    if reconciliation is not None:
-        consistency["canonicalReconciliation"] = reconciliation
+    if "canonicalReconciliation" in plan:
+        consistency["canonicalReconciliation"] = plan["canonicalReconciliation"]
 
     return model, consistency, plan
 
