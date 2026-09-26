@@ -11,7 +11,7 @@ Bộ skill này tách việc vẽ sơ đồ thành 3 bước để AI **không b
 2. **Bố cục + sinh XML** (việc của script): `scripts/uml2drawio.py` tự tính vị trí (Sugiyama layered layout),
    định tuyến đường nối vuông góc theo làn riêng, chừa chỗ cho nhãn → không hình nào chồng/dính nhau,
    không đường nào đi xuyên hình hoặc đè khít lên đường khác.
-3. **Kiểm tra + giao**: `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`
+3. **Lập semantic model + kiểm tra**: `scripts/comet_model.py` tạo semantic graph ổn định (canonical ID + provenance), sau đó `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`
    (nhất quán COMET giữa các sơ đồ) → mở bằng draw.io MCP hoặc giao file `.drawio`.
 
 > Quy tắc vàng: KHÔNG viết mxGraph XML bằng tay, KHÔNG dùng `postLayout`/ELK/auto-layout của MCP
@@ -121,3 +121,4 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 
 - Traceability chéo mở rộng: **X1–X6** (use case, actor, statechart, ERD/entity, component/deployment, role consistency).
 - [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
+- [ ] Semantic model đã được sinh (khi làm full COMET) để làm canonical index cho tooling/repair loop.
