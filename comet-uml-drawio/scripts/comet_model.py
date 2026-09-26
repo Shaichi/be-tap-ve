@@ -51,6 +51,11 @@ def add_node(nodes, bundle, kind, name, spec, **fields):
     src = spec.get("_src")
     if src and src not in node["sources"]:
         node["sources"].append(src)
+    diagram = norm(spec.get("diagram"))
+    if diagram:
+        node.setdefault("diagramKinds", [])
+        if diagram not in node["diagramKinds"]:
+            node["diagramKinds"].append(diagram)
     for k, v in fields.items():
         if v in (None, "", [], {}):
             continue
@@ -213,7 +218,7 @@ def build_model(specs):
                     role = st
                 nid = add_node(nodes, bundle, kind, name, spec, stereotype=role)
                 if ucid and kind in {"actor", "control", "boundary", "entity", "application-logic"}:
-                    add_link(links, bundle, "interaction-member", ucid, nid, spec)
+                    add_link(links, bundle, "interaction-member", ucid, nid, spec, useCase=uc)
                 if kind == "control" and role in SDCROLES:
                     add_node(nodes, bundle, "state-machine", name, spec, stateMachineOf=name)
 
@@ -295,12 +300,82 @@ def build_model(specs):
     for link in sorted(links.values(), key=lambda x: x["id"]):
         bundle_names[link["bundle"]]["linkIds"].append(link["id"])
 
+    coverage = {}
+    impact_map = {}
+    for nid, node in sorted(nodes.items()):
+        related = []
+        for link in links.values():
+            if link["source"] == nid or link["target"] == nid:
+                related.append(link["id"])
+        impact_map[nid] = {
+            "name": node["name"],
+            "bundle": node["bundle"],
+            "diagramKinds": sorted(node.get("diagramKinds", [])),
+            "sources": sorted(node.get("sources", [])),
+            "relatedLinkIds": sorted(set(related)),
+        }
+
+    for bundle_name in sorted(bundle_names):
+        usecases = {}
+        entities = {}
+        components = {}
+        for nid, node in nodes.items():
+            if node["bundle"] != bundle_name:
+                continue
+            if node["kind"] == "usecase":
+                usecases[nid] = {
+                    "name": node["name"],
+                    "actors": [],
+                    "interactionSources": [],
+                    "activitySources": [],
+                }
+            elif node["kind"] == "entity":
+                entities[nid] = {
+                    "name": node["name"],
+                    "diagramKinds": sorted(node.get("diagramKinds", [])),
+                    "sources": sorted(node.get("sources", [])),
+                }
+            elif node["kind"] in ("component", "subsystem"):
+                components[nid] = {
+                    "name": node["name"],
+                    "diagramKinds": sorted(node.get("diagramKinds", [])),
+                    "sources": sorted(node.get("sources", [])),
+                }
+
+        for link in links.values():
+            if link["bundle"] != bundle_name:
+                continue
+            if link["kind"] == "actor-uses" and link["target"] in usecases:
+                actor = nodes.get(link["source"])
+                if actor and actor["name"] not in usecases[link["target"]]["actors"]:
+                    usecases[link["target"]]["actors"].append(actor["name"])
+            elif link["kind"] == "interaction-member" and link.get("useCase"):
+                for uid, u in usecases.items():
+                    if norm(u["name"]) == norm(link["useCase"]) and link["sources"]:
+                        for src in link["sources"]:
+                            if src not in u["interactionSources"]:
+                                u["interactionSources"].append(src)
+
+        for uid, u in usecases.items():
+            if not u["interactionSources"]:
+                u["interactionSources"] = []
+            u["actors"] = sorted(u["actors"])
+            u["interactionSources"] = sorted(u["interactionSources"])
+
+        coverage[bundle_name] = {
+            "useCases": {k: usecases[k] for k in sorted(usecases)},
+            "entities": {k: entities[k] for k in sorted(entities)},
+            "components": {k: components[k] for k in sorted(components)},
+        }
+
     out = {
         "schemaVersion": 1,
         "kind": "comet-semantic-model",
         "bundles": {k: v for k, v in sorted(bundle_names.items())},
         "nodes": {k: nodes[k] for k in sorted(nodes)},
         "links": {k["id"]: k for k in sorted(links.values(), key=lambda x: x["id"])},
+        "coverage": coverage,
+        "impactMap": {k: impact_map[k] for k in sorted(impact_map)},
         "stats": {
             "bundles": len(bundle_names),
             "nodes": len(nodes),
