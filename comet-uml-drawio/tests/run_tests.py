@@ -1247,6 +1247,8 @@ class TestCometCheck(unittest.TestCase):
         r8 = [x for x in W + I if x.startswith("R8")]
         self.assertTrue(r8)
         self.assertFalse(any("__default__" in x or "('" in x for x in r8), r8)
+        # Ten goc nhu tac gia viet, khong phai khoa da chuan hoa 'atm control'.
+        self.assertTrue(all("'ATM Control'" in x for x in r8), r8)
 
     def test_X1_X3_partial_bundle_without_model_is_info(self):
         a = shop()

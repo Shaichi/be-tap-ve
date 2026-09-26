@@ -330,10 +330,18 @@ Nhóm luật của `comet_check.py`:
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 | L1 | Mọi sơ đồ: chữ mặc định tiếng Anh (có chữ có dấu mà chưa đặt `"lang"`) |
 
-`--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
-INFO.
+`--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7, X2, X3, và
+X1 khi bundle chưa có use case model) chỉ còn là INFO. Tham chiếu treo thật sự (bundle đã có use case model nhưng
+không có tên đó) vẫn là WARN.
 
-Để gom nhiều spec của cùng một hệ thống khi chạy validator, nên đặt cùng `"bundle"` (ví dụ `"atm-banking"`). Khi có `bundle`, validator dùng nó làm namespace cho các luật consistency/traceability (R1, R2, R5, R7, R8, R12, R14 và X1–X6), tránh trộn hai hệ thống có cùng tên use case/class. Không có `bundle` thì giữ hành vi tương thích ngược; X4/X5 vẫn có heuristic suy luận cùng bundle từ `system`/`title`/tên dùng chung.
+Ví dụ: bộ `examples/atm_*.json` cố ý chỉ vẽ luồng *Validate PIN*, nên chạy đầy đủ sẽ có 7 WARN R1 (các use case còn
+lại chưa có sơ đồ tương tác) và `--strict` trả mã thoát 1. Muốn kiểm tra bộ ví dụ như một bộ sơ đồ dở dang:
+
+```bash
+python scripts/comet_check.py --partial --strict examples/atm_*.json
+```
+
+Để gom nhiều spec của cùng một hệ thống khi chạy validator, nên đặt cùng `"bundle"` (ví dụ `"atm-banking"`). Khi có `bundle`, validator dùng nó làm namespace cho các luật consistency/traceability (R1, R2, R5, R7, R8, R12, R14 và X1–X6), tránh trộn hai hệ thống có cùng tên use case/class. Chỉ trường `bundle` là namespace; `system` chỉ là tên hiển thị. Không có `bundle` thì giữ hành vi tương thích ngược; X4/X5 ghép cặp theo heuristic `title` cùng gốc hoặc dùng chung ≥2 tên. Khi chỉ có đúng 1 ERD và 1 entity class model (hoặc 1 component và 1 deployment) mà heuristic không ghép được, validator ghi INFO gợi ý đặt cùng `bundle` thay vì bỏ qua im lặng.
 
 
 ---

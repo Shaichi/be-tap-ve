@@ -94,6 +94,11 @@ Important compatibility rule:
 
 - Specs without `bundle` still use the legacy `default` namespace.
 - A concept with the same name in another bundle must not borrow evidence from the first bundle.
+- Only `bundle` is a scope key. `system` / `project` / `systemName` are display fields and never scope a check.
+- Without `bundle`, X4/X5 pair specs by title stem or ≥2 shared names. If exactly one spec exists on each side and they
+  cannot be paired, an INFO suggests declaring a shared `bundle` instead of silently skipping.
+- `--partial` downgrades "missing counterpart" findings (R1, R7, X2, X3, and X1 when the bundle has no use-case model)
+  to INFO. A dangling reference inside a bundle that does have a use-case model stays WARN.
 
 ### Phase C — Machine-readable validation
 
@@ -214,7 +219,7 @@ Drift rules:
 | M3 | Canonical identity/name/alias drift |
 | M4 | Canonical relationship missing from projections |
 | M5 | Projection contains undeclared relationship |
-| M6 | Canonical alias missing from projection |
+| M6 | Canonical alias missing from projection (warning; M3 covers only name/bundle identity drift) |
 
 Reconciliation is **read-only**.
 
@@ -260,11 +265,16 @@ Repair actions M1–M6 are included.
 
 The plan exposes canonical impact metadata such as:
 
-- affected concept IDs
-- affected diagram kinds
-- impacted concept IDs
-- regenerate sources
+- `affectedConceptIds`: concepts named in the finding and present in the violating source; if the message names no
+  concept (e.g. a count rule), every concept of that source
+- `affectedNodeIds`: legacy nodes of those concepts restricted to the violating sources
+- `directlyImpactedConceptIds`: one-hop neighbours from the dependency graph
+- `impactedConceptIds`: full transitive closure (whole connected component, by design)
+- affected diagram kinds and regenerate sources
 - canonical reconciliation information
+
+Concept-name matching uses whole-word regexes over `nameKey` + aliases, and keeps only the longest overlapping hit
+("Query Account" does not also select "Account").
 
 ### Phase H — Machine-readable manifest trio
 
@@ -312,7 +322,7 @@ The consistency manifest reports:
 
 Updated / added:
 
-- `comet-uml-drawio/README.md`
+- `README.md` (repo root)
 - `comet-uml-drawio/SKILL.md`
 - `comet-uml-drawio/references/comet-model.md`
 - `comet-uml-drawio/references/comet-repair.md`
@@ -353,18 +363,22 @@ Regression coverage was expanded for:
 - manifest fingerprinting
 - CLI behavior
 
-The latest verified workflow run for commit `1bf82c25fb9e42d7d6c3787933e6f1e70971ac73`:
+Status after the review-fix pass (commits `884a1a6`, `95c0f6d`, `1757fd3` and the follow-up docs/R8 commit):
 
-- Run: 209
-- Status: completed
-- Conclusion: success
-- URL: https://github.com/Shaichi/be-tap-ve/actions/runs/36255665337
-
-The full suite reported:
-
-- **97 tests**
-- **1 skipped**
+- **106 tests**, 1 skipped (PNG render, needs a browser)
 - compile checks passed
+- CI on PR #1 green
+
+Review-fix pass summary:
+
+- R8 messages print the original class name (not the `(scope, key)` tuple or the normalized key).
+- X1/X3 guard per bundle and respect `--partial`; X4/X5 scope only by `bundle`.
+- `coverage.activitySources` works for the default bundle.
+- M6 alias drift is reachable (warning); M3 no longer checks aliases.
+- Representation IDs use a per-localId occurrence counter, so element order does not change IDs or fingerprints.
+- Interaction lifelines and message endpoints share one node kind (no duplicate `object` nodes).
+- Default bundle spelled `""`, `default` or `__default__` maps to one namespace in v2 (ATM: 95 → 62 concepts).
+- `comet_manifest.py` builds the semantic model once and reuses it for the repair plan.
 
 Do not assume a newer change is green until its own CI run is verified.
 

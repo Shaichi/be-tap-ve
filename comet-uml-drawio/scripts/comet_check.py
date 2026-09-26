@@ -589,7 +589,8 @@ def check(specs, partial=False):
                         % (cls, cls))
     for k, s in sm_of.items():
         src = s["_src"]
-        key_name = k[1]   # k = (scope, ten chuan hoa); chi in ten nhu truoc khi co bundle
+        # k = (scope, ten chuan hoa) -> in ten goc nhu tac gia viet (uu tien ten class trong interaction)
+        cls = sdc_classes.get(k) or str(s.get("stateMachineOf") or s.get("title") or k[1])
         events, actions = set(), set()
         for r in s.get("relations", []):
             if str(r.get("type", "transition")).lower() not in ("transition", "flow"):
@@ -605,17 +606,16 @@ def check(specs, partial=False):
         if not any(k in d for d in (ctl_in, ctl_out, rep_in, rep_out)):
             if inter:
                 I.append("R8 [%s] Statechart '%s' khong khop voi doi tuong «state dependent control» nao trong cac "
-                         "so do tuong tac da cho - bo qua kiem tra event/action." % (src, key_name))
+                         "so do tuong tac da cho - bo qua kiem tra event/action." % (src, cls))
             continue
         for ev in sorted(events):
             if ev not in ctl_in[k] and ev not in rep_in[k]:
                 I.append("R8 [%s] Event '%s' chua xuat hien la message DEN '%s' trong so do tuong tac nao "
-                         "(co the thuoc use case chua ve)." % (src, ev, key_name))
+                         "(co the thuoc use case chua ve)." % (src, ev, cls))
         for ac in sorted(actions):
             if ac not in ctl_out[k] and ac not in rep_out[k]:
                 I.append("R8 [%s] Action '%s' chua xuat hien la message DI tu '%s' trong so do tuong tac nao."
-                         % (src, ac, key_name))
-        cls = sdc_classes.get(k, key_name)
+                         % (src, ac, cls))
         for m in sorted(ctl_in[k]):   # reply den control (du lieu tra ve) khong bat buoc la event
             if m not in events:
                 W.append("R8 [%s] Message '%s' den '%s' khong la event cua transition nao tren statechart - dat "
