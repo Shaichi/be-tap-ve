@@ -500,6 +500,9 @@ def check(specs, partial=False):
                              "entity class chi nen co thuoc tinh (operations xac dinh o pha thiet ke)."
                              % (s["_src"], e.get("name")))
 
+    # R2/R5/R14 chi so voi mo hinh CÙNG bundle: bundle khong co use case/entity model/context thi khong bi kiem.
+    uc_actor_scopes = {scope for scope, _ in uc_actors}
+    entity_scopes = {scope for scope, _ in entity_classes}
     inter = by["communication"] + by["sequence"]
     ctl_in, ctl_out = defaultdict(set), defaultdict(set)   # (scope, class name) -> messages
     rep_in, rep_out = defaultdict(set), defaultdict(set)   # (scope, class name) -> reply messages
@@ -514,14 +517,14 @@ def check(specs, partial=False):
         talks_actor = set()
         for e in els.values():
             if e.get("type") == "actor":
-                if uc_actors and _scoped_name(s, e.get("name", e.get("id"))) not in uc_actors:
+                if _scope_key(s) in uc_actor_scopes and _scoped_name(s, e.get("name", e.get("id"))) not in uc_actors:
                     W.append("R2 [%s] Actor '%s' khong co trong mo hinh use case." % (src, e.get("name")))
                 continue
             st = st_of(e)
             if st not in COMET_OBJ:
                 W.append("R4 [%s] Doi tuong '%s' co stereotype «%s» khong phai stereotype cau truc doi tuong COMET "
                          "(boundary/control/application logic/entity)." % (src, obj_class(e), st or "?"))
-            if st in ENTITY and entity_classes and _scoped_name(s, obj_class(e)) not in entity_classes:
+            if st in ENTITY and _scope_key(s) in entity_scopes and _scoped_name(s, obj_class(e)) not in entity_classes:
                 W.append("R5 [%s] Doi tuong «entity» ':%s' khong co lop «entity» tuong ung trong entity class model."
                          % (src, obj_class(e)))
             if st in SDC:
@@ -658,7 +661,10 @@ def check(specs, partial=False):
             for e in s.get("elements", []):
                 if st_of(e) not in ("software system", "system") and norm(e.get("type")) != "note":
                     ctx_by_scope[_scope_key(s)].append((s["_src"], norm(e.get("name", e.get("id")))))
+        ctx_scopes = {_scope_key(s) for s in by["context"]}
         for (scope, actor_key), aname in uc_actors.items():
+            if scope not in ctx_scopes:
+                continue
             ctx = ctx_by_scope.get(scope, [])
             srcs = ", ".join(src for src, _ in ctx) or ", ".join(s["_src"] for s in by["context"] if _scope_key(s) == scope)
             if not any(re.search(r"(?<!\w)%s(?!\w)" % re.escape(actor_key), x) for _, x in ctx):
