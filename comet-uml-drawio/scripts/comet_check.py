@@ -464,6 +464,15 @@ def check_lang(s, W):
                  % (s["_src"], len(found), ", ".join("'%s'" % t for t in found[:3])))
 
 
+def _scope_key(s):
+    """Phạm vi consistency opt-in: chỉ `bundle` tách namespace; spec cũ không có bundle giữ hành vi cũ."""
+    return norm(s.get("bundle")) or "__default__"
+
+
+def _scoped_name(s, value):
+    return (_scope_key(s), norm(value))
+
+
 def check(specs, partial=False):
     E, W, I = [], [], []
     for s in specs:
@@ -474,49 +483,49 @@ def check(specs, partial=False):
         by[str(s.get("diagram", "")).lower()].append(s)
 
     # ---- collect
-    usecases, uc_actors = {}, {}   # ten chuan hoa -> ten goc
+    usecases, uc_actors = {}, {}   # (scope, ten chuan hoa) -> ten goc
     for s in by["usecase"]:
         for e in s.get("elements", []):
             if e.get("type") == "usecase":
-                usecases[norm(e.get("name", e.get("id")))] = e.get("name", e.get("id"))
+                usecases[_scoped_name(s, e.get("name", e.get("id")))] = e.get("name", e.get("id"))
             if e.get("type") == "actor":
-                uc_actors[norm(e.get("name", e.get("id")))] = e.get("name", e.get("id"))
+                uc_actors[_scoped_name(s, e.get("name", e.get("id")))] = e.get("name", e.get("id"))
     entity_classes = {}
     for s in by["class"]:
         for e in s.get("elements", []):
             if st_of(e) == "entity":
-                entity_classes[norm(e.get("name", e.get("id")))] = e
+                entity_classes[_scoped_name(s, e.get("name", e.get("id")))] = e
                 if e.get("operations"):
                     W.append("R10 [%s] Lop «entity» '%s' co operations - trong mo hinh phan tich COMET, "
                              "entity class chi nen co thuoc tinh (operations xac dinh o pha thiet ke)."
                              % (s["_src"], e.get("name")))
 
     inter = by["communication"] + by["sequence"]
-    ctl_in, ctl_out = defaultdict(set), defaultdict(set)   # class name -> messages (khong ke reply)
-    rep_in, rep_out = defaultdict(set), defaultdict(set)   # reply den / di tu control
+    ctl_in, ctl_out = defaultdict(set), defaultdict(set)   # (scope, class name) -> messages
+    rep_in, rep_out = defaultdict(set), defaultdict(set)   # (scope, class name) -> reply messages
     shown = {}   # ten da chuan hoa -> ten goc (de in thong bao)
     sdc_classes = {}
     covered = set()
     for s in inter:
         src = s["_src"]
-        covered.add(norm(s.get("useCase") or s.get("title")))
+        covered.add(_scoped_name(s, s.get("useCase") or s.get("title")))
         els = lifelines(s)
         seqs = defaultdict(int)
         talks_actor = set()
         for e in els.values():
             if e.get("type") == "actor":
-                if uc_actors and norm(e.get("name", e.get("id"))) not in uc_actors:
+                if uc_actors and _scoped_name(s, e.get("name", e.get("id"))) not in uc_actors:
                     W.append("R2 [%s] Actor '%s' khong co trong mo hinh use case." % (src, e.get("name")))
                 continue
             st = st_of(e)
             if st not in COMET_OBJ:
                 W.append("R4 [%s] Doi tuong '%s' co stereotype «%s» khong phai stereotype cau truc doi tuong COMET "
                          "(boundary/control/application logic/entity)." % (src, obj_class(e), st or "?"))
-            if st in ENTITY and entity_classes and norm(obj_class(e)) not in entity_classes:
+            if st in ENTITY and entity_classes and _scoped_name(s, obj_class(e)) not in entity_classes:
                 W.append("R5 [%s] Doi tuong «entity» ':%s' khong co lop «entity» tuong ung trong entity class model."
                          % (src, obj_class(e)))
             if st in SDC:
-                sdc_classes[norm(obj_class(e))] = obj_class(e)
+                sdc_classes[_scoped_name(s, obj_class(e))] = obj_class(e)
         for m in s.get("messages", []):
             a, b = els.get(str(m.get("from"))), els.get(str(m.get("to")))
             name = m.get("name", m.get("label"))
@@ -544,9 +553,9 @@ def check(specs, partial=False):
             if name:
                 shown.setdefault(mname(name), name)
             if tb in SDC and a is not b and name:
-                (rep_in if is_reply(m) else ctl_in)[norm(obj_class(b))].add(mname(name))
+                (rep_in if is_reply(m) else ctl_in)[_scoped_name(s, obj_class(b))].add(mname(name))
             if ta in SDC and a is not b and name:
-                (rep_out if is_reply(m) else ctl_out)[norm(obj_class(a))].add(mname(name))
+                (rep_out if is_reply(m) else ctl_out)[_scoped_name(s, obj_class(a))].add(mname(name))
             if b.get("type") == "actor":
                 talks_actor.add(str(m.get("from")))
             if a.get("type") == "actor":
@@ -573,7 +582,7 @@ def check(specs, partial=False):
     sm_of = {}
     for s in by["state"]:
         cls = s.get("stateMachineOf") or s.get("title")
-        sm_of[norm(cls)] = s
+        sm_of[_scoped_name(s, cls)] = s
     for k, cls in sdc_classes.items():
         if k not in sm_of:
             MISS.append("R7 Doi tuong «state dependent control» '%s' chua co statechart (\"stateMachineOf\": \"%s\")."
@@ -605,7 +614,7 @@ def check(specs, partial=False):
             if ac not in ctl_out[k] and ac not in rep_out[k]:
                 I.append("R8 [%s] Action '%s' chua xuat hien la message DI tu '%s' trong so do tuong tac nao."
                          % (src, ac, k))
-        cls = sdc_classes.get(k, k)
+        cls = sdc_classes.get(k, k[1] if isinstance(k, tuple) else k)
         for m in sorted(ctl_in[k]):   # reply den control (du lieu tra ve) khong bat buoc la event
             if m not in events:
                 W.append("R8 [%s] Message '%s' den '%s' khong la event cua transition nao tren statechart - dat "
@@ -640,14 +649,18 @@ def check(specs, partial=False):
                 I.append("R11 [%s] Quan he %s - %s nen co %s (nhu context diagram cua Gomaa)."
                          % (s["_src"], ends[0], ends[1], " va ".join(miss)))
 
-    # R14 - actor cua use case model <-> lop ngoai cua context diagram (khop ca cum tu: "ATM Customer" ~
-    # "ATM Customer Keypad Display"); actor nguoi chi tuong tac qua thiet bi co the vang -> chi ghi chu
+    # R14 - actor cua use case model <-> lop ngoai cua context diagram (khop ca cum tu).
+    # Khi spec co `bundle`, chi so sanh actor voi context cung bundle; spec cu khong co bundle van dung namespace mac dinh.
     if by["context"] and uc_actors:
-        ctx = [(s["_src"], norm(e.get("name", e.get("id")))) for s in by["context"] for e in s.get("elements", [])
-               if st_of(e) not in ("software system", "system") and norm(e.get("type")) != "note"]
-        srcs = ", ".join(s["_src"] for s in by["context"])
-        for k, aname in uc_actors.items():
-            if not any(re.search(r"(?<!\w)%s(?!\w)" % re.escape(k), x) for _, x in ctx):
+        ctx_by_scope = defaultdict(list)
+        for s in by["context"]:
+            for e in s.get("elements", []):
+                if st_of(e) not in ("software system", "system") and norm(e.get("type")) != "note":
+                    ctx_by_scope[_scope_key(s)].append((s["_src"], norm(e.get("name", e.get("id")))))
+        for (scope, actor_key), aname in uc_actors.items():
+            ctx = ctx_by_scope.get(scope, [])
+            srcs = ", ".join(src for src, _ in ctx) or ", ".join(s["_src"] for s in by["context"] if _scope_key(s) == scope)
+            if not any(re.search(r"(?<!\w)%s(?!\w)" % re.escape(actor_key), x) for _, x in ctx):
                 I.append("R14 [%s] Actor '%s' cua use case model chua co lop ngoai cung ten trong context diagram - "
                          "them lop «external …» ten '%s' (he thong ngoai: «external system», timer: «external timer»),"
                          " tru khi actor chi tuong tac qua cac thiet bi «external … device» da ve." % (srcs, aname, aname))
