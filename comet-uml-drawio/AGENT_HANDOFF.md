@@ -6,7 +6,7 @@
 >
 > PR: https://github.com/Shaichi/be-tap-ve/pull/1
 >
-> Scope: describe everything developed on this branch after branching from `main), the current architecture/contracts, verified regression state, and the next implementation phase for a new coding agent.
+> Scope: describe everything developed on this branch after branching from `main`, the current architecture/contracts, verified regression state, and the next implementation phase for a new coding agent.
 >
 > **Important:** this branch must **not** be merged into `main` unless the user explicitly asks.
 
