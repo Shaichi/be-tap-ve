@@ -702,7 +702,22 @@ def _same_bundle(a, b, shared_names=()):
     ka, kb = _bundle_key(a), _bundle_key(b)
     if ka and kb:
         return ka == kb
-    # Khong co bundle key: chi coi la cung bo neu co it nhat 2 ten nghiep vu chia se.
+    if ka or kb:
+        return False
+
+    # Nhan dien prefix cua title neu chua co bundle key.
+    def title_stem(s):
+        t = norm(s.get("title"))
+        for sep in (" - ", " — ", ":", " / "):
+            if sep in t:
+                return t.split(sep, 1)[0].strip()
+        return t
+
+    ta, tb = title_stem(a), title_stem(b)
+    if ta and tb and ta == tb and len(ta) >= 3:
+        return True
+
+    # Neu chia se it nhat 2 ten nghiep vu, coi nhu cung bundle.
     return len(set(shared_names)) >= 2
 
 
