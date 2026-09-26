@@ -23,6 +23,8 @@ Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn
 tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet_check` báo L1). Trả lời người dùng vẫn
 bằng ngôn ngữ của họ.
 
+- **Gán cùng một `"bundle"` cho toàn bộ spec của cùng hệ thống** (ví dụ `"bundle": "atm-banking"`). Validator dùng khoá này để kiểm tra chéo chính xác X1–X6 giữa các diagram.
+
 ## 1. Đọc bắt buộc
 - Trước khi bắt đầu: `<ENGINE>/references/comet-method.md` (toàn bộ) và `<ENGINE>/SKILL.md`.
 - Trước **mỗi** bước ở bảng dưới: đọc file lệnh của bước đó (`../uml-<loại>/SKILL.md`, mục 1–2) và ví dụ nó chỉ tới
