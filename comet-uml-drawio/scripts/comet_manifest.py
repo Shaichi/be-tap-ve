@@ -19,12 +19,48 @@ from pathlib import Path
 from comet_check import check, load
 from comet_model import build_model
 from comet_plan import build_plan
+from comet_reconcile import reconcile, load_model
 
 
-def build_manifests(specs):
-    model = build_model(specs, schema_version=2)
+def build_manifests(specs, canonical_model=None):
+    projection_model = build_model(specs, schema_version=2)
     errors, warnings, infos = check(specs)
     plan = build_plan(specs)
+
+    reconciliation = None
+    if canonical_model is not None:
+        reconciliation = reconcile(canonical_model, projection_model)
+        plan["modelFingerprint"] = canonical_model["fingerprint"]
+        plan["canonicalModelFingerprint"] = canonical_model["fingerprint"]
+        plan["projectionFingerprint"] = projection_model["fingerprint"]
+        for drift in reconciliation["drift"]:
+            affected = sorted(set(drift.get("affectedConceptIds", [])))
+            impacted = set(affected)
+            for cid in affected:
+                impact = projection_model.get("impactMap", {}).get(cid)
+                if impact is None:
+                    impact = projection_model.get("conceptImpactMap", {}).get(cid, {})
+                impacted.update(impact.get("impactedConceptIds", []))
+            plan["steps"].append({
+                "id": "%s-%d" % (drift["rule"], len(plan["steps"]) + 1),
+                "rule": drift["rule"],
+                "severity": drift["severity"],
+                "message": drift["message"],
+                "action": drift.get("suggestion", ""),
+                "sources": drift.get("regenerateSources", []),
+                "affectedNodeIds": [],
+                "affectedConceptIds": affected,
+                "impactedConceptIds": sorted(impacted),
+                "affectedDiagramKinds": drift.get("affectedDiagramKinds", []),
+                "regenerateSources": drift.get("regenerateSources", []),
+            })
+        plan["summary"]["errors"] += reconciliation["summary"]["errors"]
+        plan["summary"]["warnings"] += reconciliation["summary"]["warnings"]
+        plan["summary"]["infos"] += reconciliation["summary"]["infos"]
+        plan["summary"]["steps"] = len(plan["steps"])
+        model = canonical_model
+    else:
+        model = projection_model
 
     violations = []
     impacted = set()
@@ -51,21 +87,25 @@ def build_manifests(specs):
         "kind": "comet-consistency-manifest",
         "modelSchemaVersion": model["schemaVersion"],
         "modelFingerprint": model["fingerprint"],
+        "projectionFingerprint": projection_model["fingerprint"],
+        "canonicalSourceOfTruth": canonical_model is not None,
         "summary": {
-            "errors": len(errors),
-            "warnings": len(warnings),
-            "infos": len(infos),
+            "errors": plan["summary"]["errors"],
+            "warnings": plan["summary"]["warnings"],
+            "infos": plan["summary"]["infos"],
             "violations": len(violations),
         },
-        "status": "clean" if not errors and not warnings else "violations",
+        "status": "clean" if not plan["summary"]["errors"] and not plan["summary"]["warnings"] else "violations",
         "violations": violations,
         "impactedConceptIds": sorted(impacted),
         "regenerateSources": sorted(regenerate),
         "dependencyGraph": {
-            "nodeCount": len(model.get("dependencyGraph", {}).get("nodes", {})),
-            "edgeCount": len(model.get("dependencyGraph", {}).get("edges", [])),
+            "nodeCount": len(projection_model.get("dependencyGraph", {}).get("nodes", {})),
+            "edgeCount": len(projection_model.get("dependencyGraph", {}).get("edges", [])),
         },
     }
+    if reconciliation is not None:
+        consistency["canonicalReconciliation"] = reconciliation
 
     return model, consistency, plan
 
@@ -75,10 +115,13 @@ def main():
     ap.add_argument("specs", nargs="+")
     ap.add_argument("-o", "--prefix", default="system",
                     help="prefix output (mac dinh: system)")
+    ap.add_argument("--canonical-model",
+                    help="duong dan model v2 authoritative; spec chi duoc xem la projection cua model nay")
     a = ap.parse_args()
 
     specs = load(a.specs)
-    model, consistency, plan = build_manifests(specs)
+    canonical = load_model(a.canonical_model) if a.canonical_model else None
+    model, consistency, plan = build_manifests(specs, canonical_model=canonical)
     prefix = Path(a.prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
 
