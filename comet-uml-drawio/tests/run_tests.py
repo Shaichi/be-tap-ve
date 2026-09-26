@@ -1480,10 +1480,10 @@ class TestDocs(unittest.TestCase):
                     self.assertTrue((ENGINE / rel).is_file())
 
     def test_rule_codes_documented(self):
-        emitted = set(re.findall(r'"([RSACEFBL]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
+        emitted = set(re.findall(r'"([RSACEFBLX]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
         documented = set()
         doc = (REFS / "comet-method.md").read_text(encoding="utf-8")
-        for a, b in re.findall(r"(?m)^\| ([RSACEFBL]\d{1,2})(?:–([RSACEFBL]\d{1,2}))? \|", doc):
+        for a, b in re.findall(r"(?m)^\| ([RSACEFBLX]\d{1,2})(?:–([RSACEFBLX]\d{1,2}))? \|", doc):
             documented |= {"%s%d" % (a[0], k) for k in range(int(a[1:]), int((b or a)[1:]) + 1)}
         self.assertEqual(emitted, documented)
 
