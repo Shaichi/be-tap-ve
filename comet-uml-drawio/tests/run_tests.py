@@ -46,6 +46,7 @@ SCRIPTS, EXAMPLES, REFS = ENGINE / "scripts", ENGINE / "examples", ENGINE / "ref
 sys.path[:0] = [str(SCRIPTS), str(ENGINE / "tests")]
 
 import comet_check as C          # noqa: E402
+import comet_model as M           # noqa: E402
 import install as INST           # noqa: E402
 import preview_svg as P          # noqa: E402
 import uml2drawio as U           # noqa: E402
@@ -1238,6 +1239,28 @@ class TestCometCheck(unittest.TestCase):
         E, W, I = check(role_cls, role_comm)
         self.assertFalse(codes(W, "X6"), "X6 khong duoc tron role khac bundle: %s" % W)
 
+    def test_semantic_model(self):
+        specs = C.load([str(EXAMPLES / "atm_usecase.json"),
+                        str(EXAMPLES / "atm_comm_validate_pin.json"),
+                        str(EXAMPLES / "atm_seq_validate_pin.json"),
+                        str(EXAMPLES / "atm_entity.json"),
+                        str(EXAMPLES / "banking_component.json"),
+                        str(EXAMPLES / "atm_deployment.json")])
+        for sp in specs:
+            sp["bundle"] = "atm-banking"
+        model = M.build_model(specs)
+        self.assertEqual(model["schemaVersion"], 1)
+        self.assertEqual(model["kind"], "comet-semantic-model")
+        self.assertEqual(model["stats"]["bundles"], 1)
+        names = {n["name"] for n in model["nodes"].values()}
+        for expected in ("Validate PIN", "ATM Customer", "ATM Control", "Banking System"):
+            self.assertIn(expected, names)
+        kinds = {n["kind"] for n in model["nodes"].values()}
+        self.assertIn("usecase", kinds)
+        self.assertIn("control", kinds)
+        self.assertIn("entity", kinds)
+        self.assertTrue(model["fingerprint"])
+
     def test_json_report(self):
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
@@ -1250,6 +1273,8 @@ class TestCometCheck(unittest.TestCase):
             self.assertIn("summary", payload)
             self.assertGreaterEqual(payload["summary"]["warnings"], 1)
             self.assertTrue(any("R4" in x for x in payload["warnings"]))
+            self.assertEqual(payload["model"]["kind"], "comet-semantic-model")
+            self.assertIn("fingerprint", payload["model"])
 
     def test_statechart_rules(self):
         self.assertEqual(check(stm(*STM_OK)), ([], [], []))
