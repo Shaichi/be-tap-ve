@@ -579,9 +579,15 @@ def build_semantic_v2(v1_model, specs):
     model["dependencyGraph"] = _build_dependency_graph(
         model["concepts"], model["representations"], model["relationships"], model["derivedArtifacts"]
     )
-    model["impactMap"] = _impact_map(
+    concept_impact = _impact_map(
         model["concepts"], model["representations"], model["relationships"], model["dependencyGraph"]
     )
+    model["conceptImpactMap"] = concept_impact
+    # Compatibility surface: keep legacy node-id impact entries while v2 concept IDs
+    # become the canonical keys for new tooling.
+    legacy_impact = dict(v1_model.get("impactMap", {}))
+    legacy_impact.update(concept_impact)
+    model["impactMap"] = legacy_impact
 
     model["stats"].update({
         "concepts": len(model["concepts"]),
@@ -732,9 +738,12 @@ def upgrade_v1_model(v1_model):
     out["dependencyGraph"] = _build_dependency_graph(
         out["concepts"], out["representations"], out["relationships"], out["derivedArtifacts"]
     )
-    out["impactMap"] = _impact_map(
+    out["conceptImpactMap"] = _impact_map(
         out["concepts"], out["representations"], out["relationships"], out["dependencyGraph"]
     )
+    legacy_impact = dict(v1_model.get("impactMap", {}))
+    legacy_impact.update(out["conceptImpactMap"])
+    out["impactMap"] = legacy_impact
     out.pop("fingerprint", None)
     payload = json.dumps(out, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     out["fingerprint"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
