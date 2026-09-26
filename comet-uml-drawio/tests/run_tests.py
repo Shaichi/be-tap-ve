@@ -1729,6 +1729,19 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertEqual(run("uml2drawio.py", d / "ctx.json").returncode, 0)             # mac dinh: canh spec
         self.assertEqual(sorted(p.name for p in d.iterdir()), ["all.drawio", "ctx.drawio", "ctx.json", "stm.drawio"])
 
+    def test_generated_artifacts_skipped_by_spec_glob(self):
+        # Quy trinh ghi model/consistency/repair vao ./uml/ roi glob "./uml/*.json": artifact khong duoc thanh so do.
+        d = self.tmpdir()
+        for p in EXAMPLES.glob("atm_*.json"):
+            shutil.copy(p, d / p.name)
+        n = len(list(EXAMPLES.glob("atm_*.json")))
+        self.assertEqual(run("comet_manifest.py", d / "*.json", "-o", d / "sys").returncode, 0)
+        self.assertEqual(len(list(d.glob("sys.*.json"))), 3)
+        r = run("uml2drawio.py", d / "*.json", "-o", d / "all.drawio")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(pages(str(d / "all.drawio"))), n)
+        self.assertEqual(len(C.load([str(d / "*.json")])), n)
+
     def test_comet_check(self):
         r = run("comet_check.py", "--partial", EXAMPLES / "*.json")
         self.assertEqual(r.returncode, 0, r.stdout)
