@@ -105,12 +105,16 @@ def build_model(specs):
         spec.setdefault("_src", str(spec.get("diagram") or "diagram"))
 
         if diagram == "usecase":
+            system_name = spec.get("system")
+            system_id = add_node(nodes, bundle, "system", system_name, spec, role="software system") if system_name else None
             els = {str(e.get("id", e.get("name"))): e for e in spec.get("elements", [])}
             for e in spec.get("elements", []):
                 typ = norm(e.get("type"))
                 name = e.get("name", e.get("id"))
                 if typ == "usecase":
-                    add_node(nodes, bundle, "usecase", name, spec)
+                    uid = add_node(nodes, bundle, "usecase", name, spec)
+                    if system_id and uid:
+                        add_link(links, bundle, "system-contains-usecase", system_id, uid, spec)
                 elif typ == "actor":
                     add_node(nodes, bundle, "actor", name, spec, stereotype=st_of(e))
             for r in spec.get("relations", []):
