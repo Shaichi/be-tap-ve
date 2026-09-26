@@ -64,7 +64,7 @@ bằng ngôn ngữ của họ.
 Sau mỗi bước: chạy 3 lệnh của lệnh con (có `--partial`) cho spec vừa viết. Xong tất cả:
 ```bash
 python "<ENGINE>/scripts/uml2drawio.py" "./uml/*.json" -o ./uml/<He_thong>.drawio
-python "<ENGINE>/scripts/comet_check.py" "./uml/*.json"
+python "<ENGINE>/scripts/comet_check.py" --strict "./uml/*.json"
 python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_thong>.html --png
 ```
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
