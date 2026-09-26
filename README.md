@@ -313,6 +313,9 @@ Nhóm luật của `comet_check.py`:
 `--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
 INFO.
 
+Để gom nhiều spec của cùng một hệ thống khi chạy validator, nên đặt cùng `"bundle"` (ví dụ `"atm-banking"`). Validator X1–X6 ưu tiên `bundle`, sau đó mới suy ra nhóm từ `title`/tên dùng chung để tránh kiểm tra nhầm giữa các hệ thống khác nhau.
+
+
 ---
 
 ## 8. Cấu trúc thư mục
