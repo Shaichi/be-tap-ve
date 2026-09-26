@@ -1264,7 +1264,7 @@ class TestCometCheck(unittest.TestCase):
         self.assertIn("entity", kinds)
         self.assertTrue(model["fingerprint"])
         plan_specs = copy.deepcopy(specs)
-        plan_specs[1]["elements"][0]["stereotype"] = "invalid stereotype"
+        plan_specs[2]["elements"][1]["stereotype"] = "invalid stereotype"
         plan = CP.build_plan(plan_specs)
         self.assertEqual(plan["kind"], "comet-repair-plan")
         self.assertGreaterEqual(plan["summary"]["warnings"], 1)
