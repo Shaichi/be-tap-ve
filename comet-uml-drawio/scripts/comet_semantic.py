@@ -597,6 +597,16 @@ def build_semantic_v2(v1_model, specs):
         "constraints": len(model["constraints"]),
         "derivedArtifacts": len(model["derivedArtifacts"]),
     })
+    model["sourceOfTruth"] = {
+        "mode": "projection-bootstrap",
+        "authoritativeSections": ["concepts", "aliases", "relationships", "constraints"],
+        "derivedSections": [
+            "nodes", "links", "representations", "coverage", "impactMap", "conceptImpactMap",
+            "dependencyGraph", "derivedArtifacts", "stats"
+        ],
+        "projectionRule": "diagram specs are projections of canonical concepts; business semantics are not auto-repaired",
+    }
+
     model["compatibility"]["sourceTruth"] = {
         "mode": "canonical-v2",
         "projectionRule": "diagrams are local representations; semantic changes belong in canonical concepts/specs",
@@ -719,6 +729,12 @@ def upgrade_v1_model(v1_model):
         "constraints": _declarative_constraints(),
         "dependencyGraph": {"nodes": {}, "edges": []},
         "derivedArtifacts": derived,
+        "sourceOfTruth": {
+            "mode": "legacy-upgrade",
+            "authoritativeSections": ["concepts", "aliases", "relationships", "constraints"],
+            "derivedSections": ["nodes", "links", "representations", "coverage", "impactMap", "conceptImpactMap", "dependencyGraph", "derivedArtifacts", "stats"],
+            "projectionRule": "v1 model upgraded for compatibility; source specs should be reconciled before treating it as authoritative",
+        },
         "compatibility": {
             "legacySchemaVersion": LEGACY_SCHEMA_VERSION,
             "upgradedFrom": LEGACY_SCHEMA_VERSION,
