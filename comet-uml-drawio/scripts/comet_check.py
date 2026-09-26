@@ -949,15 +949,27 @@ def main():
                     help="chi kiem mot phan bo so do: R1/R7 (thieu so do doi ung) chi la INFO")
     ap.add_argument("--strict", action="store_true",
                     help="co WARN thi tra ma thoat 1 (dung cho CI/kiem tra cuoi)")
+    ap.add_argument("--json", action="store_true",
+                    help="xuat report JSON may-doc thay vi output text")
     a = ap.parse_args()
     E, W, I = check(load(a.specs), partial=a.partial)
-    print("COMET check: %d loi, %d canh bao, %d ghi chu" % (len(E), len(W), len(I)))
-    for x in E:
-        print("  ERROR:", x)
-    for x in W:
-        print("  WARN :", x)
-    for x in I:
-        print("  INFO :", x)
+    if a.json:
+        print(json.dumps({
+            "summary": {"errors": len(E), "warnings": len(W), "infos": len(I)},
+            "errors": E,
+            "warnings": W,
+            "infos": I,
+            "partial": bool(a.partial),
+            "strict": bool(a.strict),
+        }, ensure_ascii=False, indent=2))
+    else:
+        print("COMET check: %d loi, %d canh bao, %d ghi chu" % (len(E), len(W), len(I)))
+        for x in E:
+            print("  ERROR:", x)
+        for x in W:
+            print("  WARN :", x)
+        for x in I:
+            print("  INFO :", x)
     sys.exit(1 if E or (a.strict and W) else 0)
 
 
