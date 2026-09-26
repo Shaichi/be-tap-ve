@@ -82,14 +82,16 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | F1–F2 | Screen flow (site map): mọi màn hình tới được từ màn hình gốc; không initial/decision, không `items`, mũi tên không nhãn | WARN |
 | B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 | L1 | Mọi sơ đồ: chữ trên sơ đồ mặc định tiếng Anh – có chữ có dấu (tiếng Việt…) mà spec chưa đặt `"lang"` khác `"en"` | WARN |
-| X1 | Interaction/activity tham chiếu `useCase` không tồn tại trong use case model | WARN |
-| X2 | Actor được gán cho use case phải xuất hiện trong interaction của use case đó | WARN (`--partial`: INFO) |
-| X3 | Statechart phải truy vết được về `state dependent control` cùng tên trong interaction | WARN |
+| X1 | Interaction/activity tham chiếu `useCase` không tồn tại trong use case model cùng `bundle` | WARN |
+| X2 | Actor được gán cho use case phải xuất hiện trong interaction của use case đó, cùng `bundle` | WARN (`--partial`: INFO) |
+| X3 | Statechart phải truy vết được về `state dependent control` cùng tên trong interaction, cùng `bundle` | WARN |
 | X4 | ERD và entity class model phải khớp thực thể khi có cùng bundle | WARN/INFO |
 | X5 | Component và deployment phải khớp tên khi có cùng bundle | WARN/INFO |
 | X6 | Cùng một tên structural không được đổi vai trò entity ↔ boundary/control/application logic | WARN |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
+
+**Bundle isolation:** nếu spec có `"bundle"`, validator coi đó là namespace consistency. Hai diagram cùng tên nhưng khác bundle không được dùng để thỏa R1/R7/R8/R12 hoặc X1–X6 cho nhau; spec không có bundle vẫn giữ hành vi cũ.
 `--partial` dùng khi mới vẽ một phần bộ sơ đồ; lần kiểm cuối cho cả bộ chạy **không** `--partial`.
 
 ## 6. Quy ước message trong COMET
