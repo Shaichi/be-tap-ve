@@ -120,3 +120,4 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 - [ ] Đã mở qua MCP hoặc đưa đường dẫn file `.drawio`.
 
 - Traceability chéo mở rộng: **X1–X6** (use case, actor, statechart, ERD/entity, component/deployment, role consistency).
+- [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
