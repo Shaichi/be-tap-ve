@@ -19,7 +19,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from comet_check import lifelines, load, mname, norm, obj_class, st_of
-from comet_semantic import build_semantic_v2, model_for_schema
+from comet_semantic import (build_semantic_v2, model_for_schema, canonical_concept_id,
+                            upgrade_v1_model)
 
 
 def bundle_of(spec):
