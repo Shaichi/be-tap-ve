@@ -966,8 +966,11 @@ def main():
     ap.add_argument("--json", action="store_true",
                     help="xuat report JSON may-doc thay vi output text")
     a = ap.parse_args()
-    E, W, I = check(load(a.specs), partial=a.partial)
+    specs = load(a.specs)
+    E, W, I = check(specs, partial=a.partial)
     if a.json:
+        # Import lazily de tranh circular import khi comet_model tai cac helper tu module nay.
+        from comet_model import build_model
         print(json.dumps({
             "summary": {"errors": len(E), "warnings": len(W), "infos": len(I)},
             "errors": E,
@@ -975,6 +978,7 @@ def main():
             "infos": I,
             "partial": bool(a.partial),
             "strict": bool(a.strict),
+            "model": build_model(specs),
         }, ensure_ascii=False, indent=2))
     else:
         print("COMET check: %d loi, %d canh bao, %d ghi chu" % (len(E), len(W), len(I)))
