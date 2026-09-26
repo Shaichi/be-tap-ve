@@ -1221,6 +1221,23 @@ class TestCometCheck(unittest.TestCase):
         E, W, I = check(a["uc"], a["comm"], a["seq"], st)
         self.assertTrue(codes(W, "X3"), "statechart phai trace control cung bundle: %s" % W)
 
+        # R12 không được so sánh communication/sequence ở hai bundle khác nhau.
+        c2 = copy.deepcopy(SHOP_COMM)
+        q2 = copy.deepcopy(SHOP_SEQ)
+        c2["bundle"], q2["bundle"] = "shop-b", "shop-c"
+        c2["messages"] = c2["messages"][:-1]
+        E, W, I = check(c2, q2)
+        self.assertFalse(codes(W, "R12"), "R12 khong duoc tron bundle: %s" % W)
+
+        # X6 role collision cũng chỉ có ý nghĩa trong cùng bundle.
+        role_cls = copy.deepcopy(SHOP_CLS)
+        role_cls["bundle"] = "shop-c"
+        role_comm = copy.deepcopy(SHOP_COMM)
+        role_comm["bundle"] = "shop-b"
+        el(role_comm, "ord")["stereotype"] = "control"
+        E, W, I = check(role_cls, role_comm)
+        self.assertFalse(codes(W, "X6"), "X6 khong duoc tron role khac bundle: %s" % W)
+
     def test_json_report(self):
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
