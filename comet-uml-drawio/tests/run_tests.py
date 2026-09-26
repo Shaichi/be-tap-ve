@@ -1440,6 +1440,7 @@ class TestSemanticModelV2(unittest.TestCase):
             {
                 "diagram": "usecase",
                 "bundle": "shop-v2",
+                "_src": "usecase.json",
                 "elements": [
                     {"id": "customer", "type": "actor", "name": "Client", "conceptId": "customer.party"},
                     {"id": "place", "type": "usecase", "name": "Place Order"},
@@ -1449,6 +1450,7 @@ class TestSemanticModelV2(unittest.TestCase):
             {
                 "diagram": "context",
                 "bundle": "shop-v2",
+                "_src": "context.json",
                 "elements": [
                     {"id": "shop", "type": "system", "name": "Shop System", "stereotype": "software system"},
                     {"id": "customer", "type": "external", "name": "Customer",
@@ -1459,6 +1461,7 @@ class TestSemanticModelV2(unittest.TestCase):
             {
                 "diagram": "class",
                 "bundle": "shop-v2",
+                "_src": "class.json",
                 "elements": [
                     {"id": "customer", "type": "class", "name": "Customer",
                      "conceptId": "customer.party", "stereotype": "entity", "attributes": ["id: String"]},
@@ -1471,6 +1474,7 @@ class TestSemanticModelV2(unittest.TestCase):
             {
                 "diagram": "communication",
                 "bundle": "shop-v2",
+                "_src": "communication.json",
                 "useCase": "Place Order",
                 "elements": [
                     {"id": "actor", "type": "actor", "name": "Client", "conceptId": "customer.party"},
