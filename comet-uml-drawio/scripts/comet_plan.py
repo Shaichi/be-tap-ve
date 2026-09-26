@@ -89,20 +89,54 @@ def build_plan(specs):
                 "sources": source_tokens(message),
             })
 
-    # Impact map theo source: gom cac canonical concept nam trong cac spec bi anh huong.
+    # V2 impact: nguồn vi phạm -> canonical concept -> propagated impact.
     source_to_nodes = defaultdict(set)
     for nid, node in model["nodes"].items():
         for src in node.get("sources", []):
             source_to_nodes[src].add(nid)
+
+    source_to_concepts = defaultdict(set)
+    for cid, concept in model.get("concepts", {}).items():
+        for src in concept.get("provenance", []):
+            if src.get("source"):
+                source_to_concepts[src["source"]].add(cid)
+        for src in concept.get("legacyNodeIds", []):
+            node = model["nodes"].get(src, {})
+            for source in node.get("sources", []):
+                source_to_concepts[source].add(cid)
+
     for item in items:
-        affected = set()
+        affected_nodes = set()
+        affected_concepts = set()
         for src in item["sources"]:
-            affected.update(source_to_nodes.get(src, set()))
-        item["affectedNodeIds"] = sorted(affected)
-        item["regenerateSources"] = sorted(set(item["sources"]))
+            affected_nodes.update(source_to_nodes.get(src, set()))
+            affected_concepts.update(source_to_concepts.get(src, set()))
+
+        # When a violation names a canonical concept but source parsing is weak,
+        # use normalized names as a deterministic fallback.
+        message_key = str(item["message"]).lower()
+        for cid, concept in model.get("concepts", {}).items():
+            if concept.get("nameKey") and concept["nameKey"] in message_key:
+                affected_concepts.add(cid)
+
+        impacted = set()
+        regenerate = set()
+        diagram_kinds = set()
+        for cid in affected_concepts:
+            impact = model.get("impactMap", {}).get(cid, {})
+            impacted.add(cid)
+            impacted.update(impact.get("impactedConceptIds", []))
+            regenerate.update(impact.get("regenerateSources", []))
+            diagram_kinds.update(impact.get("impactedDiagramKinds", []))
+
+        item["affectedNodeIds"] = sorted(affected_nodes)
+        item["affectedConceptIds"] = sorted(affected_concepts)
+        item["impactedConceptIds"] = sorted(impacted)
+        item["affectedDiagramKinds"] = sorted(diagram_kinds)
+        item["regenerateSources"] = sorted(regenerate or set(item["sources"]))
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "kind": "comet-repair-plan",
         "modelFingerprint": model["fingerprint"],
         "summary": {
