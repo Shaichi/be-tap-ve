@@ -172,6 +172,22 @@ def _add_provenance(concept, *, source, diagram, local_id=None, role="", represe
         concept["provenance"].append(item)
 
 
+def _canonicalize_legacy_projection(model):
+    """Normalize v1 compatibility arrays so v2 fingerprints do not depend on spec order."""
+    for node in model.get("nodes", {}).values():
+        for key in ("sources", "diagramKinds"):
+            if isinstance(node.get(key), list):
+                node[key] = sorted(set(node[key]))
+    for link in model.get("links", {}).values():
+        if isinstance(link.get("sources"), list):
+            link["sources"] = sorted(set(link["sources"]))
+    for bundle in model.get("bundles", {}).values():
+        for key in ("nodeIds", "linkIds"):
+            if isinstance(bundle.get(key), list):
+                bundle[key] = sorted(set(bundle[key]))
+    return model
+
+
 def _dedupe_sort_model(model):
     for concept in model["concepts"].values():
         for key in ("aliases", "semanticKinds", "roles", "representations", "relationshipIds", "legacyNodeIds"):
@@ -382,6 +398,9 @@ def _declarative_constraints():
 def build_semantic_v2(v1_model, specs):
     """Upgrade a v1 model and enrich it with source-backed canonical concepts."""
     model = upgrade_v1_model(v1_model)
+    _canonicalize_legacy_projection(model)
+    # The v1 fingerprint is a compatibility datum, not part of the canonical v2 fingerprint.
+    model.pop("fingerprint", None)
 
     # Source-backed representations are the authoritative bridge between canonical
     # identity and diagram-local syntax.
