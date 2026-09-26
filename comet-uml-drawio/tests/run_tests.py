@@ -1480,6 +1480,10 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertEqual(payload["kind"], "comet-semantic-model")
         self.assertIn("fingerprint", payload)
 
+        repair_input = copy.deepcopy(SHOP_COMM)
+        repair_input["elements"][1]["stereotype"] = "invalid stereotype"
+        repair_json = d / "repair-input.json"
+        repair_json.write_text(json.dumps(repair_input), encoding="utf-8")
         canonical_file = d / "canonical.json"
         canonical_file.write_text(json.dumps(CM.build_manifests(
             [copy.deepcopy(SHOP_COMM)])[0], ensure_ascii=False), encoding="utf-8")
@@ -1488,11 +1492,6 @@ class TestCLI(TmpMixin, unittest.TestCase):
         reconciliation = json.loads(r.stdout)
         self.assertEqual(reconciliation["kind"], "comet-canonical-reconciliation")
         self.assertEqual(reconciliation["status"], "clean")
-
-        repair_input = copy.deepcopy(SHOP_COMM)
-        repair_input["elements"][1]["stereotype"] = "invalid stereotype"
-        repair_json = d / "repair-input.json"
-        repair_json.write_text(json.dumps(repair_input), encoding="utf-8")
         plan_file = d / "repair.json"
         r = run("comet_plan.py", repair_json, "-o", plan_file)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
