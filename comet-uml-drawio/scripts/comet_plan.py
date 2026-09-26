@@ -65,8 +65,8 @@ def code_of(message):
 
 def source_tokens(message):
     out = []
-    for raw in re.findall(r"\\[([^\\]]+)\\]", message):
-        for token in re.split(r"\\s*<>\\s*|,\\s*", raw):
+    for raw in re.findall(r"\[([^\]]+)\]", message):
+        for token in re.split(r"\s*<>\s*|,\s*", raw):
             token = token.strip()
             if token and token not in out and token.lower() not in {"default"}:
                 out.append(token)
