@@ -404,7 +404,7 @@ Related fixes:
 
 Status: **125 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
 
-Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram.
+Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram. Spec loaders skip generated `comet-*` artifacts, so `"./uml/*.json"` globs stay safe.
 
 ---
 
