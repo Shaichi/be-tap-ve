@@ -68,7 +68,7 @@ python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_th
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
 1. `uml2drawio.py` gộp mọi spec thành **một** file nhiều trang, tự chạy validator → phải **0 ERROR** (mã thoát 2 =
    còn lỗi).
-2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 giữa các sơ đồ, S1–S5, A1–A6, C1–C2) → 0 ERROR
+2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 + X1–X6 giữa các sơ đồ, S1–S5, A1–A6, C1–C2) → 0 ERROR
    và **sửa hết WARN** trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó không đúng ngữ cảnh — nêu mã luật +
    lý do. Không biện minh kiểu "chỉ là cảnh báo nhỏ".
 3. **Mở từng ảnh** `./uml/<He_thong>_p<N>.png` (mỗi trang một ảnh) bằng công cụ đọc file và tự soát: chữ đọc được,
