@@ -933,6 +933,8 @@ def main():
     ap.add_argument("specs", nargs="+")
     ap.add_argument("--partial", action="store_true",
                     help="chi kiem mot phan bo so do: R1/R7 (thieu so do doi ung) chi la INFO")
+    ap.add_argument("--strict", action="store_true",
+                    help="co WARN thi tra ma thoat 1 (dung cho CI/kiem tra cuoi)")
     a = ap.parse_args()
     E, W, I = check(load(a.specs), partial=a.partial)
     print("COMET check: %d loi, %d canh bao, %d ghi chu" % (len(E), len(W), len(I)))
@@ -942,7 +944,7 @@ def main():
         print("  WARN :", x)
     for x in I:
         print("  INFO :", x)
-    sys.exit(1 if E else 0)
+    sys.exit(1 if E or (a.strict and W) else 0)
 
 
 if __name__ == "__main__":
