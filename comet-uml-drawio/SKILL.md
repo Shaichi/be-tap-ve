@@ -50,6 +50,7 @@ integrated communication diagram, subsystem/component/deployment.
 
 ### Bước 1 – Viết spec
 - Định dạng đầy đủ: `references/spec-format.md`. Ví dụ mẫu (hệ ATM/Banking của Gomaa): `examples/*.json`
+- Semantic model: `references/comet-model.md` mô tả canonical ID, coverage, impact map và schema JSON.
   – mỗi loại sơ đồ có 1 file; **bắt buộc** mở file cùng loại làm khuôn trước khi viết spec mới.
 - Activity: chia làn bằng `partitions` (cấp spec) + `partition` (mỗi phần tử); luồng ra khỏi decision
   luôn có `guard`. Component: interface cung cấp/yêu cầu dùng `notation: "lollipop"` + `provides`/`requires`.
