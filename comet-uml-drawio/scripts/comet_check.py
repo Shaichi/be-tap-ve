@@ -864,31 +864,37 @@ def check_cross_diagrams(by, partial=False):
                 I.append("X5 [%s <> %s] Component diagram co %s chua duoc anh xa vao deployment diagram." %
                          (cs["_src"], ds["_src"], ", ".join("'%s'" % x for x in not_deployed)))
 
-    # ------------------------------------------------ X6: cung ten object khong duoc doi vai tro structural
+    # ------------------------------------------------ X6: cung ten object khong duoc doi vai tro structural trong cung bundle
     roles = defaultdict(set)
     sources = defaultdict(set)
     for s in by["communication"] + by["sequence"]:
+        scope = _scope_key(s)
         for e in s.get("elements", []):
             if e.get("type") == "actor":
                 continue
             n = norm(obj_class(e))
             if not n:
                 continue
-            roles[n].add(st_of(e))
-            sources[n].add(s["_src"])
+            key = (scope, n)
+            roles[key].add(st_of(e))
+            sources[key].add(s["_src"])
     for s in by["class"]:
+        scope = _scope_key(s)
         for e in s.get("elements", []):
             if st_of(e) == "entity":
                 n = norm(e.get("name", e.get("id")))
                 if n:
-                    roles[n].add("entity")
-                    sources[n].add(s["_src"])
-    for n, rs in roles.items():
+                    key = (scope, n)
+                    roles[key].add("entity")
+                    sources[key].add(s["_src"])
+    for (scope, n), rs in roles.items():
         structural = {r for r in rs if r in COMET_OBJ or r == "entity"}
         if "entity" in structural and len(structural) > 1:
-            W.append("X6 [%s] Ten '%s' xuat hien voi vai tro structural mau thuan: %s. "
+            W.append("X6 [%s] Ten '%s' trong bundle '%s' xuat hien voi vai tro structural mau thuan: %s. "
                      "Mot doi tuong entity khong nen dong thoi la boundary/control/application logic." %
-                     (", ".join(sorted(sources[n])), n, ", ".join(sorted(structural))))
+                     (", ".join(sorted(sources[(scope, n)])), n,
+                      "default" if scope == "__default__" else scope,
+                      ", ".join(sorted(structural))))
     return E, W, I
 
 
@@ -897,13 +903,14 @@ def check_comm_vs_seq(inter, W, I):
     groups = defaultdict(lambda: defaultdict(list))
     for s in inter:
         uc = s.get("useCase") or s.get("title")
-        groups[norm(uc)][str(s.get("diagram", "")).lower()].append(s)
-    for uc, g in groups.items():
+        groups[(_scope_key(s), norm(uc))][str(s.get("diagram", "")).lower()].append(s)
+    for (scope, uc), g in groups.items():
         if not g["communication"] or not g["sequence"]:
             continue
         src = "%s <> %s" % (", ".join(s["_src"] for s in g["communication"]),
                             ", ".join(s["_src"] for s in g["sequence"]))
         ucname = g["communication"][0].get("useCase") or g["communication"][0].get("title")
+        bundle_name = "default" if scope == "__default__" else scope
         rows = {}
         for kind in ("communication", "sequence"):
             rows[kind] = []
@@ -927,7 +934,7 @@ def check_comm_vs_seq(inter, W, I):
                     continue   # ben kia la reply khong ten giua dung cap doi tuong
                 W.append("R12 [%s] Message '%s' co trong %s diagram nhung khong co trong %s diagram cua use case "
                          "'%s' - hai so do phai the hien cung kich ban (ten viet giong het)."
-                         % (src, shown[n], here, there, ucname))
+                         % (src, shown[n], here, there, ucname + " (bundle " + bundle_name + ")"))
         for n in sorted(nc & ns):
             pc = {(r[2], r[3]) for r in rc if r[0] == n}
             ps = {(r[2], r[3]) for r in rs if r[0] == n}
