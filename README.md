@@ -138,7 +138,8 @@ tự chọn đúng lệnh.
 1. Đọc ví dụ mẫu và quy tắc của loại sơ đồ.
 2. Viết spec vào `./uml/<tên>.json`.
 3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_model.py` (xây canonical semantic model v2),
-   `comet_check.py` (luật UML/COMET + traceability), rồi `comet_manifest.py` (model/consistency/repair), rồi
+   `comet_check.py` (luật UML/COMET + traceability), rồi `comet_manifest.py` (model/consistency/repair),
+   nếu đã có canonical model thì chạy reconcile để kiểm tra các spec có đúng là projection không, rồi
    `preview_svg.py --png` (chụp ảnh).
 4. Sửa đến khi **0 ERROR** và hết WARN, rồi tự xem ảnh để soát lại.
 5. Nếu có draw.io MCP: mở sơ đồ trên diagrams.net. Nếu không: đưa đường dẫn file `.drawio` và `.png`.
@@ -186,6 +187,9 @@ python scripts/comet_plan.py "./uml/*.json" -o "./uml/<He_thong>.repair.json"
 
 python scripts/comet_manifest.py "./uml/*.json" -o "./uml/<He_thong>"
 # sinh đồng bộ: <He_thong>.model.json + <He_thong>.consistency.json + <He_thong>.repair.json.
+
+python scripts/comet_reconcile.py --help
+# khi đã có canonical model v2, dùng nó làm authority và coi các spec hiện tại là projections.
 # ba artifact dùng cùng modelFingerprint để agent/tool downstream làm việc trên cùng semantic snapshot.
 ```
 
