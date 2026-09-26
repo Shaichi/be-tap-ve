@@ -436,6 +436,14 @@ def build_semantic_v2(v1_model, specs):
 
             local_id = element.get("id", name)
             rid = _representation_id(bundle, diagram, source, local_id, ordinal)
+            projection_properties = {}
+            for key, value in sorted(element.items()):
+                if key in {
+                    "id", "name", "type", "conceptId", "semanticId", "modelId",
+                    "canonicalName", "aliasOf", "aliases", "alias",
+                }:
+                    continue
+                projection_properties[key] = value
             rep = model["representations"].setdefault(rid, {
                 "id": rid,
                 "conceptId": cid,
@@ -446,6 +454,7 @@ def build_semantic_v2(v1_model, specs):
                 "localKind": norm(element.get("type")) or "derived",
                 "name": str(name),
                 "role": role,
+                "properties": projection_properties,
                 "derived": bool(element.get("id", None) is None and str(local_id).startswith("__")),
             })
 
