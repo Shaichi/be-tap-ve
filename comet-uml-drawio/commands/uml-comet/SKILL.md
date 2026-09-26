@@ -66,10 +66,12 @@ Sau mỗi bước: chạy 3 lệnh của lệnh con (có `--partial`) cho spec v
 python "<ENGINE>/scripts/uml2drawio.py" "./uml/*.json" -o ./uml/<He_thong>.drawio
 python "<ENGINE>/scripts/comet_model.py" "./uml/*.json" -o ./uml/<He_thong>.model.json
 python "<ENGINE>/scripts/comet_check.py" --strict "./uml/*.json"
+python "<ENGINE>/scripts/comet_plan.py" "./uml/*.json" -o ./uml/<He_thong>.repair.json
 python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_thong>.html --png
 ```
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
-0. `comet_model.py` gom semantic model thành một index ổn định (`<He_thong>.model.json`) gồm canonical ID, nodes, links và provenance; file này là output trung gian cho tooling/repair loop, không chứa tọa độ.
+0. `comet_model.py` gom semantic model thành một index ổn định (`<He_thong>.model.json`) gồm canonical ID, nodes, links, coverage, impact map và provenance; file này là output trung gian cho tooling/repair loop, không chứa tọa độ.
+0a. `comet_plan.py` tạo repair plan (`<He_thong>.repair.json`) gồm rule, severity, source và hành động sửa/regenerate; plan là advisory, không tự sửa semantics.
 1. `uml2drawio.py` gộp mọi spec thành **một** file nhiều trang, tự chạy validator → phải **0 ERROR** (mã thoát 2 =
    còn lỗi).
 2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 + X1–X6 giữa các sơ đồ, S1–S5, A1–A6, C1–C2; nếu cần tích hợp CI/tooling có thể chạy thêm `--json` để lấy report máy-đọc) → 0 ERROR
