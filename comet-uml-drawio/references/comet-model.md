@@ -156,7 +156,6 @@ python scripts/comet_model.py ... --legacy
 
 Fingerprint được tính trên canonical JSON, không có trường `fingerprint` trong payload đầu vào; vì vậy
 thứ tự spec đầu vào không làm thay đổi fingerprint.
-\n
 
 ### Authority boundary
 
@@ -178,4 +177,3 @@ is treated as authority and source specs are validated as projections.
 
 Use `scripts/comet_reconcile.py` for the explicit authority check. Reconciliation is read-only and reports
 M1–M6 drift instead of inventing business semantics.
-\n
