@@ -1166,7 +1166,8 @@ class TestCometCheck(unittest.TestCase):
     def test_X5_component_deployment_traceability(self):
         comp = {"diagram": "component", "title": "Shop - Components", "system": "Shop",
                 "elements": [{"id": "svc", "type": "component", "name": "Order Service"},
-                             {"id": "pay", "type": "component", "name": "Payment Service"}],
+                             {"id": "pay", "type": "component", "name": "Payment Service"},
+                             {"id": "dao", "type": "component", "name": "Order DAO", "in": "svc"}],
                 "relations": []}
         dep = {"diagram": "deployment", "title": "Shop - Deployment", "system": "Shop",
                "elements": [{"id": "srv", "type": "node", "name": "Server"},
@@ -1175,6 +1176,7 @@ class TestCometCheck(unittest.TestCase):
                "relations": []}
         E, W, I = check(comp, dep)
         self.assertTrue(codes(W, "X5"), "thieu X5. E=%s W=%s I=%s" % (E, W, I))
+        self.assertFalse(any("Order DAO" in x for x in W + I), "component con khong nen bi bat X5: %s %s" % (W, I))
 
     def test_X6_role_collision(self):
         s = shop()
