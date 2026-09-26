@@ -49,6 +49,7 @@ import comet_check as C          # noqa: E402
 import comet_model as M           # noqa: E402
 import comet_plan as CP       # noqa: E402
 import comet_manifest as CM   # noqa: E402
+import comet_reconcile as CR # noqa: E402
 import install as INST           # noqa: E402
 import preview_svg as P          # noqa: E402
 import uml2drawio as U           # noqa: E402
