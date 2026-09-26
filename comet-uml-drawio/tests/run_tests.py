@@ -1185,25 +1185,28 @@ class TestCometCheck(unittest.TestCase):
         self.assertTrue(codes(W, "X6"), "thieu X6. E=%s W=%s I=%s" % (E, W, I))
 
     def test_bundle_isolation(self):
-        # Cùng tên use case nhưng khác bundle không được trộn actor/interaction/statechart.
+        # Cùng tên use case nhưng khác bundle không được trộn coverage/actors.
         a = shop()
         for sp in a.values():
             sp["bundle"] = "shop-a"
-        b = shop()
-        b["uc"]["bundle"] = "shop-b"
-        b["uc"]["elements"].append({"id": "aud2", "type": "actor", "name": "Auditor"})
-        b["uc"]["relations"].append({"type": "association", "from": "aud2", "to": "po"})
-        b["comm"]["bundle"] = "shop-b"
-        b["comm"]["useCase"] = "Place Order"
-        b["seq"]["bundle"] = "shop-b"
-        b["seq"]["useCase"] = "Place Order"
-        # Không có interaction cho Auditor trong shop-b.
-        E, W, I = check(a["uc"], a["comm"], a["seq"], b["uc"])
+
+        b_uc = copy.deepcopy(SHOP_UC)
+        b_uc["bundle"] = "shop-b"
+        b_uc["elements"].append({"id": "aud2", "type": "actor", "name": "Auditor"})
+        b_uc["relations"].append({"type": "association", "from": "aud2", "to": "po"})
+        E, W, I = check(a["uc"], a["comm"], a["seq"], b_uc)
         self.assertTrue(codes(W, "R1"), "bundle-b phai tu kiem R1 rieng: %s" % W)
-        self.assertTrue(codes(W, "X2"), "bundle-b phai tu kiem X2 rieng: %s" % W)
+
+        b_comm = copy.deepcopy(SHOP_COMM)
+        b_comm["bundle"] = "shop-b"
+        b_seq = copy.deepcopy(SHOP_SEQ)
+        b_seq["bundle"] = "shop-b"
+        E, W, I = check(a["uc"], a["comm"], a["seq"], b_uc, b_comm, b_seq)
+        self.assertTrue(codes(W, "X2"), "bundle-b phai tu kiem actor rieng: %s" % W)
+        self.assertFalse(any("shop-a" in x and "X2" in x for x in W), "khong duoc trộn bundle: %s" % W)
 
         # X1 không được "mượn" use case trùng tên ở bundle khác.
-        ghost = copy.deepcopy(b["comm"])
+        ghost = copy.deepcopy(SHOP_COMM)
         ghost["bundle"] = "shop-c"
         E, W, I = check(a["uc"], a["comm"], a["seq"], ghost)
         self.assertTrue(codes(W, "X1"), "tham chieu use case sang bundle khac phai bi bat: %s" % W)
