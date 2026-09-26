@@ -11,7 +11,7 @@ Bộ skill này tách việc vẽ sơ đồ thành 3 bước để AI **không b
 2. **Bố cục + sinh XML** (việc của script): `scripts/uml2drawio.py` tự tính vị trí (Sugiyama layered layout),
    định tuyến đường nối vuông góc theo làn riêng, chừa chỗ cho nhãn → không hình nào chồng/dính nhau,
    không đường nào đi xuyên hình hoặc đè khít lên đường khác.
-3. **Lập semantic model + kiểm tra**: `scripts/comet_model.py` tạo semantic graph ổn định (canonical ID + provenance), sau đó `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`
+3. **Lập canonical semantic model + kiểm tra**: `scripts/comet_model.py` tạo semantic model v2 (canonical concept + diagram-local representation + provenance + impact graph), sau đó `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`
    (nhất quán COMET giữa các sơ đồ) → mở bằng draw.io MCP hoặc giao file `.drawio`.
 
 > Quy tắc vàng: KHÔNG viết mxGraph XML bằng tay, KHÔNG dùng `postLayout`/ELK/auto-layout của MCP
@@ -50,7 +50,8 @@ integrated communication diagram, subsystem/component/deployment.
 
 ### Bước 1 – Viết spec
 - Định dạng đầy đủ: `references/spec-format.md`. Ví dụ mẫu (hệ ATM/Banking của Gomaa): `examples/*.json`
-- Semantic model: `references/comet-model.md` mô tả canonical ID, coverage, impact map và schema JSON.
+- Semantic model: `references/comet-model.md` mô tả schema v2, canonical identity, alias/provenance, dependency graph và impact propagation.
+- Manifest: `references/comet-manifest.md` mô tả `system.model.json`, `system.consistency.json`, `system.repair.json` và shared fingerprint.
 - Repair plan: `references/comet-repair.md` mô tả cách chuyển violation thành bước sửa/regenerate machine-readable.
   – mỗi loại sơ đồ có 1 file; **bắt buộc** mở file cùng loại làm khuôn trước khi viết spec mới.
 - Activity: chia làn bằng `partitions` (cấp spec) + `partition` (mỗi phần tử); luồng ra khỏi decision
@@ -123,4 +124,4 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 
 - Traceability chéo mở rộng: **X1–X6** (use case, actor, statechart, ERD/entity, component/deployment, role consistency).
 - [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
-- [ ] Semantic model đã được sinh (khi làm full COMET) để làm canonical index cho tooling/repair loop.
+- [ ] Semantic model v2 đã được sinh; khi làm full COMET nên có thêm bộ manifest `model + consistency + repair` dùng cùng fingerprint.
