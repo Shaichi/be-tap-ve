@@ -19,6 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from comet_check import lifelines, load, mname, norm, obj_class, st_of
+from comet_semantic import build_semantic_v2, model_for_schema
 
 
 def bundle_of(spec):
@@ -94,7 +95,7 @@ def add_link(links, bundle, kind, source, target, spec, **fields):
         link["sources"].append(src)
 
 
-def build_model(specs):
+def _build_model_v1(specs):
     nodes, links = {}, {}
     activity_sources = defaultdict(list)
     bundle_names = defaultdict(lambda: {"nodeIds": [], "linkIds": []})
@@ -408,6 +409,21 @@ def build_model(specs):
     return out
 
 
+def build_model_v1(specs):
+    """Build the legacy schema v1 model for downstream compatibility."""
+    return _build_model_v1(specs)
+
+
+def build_model(specs, schema_version=2):
+    """Build the canonical schema v2 model, or the legacy v1 projection."""
+    v1 = _build_model_v1(specs)
+    if int(schema_version) == 1:
+        return model_for_schema(v1, 1)
+    return build_semantic_v2(v1, specs)
+
+
+
+
 SDCROLES = {"state dependent control", "state-dependent control"}
 
 
@@ -416,9 +432,14 @@ def main():
     ap.add_argument("specs", nargs="+")
     ap.add_argument("--json", action="store_true", help="in JSON ra stdout")
     ap.add_argument("-o", "--output", help="ghi model JSON vao file")
+    ap.add_argument("--schema-version", choices=("1", "2"), default="2",
+                    help="schema semantic model (mac dinh: 2)")
+    ap.add_argument("--legacy", action="store_true",
+                    help="alias cua --schema-version 1")
     a = ap.parse_args()
 
-    model = build_model(load(a.specs))
+    version = 1 if a.legacy else int(a.schema_version)
+    model = build_model(load(a.specs), schema_version=version)
     text = json.dumps(model, ensure_ascii=False, indent=2)
     if a.output:
         Path(a.output).parent.mkdir(parents=True, exist_ok=True)
