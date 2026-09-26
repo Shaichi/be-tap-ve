@@ -1499,6 +1499,21 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertEqual(repair["kind"], "comet-repair-plan")
         self.assertTrue(any(step["rule"] == "R4" for step in repair["steps"]))
 
+        canonical_manifest = d / "canonical-manifest.json"
+        canonical_specs = [EXAMPLES / "atm_usecase.json", EXAMPLES / "atm_context.json"]
+        canonical_model = CM.build_manifests(C.load(canonical_specs))[0]
+        canonical_manifest.write_text(json.dumps(canonical_model, ensure_ascii=False), encoding="utf-8")
+        prefix = d / "system"
+        r = run("comet_manifest.py", *canonical_specs, "--canonical-model", canonical_manifest, "-o", prefix)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        model_payload = json.loads((d / "system.model.json").read_text(encoding="utf-8"))
+        consistency_payload = json.loads((d / "system.consistency.json").read_text(encoding="utf-8"))
+        repair_payload = json.loads((d / "system.repair.json").read_text(encoding="utf-8"))
+        self.assertEqual(model_payload["fingerprint"], consistency_payload["modelFingerprint"])
+        self.assertEqual(model_payload["fingerprint"], repair_payload["modelFingerprint"])
+        self.assertTrue(consistency_payload["canonicalSourceOfTruth"])
+        self.assertIn("canonicalReconciliation", consistency_payload)
+
     def test_preview_svg(self):
         for p in EXAMPLE_FILES:
             for name, model in pages(gen(*U.load_specs([str(p)]))[0]):
