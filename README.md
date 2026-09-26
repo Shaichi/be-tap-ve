@@ -173,6 +173,7 @@ python scripts/uml2drawio.py examples/elearn_erd.json -o out/elearn_erd.drawio
 python scripts/comet_check.py --partial examples/elearn_erd.json
 
 python scripts/comet_check.py --strict "./uml/*.json"
+# --json: xuất report máy-đọc gồm summary/errors/warnings/infos cho CI/tooling.
 # --strict: còn WARN cũng trả mã thoát 1, phù hợp CI/lần kiểm cuối.
 ```
 
@@ -316,7 +317,7 @@ Nhóm luật của `comet_check.py`:
 `--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
 INFO.
 
-Để gom nhiều spec của cùng một hệ thống khi chạy validator, nên đặt cùng `"bundle"` (ví dụ `"atm-banking"`). Validator X1–X6 ưu tiên `bundle`, sau đó mới suy ra nhóm từ `title`/tên dùng chung để tránh kiểm tra nhầm giữa các hệ thống khác nhau.
+Để gom nhiều spec của cùng một hệ thống khi chạy validator, nên đặt cùng `"bundle"` (ví dụ `"atm-banking"`). Khi có `bundle`, validator dùng nó làm namespace cho các luật consistency/traceability (R1, R2, R5, R7, R8, R12, R14 và X1–X6), tránh trộn hai hệ thống có cùng tên use case/class. Không có `bundle` thì giữ hành vi tương thích ngược; X4/X5 vẫn có heuristic suy luận cùng bundle từ `system`/`title`/tên dùng chung.
 
 
 ---
