@@ -1476,11 +1476,16 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertEqual(payload["kind"], "comet-semantic-model")
         self.assertIn("fingerprint", payload)
 
+        repair_input = copy.deepcopy(SHOP_COMM)
+        repair_input["elements"][1]["stereotype"] = "invalid stereotype"
+        repair_json = d / "repair-input.json"
+        repair_json.write_text(json.dumps(repair_input), encoding="utf-8")
         plan_file = d / "repair.json"
-        r = run("comet_plan.py", d / "warn.json", "-o", plan_file)
+        r = run("comet_plan.py", repair_json, "-o", plan_file)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         repair = json.loads(plan_file.read_text(encoding="utf-8"))
         self.assertEqual(repair["kind"], "comet-repair-plan")
+        self.assertTrue(any(step["rule"] == "R4" for step in repair["steps"]))
 
     def test_preview_svg(self):
         for p in EXAMPLE_FILES:
