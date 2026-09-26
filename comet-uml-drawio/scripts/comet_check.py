@@ -755,6 +755,7 @@ def check_cross_diagrams(by, partial=False):
 
     # ------------------------------------------------ X2: actor gan use case phai xuat hien trong interaction CÙNG bundle
     actor_by_uc = defaultdict(set)
+    actor_display = {}
     for s in by["usecase"]:
         els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
         scope = _scope_key(s)
@@ -763,9 +764,15 @@ def check_cross_diagrams(by, partial=False):
             if not a or not b:
                 continue
             if a.get("type") == "actor" and b.get("type") == "usecase":
-                actor_by_uc[(scope, norm(b.get("name", b.get("id"))))].add(norm(a.get("name", a.get("id"))))
+                actor_key = norm(a.get("name", a.get("id")))
+                uc_key = (scope, norm(b.get("name", b.get("id"))))
+                actor_by_uc[uc_key].add(actor_key)
+                actor_display[(uc_key, actor_key)] = a.get("name", a.get("id"))
             elif b.get("type") == "actor" and a.get("type") == "usecase":
-                actor_by_uc[(scope, norm(a.get("name", a.get("id"))))].add(norm(b.get("name", b.get("id"))))
+                actor_key = norm(b.get("name", b.get("id")))
+                uc_key = (scope, norm(a.get("name", a.get("id"))))
+                actor_by_uc[uc_key].add(actor_key)
+                actor_display[(uc_key, actor_key)] = b.get("name", b.get("id"))
     actors_in_inter = defaultdict(set)
     for s in by["communication"] + by["sequence"]:
         ref = _spec_ref_name(s)
@@ -783,7 +790,7 @@ def check_cross_diagrams(by, partial=False):
                         "xuat hien trong communication/sequence cua use case." %
                         (", ".join(sorted(set(s["_src"] for s in by["usecase"] if _scope_key(s) == scope))),
                          uc, "default" if scope == "__default__" else scope,
-                         ", ".join("'%s'" % x for x in missing)))
+                         ", ".join("'%s'" % actor_display.get(((scope, uc), x), x) for x in missing)))
 
     # ------------------------------------------------ X3: statechart phai truy nguoc duoc ve SDC control trong CÙNG bundle
     controls = defaultdict(list)
