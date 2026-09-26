@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from comet_check import norm
 from comet_model import build_model
 
 
@@ -29,6 +30,13 @@ def _impact_sources(model, concept_ids):
         sources.update(impact.get("impactedSources", []))
         diagrams.update(impact.get("impactedDiagramKinds", []))
     return sorted(sources), sorted(diagrams)
+
+
+def _representation_names(model):
+    out = {}
+    for rep in model.get("representations", {}).values():
+        out.setdefault(rep.get("conceptId"), set()).add(norm(rep.get("name")))
+    return out
 
 
 def reconcile(canonical_model, projection_model):
@@ -64,10 +72,15 @@ def reconcile(canonical_model, projection_model):
         }
         errors.append(item["message"]); drift.append(item)
 
+    canonical_names = _representation_names(canonical_model)
+    projected_names = _representation_names(projection_model)
     for cid in sorted(set(canonical) & set(projected)):
         left, right = canonical[cid], projected[cid]
         changed = []
-        if left.get("nameKey") != right.get("nameKey"):
+        # Ten mot representation bi sua tay (giu conceptId) chi them alias, khong doi nameKey -> so ca
+        # ten representation khi model canonical co representation (vd sinh tu comet_project).
+        renamed = cid in canonical_names and projected_names.get(cid, set()) - canonical_names[cid]
+        if left.get("nameKey") != right.get("nameKey") or renamed:
             changed.append("name")
         if left.get("bundle") != right.get("bundle"):
             changed.append("bundle")
@@ -149,7 +162,11 @@ def reconcile(canonical_model, projection_model):
 
 
 def load_model(path):
+    """Model v2 authoritative; file canonical (comet_project) duoc chuyen thanh model v2 tuong ung."""
     model = json.loads(Path(path).read_text(encoding="utf-8"))
+    if isinstance(model, dict) and model.get("kind") == "comet-canonical-model":
+        from comet_project import canonical_semantic_model
+        return canonical_semantic_model(model)
     if model.get("schemaVersion") != 2:
         raise ValueError("Canonical model file must use schemaVersion 2")
     return model

@@ -404,6 +404,10 @@ def _declarative_constraints():
 def build_semantic_v2(v1_model, specs):
     """Upgrade a v1 model and enrich it with source-backed canonical concepts."""
     model = upgrade_v1_model(v1_model)
+    # upgrade_v1_model chi biet identity theo ten; phan duoi anh xa lai theo identity tuong minh
+    # nen ghi lai de don concept/relationship "ma" khi id tuong minh khac id theo ten.
+    upgraded = {k: set(model[k]) for k in ("concepts", "relationships", "aliases")}
+    rebuilt_relationships, rebuilt_aliases = set(), set()
     _canonicalize_legacy_projection(model)
     # The v1 fingerprint is a compatibility datum, not part of the canonical v2 fingerprint.
     model.pop("fingerprint", None)
@@ -418,11 +422,18 @@ def build_semantic_v2(v1_model, specs):
         elements = spec.get("elements", [])
 
         # Top-level semantic anchors which have no element entry.
+        # comet_project phat useCaseConceptId/stateMachineOfConceptId de anchor giu identity qua doi ten.
         anchors = []
         if spec.get("useCase"):
-            anchors.append({"id": "__usecase__", "name": spec.get("useCase"), "type": "usecase"})
+            anchor = {"id": "__usecase__", "name": spec.get("useCase"), "type": "usecase"}
+            if spec.get("useCaseConceptId"):
+                anchor["conceptId"] = spec["useCaseConceptId"]
+            anchors.append(anchor)
         if spec.get("stateMachineOf"):
-            anchors.append({"id": "__stateMachineOf__", "name": spec.get("stateMachineOf"), "type": "object"})
+            anchor = {"id": "__stateMachineOf__", "name": spec.get("stateMachineOf"), "type": "object"}
+            if spec.get("stateMachineOfConceptId"):
+                anchor["conceptId"] = spec["stateMachineOfConceptId"]
+            anchors.append(anchor)
         if not elements and spec.get("title") and diagram in {"context", "bizcontext", "class", "component", "deployment", "erd"}:
             anchors.append({"id": "__title__", "name": spec.get("title"), "type": diagram})
 
@@ -578,9 +589,11 @@ def build_semantic_v2(v1_model, specs):
         _add_unique(rel["legacyLinkIds"], legacy_id)
         _add_unique(model["concepts"][source_id]["relationshipIds"], rid)
         _add_unique(model["concepts"][target_id]["relationshipIds"], rid)
+        rebuilt_relationships.add(rid)
 
         if link.get("kind") == "actor-external-alias":
             alias_id = _hash_id("alias", source_id, target_id, "actor-external")
+            rebuilt_aliases.add(alias_id)
             model["aliases"][alias_id] = {
                 "id": alias_id,
                 "kind": "role-alias",
@@ -589,6 +602,18 @@ def build_semantic_v2(v1_model, specs):
                 "semanticIdentity": link.get("semanticIdentity", ""),
                 "source": list(link.get("sources", [])),
             }
+
+    used_concepts = set(node_to_concept.values()) | {
+        cid for cid, concept in model["concepts"].items() if concept["representations"]
+    }
+    for cid in upgraded["concepts"] - used_concepts:
+        model["concepts"].pop(cid, None)
+    for rid in upgraded["relationships"] - rebuilt_relationships:
+        model["relationships"].pop(rid, None)
+    for aid in upgraded["aliases"] - rebuilt_aliases:
+        model["aliases"].pop(aid, None)
+    for concept in model["concepts"].values():
+        concept["relationshipIds"] = [r for r in concept["relationshipIds"] if r in model["relationships"]]
 
     for (bundle, name_key), candidates in sorted(identity_collisions.items()):
         if len(candidates) > 1:

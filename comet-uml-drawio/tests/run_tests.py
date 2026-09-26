@@ -50,6 +50,7 @@ import comet_model as M           # noqa: E402
 import comet_plan as CP       # noqa: E402
 import comet_manifest as CM   # noqa: E402
 import comet_reconcile as CR # noqa: E402
+import comet_project as PJ    # noqa: E402
 import install as INST           # noqa: E402
 import preview_svg as P          # noqa: E402
 import uml2drawio as U           # noqa: E402
@@ -1674,6 +1675,191 @@ class TestSemanticModelV2(unittest.TestCase):
 
 
 # ============================================================ 6. dong lenh
+class TestCanonicalProjection(TmpMixin, unittest.TestCase):
+    """comet_project: file canonical -> spec (canonical-first) va bootstrap nguoc lai."""
+
+    @staticmethod
+    def examples():
+        return C.load([str(p) for p in EXAMPLE_FILES])
+
+    def doc(self):
+        return PJ.bootstrap_canonical(self.examples())
+
+    @staticmethod
+    def by_diagram(specs, diagram):
+        return [s for s in specs if s["diagram"] == diagram]
+
+    def test_bootstrap_roundtrip_all_examples(self):
+        specs = self.examples()
+        doc = PJ.bootstrap_canonical(specs)
+        self.assertEqual(PJ.validate_canonical(doc), [])
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+        compiled = PJ.compile_projections(doc)
+        self.assertEqual(len(compiled), len(EXAMPLE_FILES))
+        # conceptId chi phat cho concept, khong cho phan tu hanh vi cuc bo.
+        act = self.by_diagram(compiled, "activity")[0]
+        self.assertFalse(any("conceptId" in e for e in act["elements"]))
+        self.assertIn("useCaseConceptId", act)
+
+    def test_compiled_specs_have_check_and_semantic_parity(self):
+        compiled = PJ.compile_projections(self.doc(), base=str(EXAMPLES))
+        self.assertEqual(C.check(compiled), C.check(self.examples()))
+        model = M.build_model(compiled)
+        self.assertEqual(model["fingerprint"], M.build_model(self.examples())["fingerprint"])
+        self.assertEqual([c for c in model["constraints"] if c["kind"] == "identity-ambiguity"], [])
+
+    def test_bootstrap_roundtrip_fuzz_specs(self):
+        # Nhieu class diagram chung ten lop nhung khac attributes/stereotype -> override/omit theo view.
+        specs = [dict(GENERATORS["class"](seed), _src="class%02d.json" % seed) for seed in range(FUZZ_SEEDS)]
+        specs += [dict(GENERATORS[k](seed), _src="%s%02d.json" % (k, seed))
+                  for k in ("activity", "state") for seed in range(FUZZ_SEEDS)]
+        doc = PJ.bootstrap_canonical(copy.deepcopy(specs))
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+
+    def test_bootstrap_deterministic_and_order_independent(self):
+        a = PJ.bootstrap_canonical(self.examples())
+        b = PJ.bootstrap_canonical(list(reversed(self.examples())))
+        self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
+        self.assertEqual(PJ.canonical_semantic_model(a)["fingerprint"], PJ.canonical_semantic_model(b)["fingerprint"])
+
+    def test_comm_and_seq_share_one_interaction(self):
+        doc = self.doc()
+        views = [v for v in doc["views"] if v["diagram"] in ("communication", "sequence")]
+        self.assertEqual({v["interaction"] for v in views}, {"validate-pin"})
+        comm = next(v for v in views if v["diagram"] == "communication")
+        self.assertEqual(comm["messageOmit"], ["id", "type"])
+        doc["interactions"]["validate-pin"]["messages"][0]["name"] = "Insert Card"
+        compiled = PJ.compile_projections(doc)
+        first = [s["messages"][0]["name"] for s in compiled if s["diagram"] in ("communication", "sequence")]
+        self.assertEqual(first, ["Insert Card", "Insert Card"])
+        self.assertNotIn("R12", codes(C.check(compiled)[1]))
+
+    def test_rename_concept_propagates_everywhere(self):
+        doc = self.doc()
+        doc["concepts"]["atm-customer"]["name"] = "Bank Customer"
+        compiled = PJ.compile_projections(doc)
+        self.assertNotIn("ATM Customer", json.dumps(compiled, ensure_ascii=False))
+        for diagram in ("usecase", "communication", "sequence", "context"):
+            names = {e.get("name") for s in self.by_diagram(compiled, diagram) for e in s["elements"]}
+            self.assertIn("Bank Customer", names, diagram)
+        act = self.by_diagram(compiled, "activity")[0]
+        self.assertIn("Bank Customer", act["partitions"])
+        self.assertEqual(act["elements"][0]["partition"], "Bank Customer")
+        base = C.check(PJ.compile_projections(self.doc()))
+        self.assertEqual([len(x) for x in C.check(compiled)], [len(x) for x in base])
+        # Identity semantic on dinh: cung concept id, khong co concept "ma" theo ten moi.
+        after = M.build_model(compiled)
+        self.assertEqual(set(PJ.canonical_semantic_model(self.doc())["concepts"]), set(after["concepts"]))
+        self.assertEqual([c for c in after["constraints"] if c["kind"] == "identity-ambiguity"], [])
+
+    def test_rename_use_case_keeps_anchor_identity(self):
+        doc = self.doc()
+        key = next(k for k, c in doc["concepts"].items() if c["name"] == "Validate PIN")
+        doc["concepts"][key]["name"] = "Verify PIN"
+        compiled = PJ.compile_projections(doc)
+        comm = self.by_diagram(compiled, "communication")[0]
+        self.assertEqual((comm["useCase"], comm["title"]), ("Verify PIN", "Verify PIN"))
+        self.assertEqual(C.check(compiled)[1], [w.replace("Validate PIN", "Verify PIN")
+                                                 for w in C.check(PJ.compile_projections(self.doc()))[1]])
+        model = M.build_model(compiled)
+        self.assertEqual([c for c in model["constraints"] if c["kind"] == "identity-ambiguity"], [])
+
+    def test_new_use_case_auto_included_without_invented_interaction(self):
+        doc = self.doc()
+        doc["concepts"]["change-pin"] = {"name": "Change PIN", "kind": "usecase"}
+        doc["relationships"]["association:atm-customer->change-pin"] = {
+            "type": "association", "from": "atm-customer", "to": "change-pin"}
+        compiled = PJ.compile_projections(doc)
+        uc = self.by_diagram(compiled, "usecase")[0]
+        self.assertEqual(uc["elements"][-1]["name"], "Change PIN")
+        self.assertEqual(uc["relations"][-1], {"type": "association", "from": "cust", "to": "change-pin"})
+        self.assertEqual(len(self.by_diagram(compiled, "communication")), 1)
+        self.assertTrue(any(w.startswith("R1") and "Change PIN" in w for w in C.check(compiled)[1]))
+
+    def test_reconcile_canonical_doc(self):
+        doc = self.doc()
+        canonical = PJ.canonical_semantic_model(doc)
+        self.assertEqual(canonical["sourceOfTruth"]["mode"], "canonical")
+        compiled = PJ.compile_projections(doc)
+        self.assertEqual(CR.reconcile(canonical, M.build_model(compiled))["status"], "clean")
+        # Sua tay ten trong spec da compile (giu conceptId) -> M3 drift, khong phai M1/M2.
+        comm = self.by_diagram(compiled, "communication")[0]
+        next(e for e in comm["elements"] if e.get("name") == "ATM Customer")["name"] = "ATM Client"
+        rules = {d["rule"] for d in CR.reconcile(canonical, M.build_model(compiled))["drift"]}
+        self.assertIn("M3", rules)
+        self.assertFalse({"M1", "M2"} & rules)
+        # Concept khai bao nhung khong view nao chieu -> M1.
+        doc["concepts"]["orphan"] = {"name": "Orphan Concept", "kind": "class"}
+        result = CR.reconcile(PJ.canonical_semantic_model(doc), M.build_model(PJ.compile_projections(doc)))
+        self.assertEqual([d["rule"] for d in result["drift"]], ["M1"])
+
+    def test_validation_errors(self):
+        doc = self.doc()
+        doc["views"][0]["elements"].append({"ref": "missing"})
+        doc["relationships"]["bad"] = {"type": "association", "from": "atm-customer", "to": "nope"}
+        self.assertIn("K9", {i["rule"] for i in PJ.validate_canonical(doc)})
+        del doc["relationships"]["bad"]
+        self.assertIn("K4", {i["rule"] for i in PJ.validate_canonical(doc)})
+        with self.assertRaises(PJ.CanonicalError):
+            PJ.compile_projections(doc)
+        doc = self.doc()
+        uc = next(v for v in doc["views"] if v["diagram"] == "usecase")
+        uc["elements"].append(dict(uc["elements"][0]))   # concept xuat hien 2 lan -> quan he mo ho
+        self.assertTrue({"K5", "K6"} <= {i["rule"] for i in PJ.validate_canonical(doc)})
+        doc = self.doc()
+        doc["views"][0]["diagram"] = "gantt"
+        self.assertIn("K7", {i["rule"] for i in PJ.validate_canonical(doc)})
+        self.assertEqual(PJ.validate_canonical({"kind": "x"})[0]["rule"], "K1")
+
+    def test_bundle_preserved_and_mixed_bundles_rejected(self):
+        a = dict(copy.deepcopy(SHOP_UC), bundle="Shop", _src="uc.json")
+        b = dict(copy.deepcopy(SHOP_CTX), bundle="Shop", _src="ctx.json")
+        doc = PJ.bootstrap_canonical([a, b])
+        self.assertEqual(doc["bundle"], "Shop")
+        self.assertTrue(all(s["bundle"] == "Shop" for s in PJ.compile_projections(doc)))
+        self.assertEqual(PJ.verify_roundtrip([a, b], doc), [])
+        c = dict(copy.deepcopy(SHOP_CLS), bundle="Other", _src="cls.json")
+        with self.assertRaises(ValueError):
+            PJ.bootstrap_canonical([a, b, c])
+        self.assertEqual(len(PJ.bootstrap_canonical([a, b, c], bundle="shop")["views"]), 2)
+
+    def test_explicit_concept_id_preserved(self):
+        specs = TestSemanticModelV2.specs()
+        doc = PJ.bootstrap_canonical(specs)
+        self.assertIn("customer.party", {c.get("conceptId") for c in doc["concepts"].values()})
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+        self.assertEqual(set(M.build_model(PJ.compile_projections(doc))["concepts"]),
+                         set(M.build_model(TestSemanticModelV2.specs())["concepts"]))
+
+    def test_cli_bootstrap_compile_check_model_reconcile(self):
+        d = self.tmpdir()
+        canon = d / "system.canonical.json"
+        r = run("comet_project.py", "bootstrap", *EXAMPLE_FILES, "-o", canon)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["roundTrip"], "exact")
+        self.assertEqual(run("comet_project.py", "validate", canon).returncode, 0)
+        out = d / "specs"
+        self.assertEqual(run("comet_project.py", "compile", canon, "-o", out).returncode, 0)
+        self.assertEqual(len(list(out.glob("*.json"))), len(EXAMPLE_FILES))
+        self.assertEqual(run("comet_project.py", "compile", canon, "-o", out, "--check").returncode, 0)
+        seq = out / "atm_seq_validate_pin.json"
+        seq.write_text(seq.read_text(encoding="utf-8").replace("PIN Prompt", "Enter PIN"), encoding="utf-8")
+        r = run("comet_project.py", "compile", canon, "-o", out, "--check")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("atm_seq_validate_pin.json", r.stdout)
+        run("comet_project.py", "compile", canon, "-o", out)
+        r = run("comet_project.py", "model", canon, "-o", d / "system.model.json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        model = json.loads((d / "system.model.json").read_text(encoding="utf-8"))
+        self.assertEqual(model["sourceOfTruth"]["mode"], "canonical")
+        r = run("comet_reconcile.py", canon, *sorted(out.glob("*.json")))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "clean")
+        r = run("comet_manifest.py", *sorted(out.glob("*.json")), "-o", d / "system", "--canonical-model", canon)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotEqual(run("comet_project.py", "compile", d / "missing.json", "-o", out).returncode, 0)
+
+
 class TestCLI(TmpMixin, unittest.TestCase):
     def test_uml2drawio(self):
         d = self.tmpdir()
