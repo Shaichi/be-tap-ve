@@ -1260,6 +1260,14 @@ class TestCometCheck(unittest.TestCase):
         self.assertIn("control", kinds)
         self.assertIn("entity", kinds)
         self.assertTrue(model["fingerprint"])
+        borrow = next(v for v in model["coverage"]["atm-banking"]["useCases"].values()
+                      if v["name"] == "Validate PIN")
+        self.assertTrue(borrow["interactionSources"])
+        ctl = next(n for n in model["nodes"].values() if n["name"] == "ATM Control" and n["kind"] == "control")
+        self.assertIn("communication", ctl["diagramKinds"])
+        self.assertIn("state", ctl["diagramKinds"])
+        self.assertIn("impactMap", model)
+        self.assertTrue(model["impactMap"][ctl["id"]]["relatedLinkIds"])
 
     def test_json_report(self):
         with tempfile.TemporaryDirectory() as td:
