@@ -15,6 +15,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | `useCase` | tương tác | Tên use case mà communication/sequence hiện thực (khớp R1) |
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
 | `system` | usecase | Tên hệ thống trên system boundary (mặc định = `title`) |
+| `bundle` | mọi sơ đồ | Khoá nhóm các spec thuộc cùng một hệ thống/bộ diagram để validator X1–X6 so sánh chéo chính xác; nên đặt giống nhau cho toàn bộ bộ sơ đồ |
 | `direction` | | `TB` (trên→dưới) hoặc `LR` (trái→phải). Mặc định `LR` cho usecase/communication, `TB` còn lại |
 | `frame` | | `false` để bỏ khung UML ngoài |
 | `autonumber` | | communication: tự đánh số message nếu thiếu `seq` (mặc định true); sequence: mặc định false |
