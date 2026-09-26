@@ -402,7 +402,7 @@ Related fixes:
 - `comet_semantic`: concepts, relationships and aliases created by the v1 upgrade that no representation uses are pruned. They used to become ghosts when an explicit `conceptId` differed from the name-based id.
 - `comet_reconcile` M3: when the canonical model has representations, a projection representation name that is not a canonical one is also drift. This catches a hand-edited compiled spec.
 
-Status: **124 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
+Status: **125 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
 
 Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram.
 
