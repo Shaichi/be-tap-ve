@@ -176,7 +176,7 @@ def build_plan(specs, canonical_model=None):
     warnings_count = len(warnings) + (reconciliation["summary"]["warnings"] if reconciliation else 0)
     infos_count = len(infos) + (reconciliation["summary"]["infos"] if reconciliation else 0)
 
-    return {
+    plan = {
         "schemaVersion": 2,
         "kind": "comet-repair-plan",
         "modelFingerprint": canonical_model["fingerprint"] if canonical_model is not None else model["fingerprint"],
@@ -190,6 +190,9 @@ def build_plan(specs, canonical_model=None):
         },
         "steps": items,
     }
+    if reconciliation is not None:
+        plan["canonicalReconciliation"] = reconciliation
+    return plan
 
 
 def main():
