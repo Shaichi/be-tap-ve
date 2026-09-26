@@ -47,6 +47,7 @@ sys.path[:0] = [str(SCRIPTS), str(ENGINE / "tests")]
 
 import comet_check as C          # noqa: E402
 import comet_model as M           # noqa: E402
+import comet_plan as CP       # noqa: E402
 import install as INST           # noqa: E402
 import preview_svg as P          # noqa: E402
 import uml2drawio as U           # noqa: E402
@@ -1262,6 +1263,13 @@ class TestCometCheck(unittest.TestCase):
         self.assertIn("control", kinds)
         self.assertIn("entity", kinds)
         self.assertTrue(model["fingerprint"])
+        plan_specs = copy.deepcopy(specs)
+        plan_specs[1]["elements"][0]["stereotype"] = "invalid stereotype"
+        plan = CP.build_plan(plan_specs)
+        self.assertEqual(plan["kind"], "comet-repair-plan")
+        self.assertGreaterEqual(plan["summary"]["warnings"], 1)
+        self.assertTrue(any(x["rule"] == "R4" for x in plan["steps"]))
+        self.assertTrue(any(x["action"] for x in plan["steps"]))
         borrow = next(v for v in model["coverage"]["atm-banking"]["useCases"].values()
                       if v["name"] == "Validate PIN")
         self.assertTrue(borrow["interactionSources"])
@@ -1467,6 +1475,12 @@ class TestCLI(TmpMixin, unittest.TestCase):
         payload = json.loads(model_file.read_text(encoding="utf-8"))
         self.assertEqual(payload["kind"], "comet-semantic-model")
         self.assertIn("fingerprint", payload)
+
+        plan_file = d / "repair.json"
+        r = run("comet_plan.py", d / "warn.json", "-o", plan_file)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        repair = json.loads(plan_file.read_text(encoding="utf-8"))
+        self.assertEqual(repair["kind"], "comet-repair-plan")
 
     def test_preview_svg(self):
         for p in EXAMPLE_FILES:
