@@ -1136,6 +1136,52 @@ class TestCometCheck(unittest.TestCase):
             s["uc"]["relations"].append({"type": "association", "from": "aud", "to": "vo"})
         self.expect(f, "I", "R14", "Auditor")
 
+    def test_X1_cross_usecase_reference(self):
+        def f(s):
+            s["comm"]["useCase"] = "Ghost Use Case"
+        self.expect(f, "W", "X1", "Ghost Use Case")
+
+    def test_X2_actor_participation(self):
+        def f(s):
+            s["uc"]["elements"].append({"id": "aud", "type": "actor", "name": "Auditor"})
+            s["uc"]["relations"].append({"type": "association", "from": "aud", "to": "po"})
+        self.expect(f, "W", "X2", "Auditor")
+
+    def test_X3_statechart_reverse_traceability(self):
+        s = shop()
+        el(s["comm"], "ctl")["stereotype"] = "control"
+        el(s["seq"], "ctl")["stereotype"] = "control"
+        E, W, I = check(*s.values())
+        self.assertTrue(codes(W, "X3"), "thieu X3. E=%s W=%s I=%s" % (E, W, I))
+
+    def test_X4_erd_entity_class_traceability(self):
+        s = shop()
+        erd = {"diagram": "erd", "title": "Shop - ERD", "elements": [
+            {"id": "ord", "type": "entity", "name": "Order"},
+            {"id": "inv", "type": "entity", "name": "Invoice"},
+        ], "relations": []}
+        E, W, I = check(*s.values(), erd)
+        self.assertTrue(codes(W, "X4"), "thieu X4. E=%s W=%s I=%s" % (E, W, I))
+
+    def test_X5_component_deployment_traceability(self):
+        comp = {"diagram": "component", "title": "Shop - Components", "system": "Shop",
+                "elements": [{"id": "svc", "type": "component", "name": "Order Service"},
+                             {"id": "pay", "type": "component", "name": "Payment Service"}],
+                "relations": []}
+        dep = {"diagram": "deployment", "title": "Shop - Deployment", "system": "Shop",
+               "elements": [{"id": "srv", "type": "node", "name": "Server"},
+                             {"id": "svc", "type": "component", "name": "Order Service"},
+                             {"id": "ghost", "type": "component", "name": "Ghost Service"}],
+               "relations": []}
+        E, W, I = check(comp, dep)
+        self.assertTrue(codes(W, "X5"), "thieu X5. E=%s W=%s I=%s" % (E, W, I))
+
+    def test_X6_role_collision(self):
+        s = shop()
+        el(s["comm"], "ord")["stereotype"] = "control"
+        E, W, I = check(*s.values())
+        self.assertTrue(codes(W, "X6"), "thieu X6. E=%s W=%s I=%s" % (E, W, I))
+
     def test_statechart_rules(self):
         self.assertEqual(check(stm(*STM_OK)), ([], [], []))
         self.expect_one(stm({"from": "i", "to": "a", "event": "Go"}, *STM_OK[1:]), "E", "S1", "event 'go'")
