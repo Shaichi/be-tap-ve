@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Compile Python sources
-        run: python -m py_compile comet-uml-drawio/scripts/comet_check.py comet-uml-drawio/scripts/comet_model.py comet-uml-drawio/scripts/comet_plan.py comet-uml-drawio/scripts/comet_manifest.py comet-uml-drawio/scripts/comet_reconcile.py comet-uml-drawio/scripts/uml2drawio.py comet-uml-drawio/scripts/validate_drawio.py
+        run: python -m py_compile comet-uml-drawio/scripts/comet_check.py comet-uml-drawio/scripts/comet_semantic.py comet-uml-drawio/scripts/comet_model.py comet-uml-drawio/scripts/comet_plan.py comet-uml-drawio/scripts/comet_manifest.py comet-uml-drawio/scripts/comet_reconcile.py comet-uml-drawio/scripts/uml2drawio.py comet-uml-drawio/scripts/validate_drawio.py
       - name: Run COMET test suite
         env:
           COMET_TEST_PNG: "0"
