@@ -48,6 +48,7 @@ sys.path[:0] = [str(SCRIPTS), str(ENGINE / "tests")]
 import comet_check as C          # noqa: E402
 import comet_model as M           # noqa: E402
 import comet_plan as CP       # noqa: E402
+import comet_manifest as CM   # noqa: E402
 import install as INST           # noqa: E402
 import preview_svg as P          # noqa: E402
 import uml2drawio as U           # noqa: E402
@@ -1252,7 +1253,7 @@ class TestCometCheck(unittest.TestCase):
         for sp in specs:
             sp["bundle"] = "atm-banking"
         model = M.build_model(specs)
-        self.assertEqual(model["schemaVersion"], 1)
+        self.assertEqual(model["schemaVersion"], 2)
         self.assertEqual(model["kind"], "comet-semantic-model")
         self.assertEqual(model["stats"]["bundles"], 1)
         names = {n["name"] for n in model["nodes"].values()}
