@@ -671,6 +671,191 @@ def check(specs, partial=False):
         check_screenflow(s, E, W, I)
     for s in by["bizcontext"]:
         check_bizcontext(s, E, W, I)
+
+    # Cross-diagram traceability layer (X1-X6).
+    xE, xW, xI = check_cross_diagrams(by, partial=partial)
+    E.extend(xE)
+    W.extend(xW)
+    I.extend(xI)
+    return E, W, I
+
+
+
+def _spec_ref_name(s):
+    """Khoa trace use case cho interaction/activity spec."""
+    d = norm(s.get("diagram"))
+    if d in ("communication", "sequence"):
+        return norm(s.get("useCase") or s.get("title"))
+    return norm(s.get("useCase"))
+
+
+def _bundle_key(s):
+    """Opt-in scope key khi nguoi dung muon tach nhieu bo diagram trong cung lan kiem."""
+    for k in ("system", "project", "bundle", "systemName"):
+        v = norm(s.get(k))
+        if v:
+            return v
+    return ""
+
+
+def _same_bundle(a, b, shared_names=()):
+    ka, kb = _bundle_key(a), _bundle_key(b)
+    if ka and kb:
+        return ka == kb
+    # Khong co bundle key: chi coi la cung bo neu co it nhat 2 ten nghiep vu chia se.
+    return len(set(shared_names)) >= 2
+
+
+def check_cross_diagrams(by, partial=False):
+    """X1-X6: traceability cheo mo rong, tap trung vao cac lien ket chua duoc R1-R14 bao phu."""
+    E, W, I = [], [], []
+    MISS = I if partial else W
+
+    # ------------------------------------------------ X1: interaction/activity tham chieu use case khong ton tai
+    declared_uc = {
+        norm(e.get("name", e.get("id")))
+        for s in by["usecase"]
+        for e in s.get("elements", [])
+        if e.get("type") == "usecase" and (e.get("name") or e.get("id"))
+    }
+    if declared_uc:
+        for s in by["communication"] + by["sequence"] + by["activity"]:
+            ref = _spec_ref_name(s)
+            if ref and ref not in declared_uc:
+                W.append("X1 [%s] %s '%s' tham chieu use case '%s' nhung use case nay khong ton tai trong use case model."
+                         % (s["_src"], s.get("diagram", "diagram"), s.get("title") or ref, s.get("useCase") or s.get("title")))
+
+    # ------------------------------------------------ X2: actor duoc gan use case phai xuat hien trong interaction cua use case do
+    actor_by_uc = defaultdict(set)
+    for s in by["usecase"]:
+        els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+        for r in s.get("relations", []):
+            a = els.get(str(r.get("from")))
+            b = els.get(str(r.get("to")))
+            if not a or not b:
+                continue
+            if a.get("type") == "actor" and b.get("type") == "usecase":
+                actor_by_uc[norm(b.get("name", b.get("id")))].add(norm(a.get("name", a.get("id"))))
+            elif b.get("type") == "actor" and a.get("type") == "usecase":
+                actor_by_uc[norm(a.get("name", a.get("id")))].add(norm(b.get("name", b.get("id"))))
+    actors_in_inter = defaultdict(set)
+    for s in by["communication"] + by["sequence"]:
+        ref = _spec_ref_name(s)
+        if not ref:
+            continue
+        for e in s.get("elements", []):
+            if e.get("type") == "actor":
+                actors_in_inter[ref].add(norm(e.get("name", e.get("id"))))
+    for uc, actors in actor_by_uc.items():
+        actual = actors_in_inter.get(uc, set())
+        if not actual:
+            continue  # R1/R1 partial da xu ly truong hop chua co interaction
+        missing = sorted(actors - actual)
+        if missing:
+            MISS.append("X2 [%s] Use case '%s' co actor %s trong use case model nhung actor do khong xuat hien trong "
+                         "communication/sequence cua use case." %
+                         (", ".join(sorted(set(s["_src"] for s in by["usecase"]))), uc,
+                          ", ".join("'%s'" % x for x in missing)))
+
+    # ------------------------------------------------ X3: statechart phai truy nguoc duoc ve SDC control trong interaction
+    controls = defaultdict(list)
+    for s in by["communication"] + by["sequence"]:
+        for e in s.get("elements", []):
+            if e.get("type") == "actor":
+                continue
+            if st_of(e) in SDC:
+                controls[norm(obj_class(e))].append(s["_src"])
+    for s in by["state"]:
+        cls = norm(s.get("stateMachineOf") or s.get("title"))
+        if not cls:
+            W.append("X3 [%s] Statechart khong co 'stateMachineOf'/'title' de truy vet ve control object." % s["_src"])
+            continue
+        if by["communication"] or by["sequence"]:
+            if cls not in controls:
+                W.append("X3 [%s] Statechart '%s' khong truy vet duoc toi doi tuong "
+                         "«state dependent control» cung ten trong communication/sequence." %
+                         (s["_src"], s.get("stateMachineOf") or s.get("title")))
+
+    # ------------------------------------------------ X4: ERD <-> entity class, chi so sanh khi co dau hieu cung bundle
+    erd_specs = []
+    cls_specs = []
+    for s in by["erd"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if e.get("type") == "entity" and (e.get("name") or e.get("id"))}
+        if names:
+            erd_specs.append((s, names))
+    for s in by["class"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if st_of(e) == "entity" and (e.get("name") or e.get("id"))}
+        if names:
+            cls_specs.append((s, names))
+    for es, enames in erd_specs:
+        for cs, cnames in cls_specs:
+            shared = sorted(enames & cnames)
+            if not _same_bundle(es, cs, shared):
+                continue
+            only_erd = sorted(enames - cnames)
+            only_cls = sorted(cnames - enames)
+            if only_erd:
+                W.append("X4 [%s <> %s] ERD co entity %s nhung entity class model thieu %s." %
+                         (es["_src"], cs["_src"], ", ".join("'%s'" % x for x in shared),
+                          ", ".join("'%s'" % x for x in only_erd)))
+            if only_cls:
+                I.append("X4 [%s <> %s] Entity class model co %s chua xuat hien trong ERD cung bundle." %
+                         (es["_src"], cs["_src"], ", ".join("'%s'" % x for x in only_cls)))
+
+    # ------------------------------------------------ X5: logical component <-> deployment component
+    comp_specs = []
+    dep_specs = []
+    for s in by["component"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if e.get("type") in ("component", "subsystem") and (e.get("name") or e.get("id"))}
+        if names:
+            comp_specs.append((s, names))
+    for s in by["deployment"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if e.get("type") == "component" and (e.get("name") or e.get("id"))}
+        if names:
+            dep_specs.append((s, names))
+    for cs, cnames in comp_specs:
+        for ds, dnames in dep_specs:
+            shared = sorted(cnames & dnames)
+            if not _same_bundle(cs, ds, shared):
+                continue
+            missing_logical = sorted(dnames - cnames)
+            not_deployed = sorted(cnames - dnames)
+            if missing_logical:
+                W.append("X5 [%s <> %s] Deployment co component %s khong ton tai trong component diagram." %
+                         (cs["_src"], ds["_src"], ", ".join("'%s'" % x for x in missing_logical)))
+            if not_deployed:
+                I.append("X5 [%s <> %s] Component diagram co %s chua duoc anh xa vao deployment diagram." %
+                         (cs["_src"], ds["_src"], ", ".join("'%s'" % x for x in not_deployed)))
+
+    # ------------------------------------------------ X6: cung ten object khong duoc doi vai tro structural
+    roles = defaultdict(set)
+    sources = defaultdict(set)
+    for s in by["communication"] + by["sequence"]:
+        for e in s.get("elements", []):
+            if e.get("type") == "actor":
+                continue
+            n = norm(obj_class(e))
+            if not n:
+                continue
+            roles[n].add(st_of(e))
+            sources[n].add(s["_src"])
+    for s in by["class"]:
+        for e in s.get("elements", []):
+            if st_of(e) == "entity":
+                n = norm(e.get("name", e.get("id")))
+                if n:
+                    roles[n].add("entity")
+                    sources[n].add(s["_src"])
+    for n, rs in roles.items():
+        structural = {r for r in rs if r in COMET_OBJ or r == "entity"}
+        if "entity" in structural and len(structural) > 1:
+            W.append("X6 [%s] Ten '%s' xuat hien voi vai tro structural mau thuan: %s. "
+                     "Mot doi tuong entity khong nen dong thoi la boundary/control/application logic." %
+                     (", ".join(sorted(sources[n])), n, ", ".join(sorted(structural))))
     return E, W, I
 
 
