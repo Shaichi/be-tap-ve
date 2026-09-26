@@ -71,3 +71,20 @@ regenerate từ spec
 Trong trường hợp ambiguity, giữ violation dưới dạng advisory và yêu cầu source khai báo
 `conceptId`/`aliasOf`; không sửa tên hay quan hệ nghiệp vụ một cách mù quáng.
 \n
+
+## Canonical reconciliation rules
+
+Khi có authoritative schema-v2 model, `comet_plan.py --canonical-model <model.json>`
+có thể thêm các semantic drift steps:
+
+- **M1** — canonical concept chưa có projection.
+- **M2** — projection chứa concept chưa khai báo canonical.
+- **M3** — identity/name/alias của concept bị drift.
+- **M4** — canonical relationship không xuất hiện trong projection.
+- **M5** — projection chứa relationship chưa khai báo canonical.
+- **M6** — canonical alias bị thiếu trong projection.
+
+Các bước M1–M6 là advisory về business semantics: agent chỉ sửa source spec/model khi có
+đủ provenance; không patch trực tiếp `.drawio`. `regenerateSources` và
+`affectedDiagramKinds` được tính từ canonical impact graph.
+\n
