@@ -157,3 +157,25 @@ python scripts/comet_model.py ... --legacy
 Fingerprint được tính trên canonical JSON, không có trường `fingerprint` trong payload đầu vào; vì vậy
 thứ tự spec đầu vào không làm thay đổi fingerprint.
 \n
+
+### Authority boundary
+
+Schema v2 explicitly labels:
+
+```json
+{
+  "sourceOfTruth": {
+    "mode": "projection-bootstrap",
+    "authoritativeSections": ["concepts", "aliases", "relationships", "constraints"],
+    "derivedSections": ["nodes", "links", "representations", "coverage", "impactMap", "conceptImpactMap", "dependencyGraph", "derivedArtifacts", "stats"]
+  }
+}
+```
+
+A generated model is a **bootstrap canonical snapshot**. After an agent reviews/edits the authoritative
+sections, that model file can be passed to `comet_manifest.py --canonical-model`; from then on the model
+is treated as authority and source specs are validated as projections.
+
+Use `scripts/comet_reconcile.py` for the explicit authority check. Reconciliation is read-only and reports
+M1–M6 drift instead of inventing business semantics.
+\n
