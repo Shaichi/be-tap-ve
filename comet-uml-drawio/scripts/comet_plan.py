@@ -9,7 +9,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from comet_check import check, load
+from comet_check import check, load, norm
 from comet_model import build_model
 
 
@@ -79,9 +79,22 @@ def source_tokens(message):
     return out
 
 
-def build_plan(specs, canonical_model=None):
-    errors, warnings, infos = check(specs)
-    model = build_model(specs)
+def _concept_patterns(model):
+    """Regex nguyen tu cho ten concept: 'pin' khong duoc khop 'pinpad' hay 'spin'."""
+    out = {}
+    for cid, concept in model.get("concepts", {}).items():
+        keys = {concept.get("nameKey")} | {norm(a) for a in concept.get("aliases", [])}
+        keys = sorted(k for k in keys if k)
+        if keys:
+            out[cid] = re.compile(r"(?<!\w)(?:%s)(?!\w)" % "|".join(re.escape(k) for k in keys))
+    return out
+
+
+def build_plan(specs, canonical_model=None, model=None, check_result=None):
+    """`model`/`check_result` cho phep caller (comet_manifest) dung lai ket qua da tinh."""
+    errors, warnings, infos = check_result if check_result is not None else check(specs)
+    if model is None:
+        model = build_model(specs)
     items = []
     reconciliation = None
     if canonical_model is not None:
@@ -100,11 +113,6 @@ def build_plan(specs, canonical_model=None):
             })
 
     # V2 impact: nguồn vi phạm -> canonical concept -> propagated impact.
-    source_to_nodes = defaultdict(set)
-    for nid, node in model["nodes"].items():
-        for src in node.get("sources", []):
-            source_to_nodes[src].add(nid)
-
     source_to_concepts = defaultdict(set)
     for cid, concept in model.get("concepts", {}).items():
         for src in concept.get("provenance", []):
@@ -114,33 +122,48 @@ def build_plan(specs, canonical_model=None):
             node = model["nodes"].get(src, {})
             for source in node.get("sources", []):
                 source_to_concepts[source].add(cid)
+    patterns = _concept_patterns(model)
+    concepts = model.get("concepts", {})
 
     for item in items:
-        affected_nodes = set()
-        affected_concepts = set()
+        in_sources = set()
         for src in item["sources"]:
-            affected_nodes.update(source_to_nodes.get(src, set()))
-            affected_concepts.update(source_to_concepts.get(src, set()))
+            in_sources.update(source_to_concepts.get(src, set()))
+        message_key = norm(item["message"])
+        named = {cid: pat.search(message_key).group(0) for cid, pat in patterns.items() if pat.search(message_key)}
+        # "Query Account" khop ca concept "Account" -> chi giu ten dai nhat bao trum.
+        named = {cid for cid, hit in named.items()
+                 if not any(other != hit and re.search(r"(?<!\w)%s(?!\w)" % re.escape(hit), other)
+                            for other in named.values())}
+        # Uu tien concept vua nam trong spec vi pham vua duoc nhac ten trong message; message khong
+        # nhac ten concept nao (vd R11 dem so luong) -> ca spec; khong parse duoc source -> theo ten.
+        if in_sources:
+            affected_concepts = (in_sources & named) or in_sources
+        else:
+            affected_concepts = named
 
-        # When a violation names a canonical concept but source parsing is weak,
-        # use normalized names as a deterministic fallback.
-        message_key = str(item["message"]).lower()
-        for cid, concept in model.get("concepts", {}).items():
-            if concept.get("nameKey") and concept["nameKey"] in message_key:
-                affected_concepts.add(cid)
+        affected_nodes = set()
+        for cid in affected_concepts:
+            for nid in concepts.get(cid, {}).get("legacyNodeIds", []):
+                node_sources = model["nodes"].get(nid, {}).get("sources", [])
+                if not item["sources"] or set(node_sources) & set(item["sources"]):
+                    affected_nodes.add(nid)
 
         impacted = set()
+        direct = set()
         regenerate = set()
         diagram_kinds = set()
         for cid in affected_concepts:
             impact = model.get("impactMap", {}).get(cid, {})
             impacted.add(cid)
             impacted.update(impact.get("impactedConceptIds", []))
+            direct.update(impact.get("directConceptIds", []))
             regenerate.update(impact.get("regenerateSources", []))
             diagram_kinds.update(impact.get("impactedDiagramKinds", []))
 
         item["affectedNodeIds"] = sorted(affected_nodes)
         item["affectedConceptIds"] = sorted(affected_concepts)
+        item["directlyImpactedConceptIds"] = sorted(direct - affected_concepts)
         item["impactedConceptIds"] = sorted(impacted)
         item["affectedDiagramKinds"] = sorted(diagram_kinds)
         item["regenerateSources"] = sorted(regenerate or set(item["sources"]))
@@ -149,6 +172,7 @@ def build_plan(specs, canonical_model=None):
         for drift in reconciliation["drift"]:
             affected = sorted(set(drift.get("affectedConceptIds", [])))
             impacted_set = set(affected)
+            direct = set()
             regenerate = set(drift.get("regenerateSources", []))
             diagrams = set(drift.get("affectedDiagramKinds", []))
             for cid in affected:
@@ -156,6 +180,7 @@ def build_plan(specs, canonical_model=None):
                 if impact is None:
                     impact = model.get("conceptImpactMap", {}).get(cid, {})
                 impacted_set.update(impact.get("impactedConceptIds", []))
+                direct.update(impact.get("directConceptIds", []))
                 regenerate.update(impact.get("regenerateSources", []))
                 diagrams.update(impact.get("impactedDiagramKinds", []))
             items.append({
@@ -167,6 +192,7 @@ def build_plan(specs, canonical_model=None):
                 "sources": sorted(regenerate),
                 "affectedNodeIds": [],
                 "affectedConceptIds": affected,
+                "directlyImpactedConceptIds": sorted(direct - set(affected)),
                 "impactedConceptIds": sorted(impacted_set),
                 "affectedDiagramKinds": sorted(diagrams),
                 "regenerateSources": sorted(regenerate),

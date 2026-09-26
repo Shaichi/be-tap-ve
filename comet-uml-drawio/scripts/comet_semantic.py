@@ -32,6 +32,12 @@ def _display_bundle(bundle):
     return "default" if bundle == "__default__" else bundle
 
 
+def _raw_bundle(bundle):
+    """Nguoc cua _display_bundle: v1 node/link luu "default", con id v2 bam theo "__default__"."""
+    b = norm(bundle)
+    return "__default__" if b in ("", "default", "__default__") else b
+
+
 def _hash_id(prefix, *parts):
     raw = "|".join(str(p) for p in parts)
     return prefix + ":" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
@@ -406,7 +412,7 @@ def build_semantic_v2(v1_model, specs):
     # identity and diagram-local syntax.
     identity_collisions = defaultdict(set)
     for spec in specs or []:
-        bundle = norm(spec.get("bundle")) or "__default__"
+        bundle = _raw_bundle(spec.get("bundle"))
         diagram = norm(spec.get("diagram"))
         source = str(spec.get("_src") or spec.get("diagram") or "diagram")
         elements = spec.get("elements", [])
@@ -420,7 +426,9 @@ def build_semantic_v2(v1_model, specs):
         if not elements and spec.get("title") and diagram in {"context", "bizcontext", "class", "component", "deployment", "erd"}:
             anchors.append({"id": "__title__", "name": spec.get("title"), "type": diagram})
 
-        for ordinal, element in enumerate(elements + anchors):
+        # Ordinal chi dem trong cac element trung localId, nen doi thu tu element khong doi representation id.
+        occurrences = defaultdict(int)
+        for element in elements + anchors:
             name = _element_name(element)
             if not name:
                 continue
@@ -435,6 +443,8 @@ def build_semantic_v2(v1_model, specs):
                 _add_unique(concept["roles"], role)
 
             local_id = element.get("id", name)
+            ordinal = occurrences[str(local_id)]
+            occurrences[str(local_id)] += 1
             rid = _representation_id(bundle, diagram, source, local_id, ordinal)
             projection_properties = {}
             for key, value in sorted(element.items()):
@@ -515,7 +525,7 @@ def build_semantic_v2(v1_model, specs):
     # there is exactly one identity for a display name in the same bundle.
     node_to_concept = {}
     for nid, node in v1_model.get("nodes", {}).items():
-        bundle = norm(node.get("bundle")) or "__default__"
+        bundle = _raw_bundle(node.get("bundle"))
         name = node.get("name")
         candidates = sorted(identity_collisions.get((bundle, norm(name)), set()))
         if len(candidates) == 1:
@@ -548,7 +558,7 @@ def build_semantic_v2(v1_model, specs):
             if k not in {"id", "bundle", "kind", "source", "target", "sources"}
         }
         rid = _relationship_id(
-            norm(link.get("bundle")) or "__default__",
+            _raw_bundle(link.get("bundle")),
             str(link.get("kind") or "relationship"),
             source_id,
             target_id,
@@ -659,7 +669,7 @@ def upgrade_v1_model(v1_model):
     concepts = {}
     node_map = {}
     for nid, node in sorted(v1_model.get("nodes", {}).items()):
-        bundle = norm(node.get("bundle")) or "__default__"
+        bundle = _raw_bundle(node.get("bundle"))
         name = node.get("name") or node.get("id") or nid
         cid = canonical_concept_id(bundle, "name:" + norm(name))
         node_map[nid] = cid
@@ -685,7 +695,7 @@ def upgrade_v1_model(v1_model):
             if k not in {"id", "bundle", "kind", "source", "target", "sources"}
         }
         rid = _relationship_id(
-            norm(link.get("bundle")) or "__default__",
+            _raw_bundle(link.get("bundle")),
             str(link.get("kind") or "relationship"),
             a,
             b,

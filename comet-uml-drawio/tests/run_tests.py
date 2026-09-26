@@ -1608,6 +1608,52 @@ class TestSemanticModelV2(unittest.TestCase):
         self.assertEqual([(x["rule"], x["severity"]) for x in result["drift"]], [("M6", "warning")])
         self.assertEqual(result["summary"]["errors"], 0)
 
+    def atm_specs(self):
+        return C.load([str(p) for p in sorted(EXAMPLES.glob("atm_*.json"))])
+
+    def test_representation_ids_ignore_element_order(self):
+        specs = self.atm_specs()
+        shuffled = copy.deepcopy(specs)
+        for s in shuffled:
+            s["elements"] = list(reversed(s.get("elements", [])))
+        a, b = M.build_model(specs), M.build_model(shuffled)
+        self.assertEqual(sorted(a["representations"]), sorted(b["representations"]))
+        self.assertEqual(a["fingerprint"], b["fingerprint"])
+
+    def test_default_bundle_has_one_concept_per_name_and_no_object_nodes(self):
+        model = M.build_model(self.atm_specs())
+        names = [c["nameKey"] for c in model["concepts"].values()]
+        self.assertEqual(len(names), len(set(names)), "concept trung ten trong bundle mac dinh")
+        self.assertFalse([n for n in model["nodes"].values() if n["kind"] == "object"])
+        ctl = next(n["id"] for n in model["nodes"].values() if n["kind"] == "control" and n["nameKey"] == "atm control")
+        self.assertTrue(any(l["kind"] == "message" and ctl in (l["source"], l["target"]) for l in model["links"].values()))
+
+    def test_repair_plan_targets_named_concept(self):
+        specs = self.atm_specs()
+        model = M.build_model(specs)
+        plan = CP.build_plan(specs, model=model)
+        names = lambda step: {model["concepts"][c]["name"] for c in step["affectedConceptIds"]}
+        r8 = [s for s in plan["steps"] if s["rule"] == "R8"]
+        self.assertTrue(r8)
+        self.assertTrue(all(names(s) == {"ATM Control"} for s in r8), [names(s) for s in r8])
+        query = next(s for s in plan["steps"] if s["rule"] == "R1" and "Query Account" in s["message"])
+        self.assertEqual(names(query), {"Query Account"})
+        self.assertTrue(all("directlyImpactedConceptIds" in s for s in plan["steps"]))
+
+    def test_manifest_builds_model_once(self):
+        calls = []
+        real = CM.build_model
+
+        def counting(*a, **k):
+            calls.append(1)
+            return real(*a, **k)
+        CM.build_model, CP.build_model = counting, counting
+        try:
+            CM.build_manifests(self.atm_specs())
+        finally:
+            CM.build_model, CP.build_model = real, real
+        self.assertEqual(len(calls), 1)
+
     def test_activity_coverage_default_bundle(self):
         specs = C.load([str(EXAMPLES / "atm_usecase.json"), str(EXAMPLES / "atm_activity_withdraw.json")])
         model = M.build_model(specs, schema_version=1)

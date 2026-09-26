@@ -37,6 +37,20 @@ def canonical_id(bundle, kind, name):
     return "%s:%s" % (kind, digest)
 
 
+def lifeline_kind(e):
+    """(kind, role) cua mot lifeline trong communication/sequence."""
+    if norm(e.get("type")) == "actor":
+        return "actor", "actor"
+    st = st_of(e)
+    if st in {"boundary", "user interaction", "input", "output", "i/o", "proxy", "gui"}:
+        return "boundary", st
+    if st in {"control", "coordinator", "state dependent control", "state-dependent control", "timer"}:
+        return "control", st
+    if st in {"entity", "database wrapper", "data abstraction"}:
+        return "entity", st
+    return "application-logic", st
+
+
 def add_node(nodes, bundle, kind, name, spec, **fields):
     if not name:
         return None
@@ -210,19 +224,7 @@ def _build_model_v1(specs):
                 name = e.get("name") if typ == "actor" else obj_class(e)
                 if not name:
                     continue
-                if typ == "actor":
-                    kind, role = "actor", "actor"
-                else:
-                    st = st_of(e)
-                    if st in {"boundary", "user interaction", "input", "output", "i/o", "proxy", "gui"}:
-                        kind = "boundary"
-                    elif st in {"control", "coordinator", "state dependent control", "state-dependent control", "timer"}:
-                        kind = "control"
-                    elif st in {"entity", "database wrapper", "data abstraction"}:
-                        kind = "entity"
-                    else:
-                        kind = "application-logic"
-                    role = st
+                kind, role = lifeline_kind(e)
                 nid = add_node(nodes, bundle, kind, name, spec, stereotype=role)
                 if ucid and kind in {"actor", "control", "boundary", "entity", "application-logic"}:
                     add_link(links, bundle, "interaction-member", ucid, nid, spec, useCase=uc)
@@ -235,9 +237,11 @@ def _build_model_v1(specs):
                     continue
 
                 def endpoint(e):
+                    # Cung kind voi lifeline o tren -> message noi vao dung node, khong tao node "object" trung.
                     if e.get("type") == "actor":
                         return add_node(nodes, bundle, "actor", e.get("name", e.get("id")), spec)
-                    return add_node(nodes, bundle, "object", obj_class(e), spec, stereotype=st_of(e))
+                    kind, role = lifeline_kind(e)
+                    return add_node(nodes, bundle, kind, obj_class(e), spec, stereotype=role)
 
                 source, target = endpoint(a), endpoint(b)
                 add_link(

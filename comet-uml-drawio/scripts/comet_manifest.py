@@ -24,7 +24,7 @@ from comet_reconcile import load_model
 
 def build_manifests(specs, canonical_model=None):
     projection_model = build_model(specs, schema_version=2)
-    plan = build_plan(specs, canonical_model=canonical_model)
+    plan = build_plan(specs, canonical_model=canonical_model, model=projection_model)
 
     violations = []
     impacted = set()

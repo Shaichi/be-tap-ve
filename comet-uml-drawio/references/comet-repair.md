@@ -47,8 +47,9 @@ Mỗi `step` gồm:
 
 Repair plan v2 giữ các trường v1 (`rule`, `severity`, `message`, `sources`, `affectedNodeIds`) nhưng bổ sung:
 
-- `affectedConceptIds`: canonical concepts trực tiếp liên quan đến violation.
-- `impactedConceptIds`: semantic dependency closure bị ảnh hưởng.
+- `affectedConceptIds`: canonical concepts trực tiếp liên quan đến violation — concept trong spec vi phạm có tên (khớp nguyên từ, ưu tiên tên dài nhất) được nhắc trong message; message không nêu tên concept nào thì lấy cả spec.
+- `directlyImpactedConceptIds`: concept kề trực tiếp (1 bước quan hệ) — nên xem trước khi sửa.
+- `impactedConceptIds`: semantic dependency closure bị ảnh hưởng (thường gần hết bundle; dùng để tra cứu, không phải danh sách phải sửa).
 - `affectedDiagramKinds`: loại diagram nên xem xét regenerate.
 - `regenerateSources`: source specs cần regenerate trực tiếp.
 
