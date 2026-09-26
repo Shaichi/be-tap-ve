@@ -14,13 +14,18 @@ In normal agent workflows the preferred entry point is:
 python scripts/comet_manifest.py "./uml/*.json" --canonical-model "./uml/system.model.json" -o "./uml/system"
 ```
 
+`--canonical-model` (and the positional model of `comet_reconcile.py`) also accepts a canonical-first document
+(`kind: "comet-canonical-model"`, see `comet-project.md`); it is converted to the authoritative model v2 first.
+
 The manifest then binds the authoritative `modelFingerprint`, the projected-spec fingerprint and the reconciliation report into the same consistency/repair snapshot.
 
 ## Drift rules
 
 - M1: canonical concept has no projection.
 - M2: projection contains a concept not declared canonically.
-- M3: canonical concept identity/name drifted in a projection.
+- M3: canonical concept identity/name drifted in a projection. When the canonical model carries representations
+  (e.g. built from a canonical-first document), a projection representation whose name is not a canonical
+  representation name is also M3, which catches a hand-edited compiled spec that kept its `conceptId`.
 - M4: canonical relationship is missing from the projections.
 - M5: projection contains an undeclared relationship.
 - M6: canonical alias is missing from a projection (warning, not an identity error).

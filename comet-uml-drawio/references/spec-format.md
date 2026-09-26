@@ -33,6 +33,9 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 Semantic identity v2 (tuỳ chọn): `conceptId`/`semanticId`/`modelId` để trỏ tới cùng canonical concept xuyên diagram;
 `aliases` để khai báo tên thay thế; `aliasOf` để biểu diễn rằng representation này là alias của concept đã biết.
 Không dùng `id` diagram-local làm canonical identity.
+Spec do `comet_project.py compile` sinh ra luôn mang `conceptId` trên phần tử concept, và `useCaseConceptId` /
+`stateMachineOfConceptId` ở cấp spec khi `useCase` / `stateMachineOf` là concept → identity giữ nguyên khi đổi tên
+(xem `references/comet-project.md`). Không sửa tay các spec này; sửa file canonical rồi compile lại.
 
 | `type` | Trường riêng |
 |---|---|

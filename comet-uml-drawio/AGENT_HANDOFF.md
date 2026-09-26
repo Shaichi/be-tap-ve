@@ -382,6 +382,34 @@ Review-fix pass summary:
 
 Do not assume a newer change is green until its own CI run is verified.
 
+### Phase K — Canonical-first projection compiler
+
+Branch `feat/canonical-projection`. New module:
+
+- `comet-uml-drawio/scripts/comet_project.py` (docs: `references/comet-project.md`)
+
+One canonical document (`kind: "comet-canonical-model"`, `schemaVersion: 1`) holds `concepts`, `relationships`, `interactions` and `views`. `compile` turns it into every source spec deterministically.
+
+- `bootstrap` lifts the existing specs into a canonical document and verifies the round-trip. It is exact for all 14 examples: 120 concepts, 141 relationships, 1 shared interaction, 14 views. The `.drawio` files rendered from the compiled specs are byte-identical to the originals.
+- Concept `conceptId` = the name-based semantic id at bootstrap, so fingerprints are unchanged. Compiled specs carry `conceptId`, `useCaseConceptId` and `stateMachineOfConceptId`, so identity survives a rename.
+- Communication and sequence views share one interaction message list, so R12 cannot drift.
+- `autoInclude` on usecase views: a new actor or use case plus its relationships appears automatically.
+- K1–K9 validation, `compile --check` for stale or hand-edited specs, and `model` exports an authoritative v2 model with `sourceOfTruth.mode = "canonical"`.
+- `comet_reconcile.load_model` (and therefore `comet_manifest.py --canonical-model`) accepts the canonical document directly.
+
+Related fixes:
+
+- `comet_semantic`: concepts, relationships and aliases created by the v1 upgrade that no representation uses are pruned. They used to become ghosts when an explicit `conceptId` differed from the name-based id.
+- `comet_reconcile` M3: when the canonical model has representations, a projection representation name that is not a canonical one is also drift. This catches a hand-edited compiled spec.
+
+Status: **119 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
+
+Known limitations:
+
+- A canonical relationship used by no view is not reported (no M4 for it).
+- The `system` spec field gets no conceptId.
+- Bootstrap enables `autoInclude` only on usecase views.
+
 ---
 
 ## 3. Important current files
@@ -516,7 +544,7 @@ This means:
 - It is **not yet** a full compiler input from which every source spec can be regenerated.
 - Existing specs are still the place from which many diagram-specific details are initially derived.
 
-Do **not** report the project as having a complete canonical-first compiler yet.
+Update (Phase K): `comet_project.py` now provides the canonical-first path. A project that has a `system.canonical.json` should edit that file and compile. Its `model` output uses `sourceOfTruth.mode = "canonical"`. Projects without a canonical document still use the bootstrap flow above.
 
 ---
 
@@ -756,19 +784,22 @@ system-wide semantic indexing
 + CI regression coverage
 ```
 
-The project has **not yet completed**:
+Phase K added the missing step:
 
 ```text
-authoritative canonical model
-        ↓
-full deterministic projection compiler
-        ↓
-all source specs
-        ↓
+system.canonical.json
+        ↓  comet_project.py validate / compile
+all source specs (round-trip exact on every example)
+        ↓  uml2drawio.py
 all diagrams
 ```
 
-That is the logical next engineering phase.
+Next candidates:
+
+- M4 for canonical relationships no view projects.
+- conceptId for `system`.
+- `autoInclude` for more view kinds.
+- Authoring helpers (add concept, rename) on top of the canonical document.
 
 ---
 

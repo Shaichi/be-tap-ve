@@ -139,7 +139,8 @@ tự chọn đúng lệnh.
 2. Viết spec vào `./uml/<tên>.json`.
 3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_model.py` (xây canonical semantic model v2),
    `comet_check.py` (luật UML/COMET + traceability), rồi `comet_manifest.py` (model/consistency/repair),
-   nếu đã có canonical model thì chạy reconcile để kiểm tra các spec có đúng là projection không, rồi
+   nếu đã có canonical model thì chạy reconcile để kiểm tra các spec có đúng là projection không (dự án có
+   `system.canonical.json` thì sửa file đó rồi `comet_project.py compile` sinh lại spec trước), rồi
    `preview_svg.py --png` (chụp ảnh).
 4. Sửa đến khi **0 ERROR** và hết WARN, rồi tự xem ảnh để soát lại.
 5. Nếu có draw.io MCP: mở sơ đồ trên diagrams.net. Nếu không: đưa đường dẫn file `.drawio` và `.png`.
@@ -190,6 +191,12 @@ python scripts/comet_manifest.py "./uml/*.json" -o "./uml/<He_thong>"
 
 python scripts/comet_reconcile.py --help
 # khi đã có canonical model v2, dùng nó làm authority và coi các spec hiện tại là projections.
+
+python scripts/comet_project.py bootstrap "./uml/*.json" -o ./uml/system.canonical.json
+# canonical-first: gom mọi spec thành MỘT file nguồn sự thật (kiểm round-trip exact).
+python scripts/comet_project.py compile ./uml/system.canonical.json -o ./uml/
+# sinh lại toàn bộ spec từ file canonical; đổi tên concept một chỗ → mọi sơ đồ đổi theo. --check: báo spec cũ/sửa tay.
+# comet_manifest.py/comet_reconcile.py nhận thẳng file canonical qua --canonical-model. Xem references/comet-project.md.
 # ba artifact dùng cùng modelFingerprint để agent/tool downstream làm việc trên cùng semantic snapshot.
 ```
 

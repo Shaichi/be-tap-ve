@@ -53,6 +53,9 @@ integrated communication diagram, subsystem/component/deployment.
 - Semantic model: `references/comet-model.md` mô tả schema v2, canonical identity, alias/provenance, dependency graph và impact propagation.
 - Manifest: `references/comet-manifest.md` mô tả `system.model.json`, `system.consistency.json`, `system.repair.json` và shared fingerprint.
 - Reconciliation: `references/comet-reconcile.md` mô tả cách canonical model làm authority và specs trở thành projections.
+- Canonical-first: `references/comet-project.md` — một file `system.canonical.json` là nguồn sự thật; `scripts/comet_project.py compile`
+  sinh lại mọi spec. Khi dự án đã có file canonical: sửa file đó (đổi tên concept, thêm quan hệ…), `validate` → `compile` →
+  `uml2drawio.py`, KHÔNG sửa tay spec đã compile.
 - Repair plan: `references/comet-repair.md` mô tả cách chuyển violation thành bước sửa/regenerate machine-readable.
   – mỗi loại sơ đồ có 1 file; **bắt buộc** mở file cùng loại làm khuôn trước khi viết spec mới.
 - Activity: chia làn bằng `partitions` (cấp spec) + `partition` (mỗi phần tử); luồng ra khỏi decision
