@@ -566,6 +566,10 @@ def build_semantic_v2(v1_model, specs):
                 "description": "Equal display names map to multiple explicit concept identities; use aliasOf/conceptId deliberately.",
             })
 
+    model["derivedArtifacts"] = [
+        by_id for _, by_id in sorted({a["id"]: a for a in model["derivedArtifacts"]}.items())
+    ]
+
     model["constraints"].extend(
         c for c in _declarative_constraints()
         if c["id"] not in {x["id"] for x in model["constraints"]}
