@@ -126,7 +126,7 @@ K1–K9 are errors and block `compile`. K10/K11 are warnings: `validate` lists t
 
 ## Workflow
 
-1. Once, run `bootstrap` on the existing specs and check that `roundTrip` is `exact`.
+1. Once, run `bootstrap` on the existing specs and check that `roundTrip` is `exact`. Then run `compile` once. Hand-written specs have no `conceptId`, so `compile --check` reports them all stale until this first compile adds the identities.
 2. From then on, edit only `system.canonical.json`.
 3. Run `validate` → `compile -o ./uml/` → `uml2drawio.py` → `comet_check.py --strict`.
 4. Run `comet_manifest.py "./uml/*.json" --canonical-model ./uml/system.canonical.json -o ./uml/system`. A clean reconciliation shows the specs are exact projections.

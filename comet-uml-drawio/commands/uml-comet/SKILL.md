@@ -78,7 +78,7 @@ python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_th
    và **sửa hết WARN** trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó không đúng ngữ cảnh — nêu mã luật +
    lý do. Không biện minh kiểu "chỉ là cảnh báo nhỏ".
 2a. Khi cả bộ đã sạch, chốt nguồn sự thật: `python "<ENGINE>/scripts/comet_project.py" bootstrap "./uml/*.json" -o
-   ./uml/<He_thong>.canonical.json` (phải báo `"roundTrip": "exact"`). Từ lần sửa sau (đổi tên, thêm actor/use case…):
+   ./uml/<He_thong>.canonical.json` (phải báo `"roundTrip": "exact"`), rồi `compile` một lần để spec mang `conceptId`. Từ lần sửa sau (đổi tên, thêm actor/use case…):
    sửa file canonical → `comet_project.py validate` → `comet_project.py compile ./uml/<He_thong>.canonical.json -o ./uml/`
    → chạy lại các lệnh trên; KHÔNG sửa tay spec đã compile (`compile --check` phát hiện). Xem
    `<ENGINE>/references/comet-project.md`.
