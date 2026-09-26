@@ -1500,7 +1500,7 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertTrue(any(step["rule"] == "R4" for step in repair["steps"]))
 
         canonical_manifest = d / "canonical-manifest.json"
-        canonical_specs = [EXAMPLES / "atm_usecase.json", EXAMPLES / "atm_context.json"]
+        canonical_specs = [str(EXAMPLES / "atm_usecase.json"), str(EXAMPLES / "atm_context.json")]
         canonical_model = CM.build_manifests(C.load(canonical_specs))[0]
         canonical_manifest.write_text(json.dumps(canonical_model, ensure_ascii=False), encoding="utf-8")
         prefix = d / "system"
