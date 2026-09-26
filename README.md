@@ -172,9 +172,15 @@ python scripts/uml2drawio.py examples/elearn_erd.json -o out/elearn_erd.drawio
 ```bash
 python scripts/comet_check.py --partial examples/elearn_erd.json
 
+python scripts/comet_model.py "./uml/*.json" -o "./uml/<He_thong>.model.json"
+# semantic model: canonical IDs + nodes + links + coverage + impact map.
+
 python scripts/comet_check.py --strict "./uml/*.json"
-# --json: xuất report máy-đọc gồm summary/errors/warnings/infos cho CI/tooling.
+# --json: xuất report machine-readable và nhúng semantic model.
 # --strict: còn WARN cũng trả mã thoát 1, phù hợp CI/lần kiểm cuối.
+
+python scripts/comet_plan.py "./uml/*.json" -o "./uml/<He_thong>.repair.json"
+# repair plan: rule + severity + source + hướng sửa/regenerate; không tự sửa semantics.
 ```
 
 ```bash
