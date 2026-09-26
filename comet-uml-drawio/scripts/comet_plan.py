@@ -56,6 +56,12 @@ RULE_ACTIONS = {
     "B2": "Dat ten cho flow va noi flow giua system va external.",
     "B3": "Bao dam moi external co it nhat mot flow.",
     "L1": "Doi text ve tieng Anh hoac dat lang explicit neu co chu co dau.",
+    "M1": "Them projection cua canonical concept vao source spec phu hop; khong sua business semantics trong .drawio.",
+    "M2": "Kiem tra concept chi co trong projection; khai bao canonical concept hoac xoa projection semantic.",
+    "M3": "Dong bo identity/name/alias cua concept trong source spec voi canonical model authoritative.",
+    "M4": "Bo sung quan he canonical con thieu vao source spec va regenerate cac diagram anh huong.",
+    "M5": "Kiem tra relationship chi co trong projection; khai bao canonical relationship hoac xoa projection.",
+    "M6": "Bo sung alias canonical vao projection hoac khai bao aliasOf ro rang.",
 }
 
 
@@ -73,10 +79,14 @@ def source_tokens(message):
     return out
 
 
-def build_plan(specs):
+def build_plan(specs, canonical_model=None):
     errors, warnings, infos = check(specs)
     model = build_model(specs)
     items = []
+    reconciliation = None
+    if canonical_model is not None:
+        from comet_reconcile import reconcile
+        reconciliation = reconcile(canonical_model, model)
     for severity, messages in (("error", errors), ("warning", warnings), ("info", infos)):
         for message in messages:
             code = code_of(message)
@@ -135,14 +145,47 @@ def build_plan(specs):
         item["affectedDiagramKinds"] = sorted(diagram_kinds)
         item["regenerateSources"] = sorted(regenerate or set(item["sources"]))
 
+    if reconciliation is not None:
+        for drift in reconciliation["drift"]:
+            affected = sorted(set(drift.get("affectedConceptIds", [])))
+            impacted_set = set(affected)
+            regenerate = set(drift.get("regenerateSources", []))
+            diagrams = set(drift.get("affectedDiagramKinds", []))
+            for cid in affected:
+                impact = model.get("impactMap", {}).get(cid)
+                if impact is None:
+                    impact = model.get("conceptImpactMap", {}).get(cid, {})
+                impacted_set.update(impact.get("impactedConceptIds", []))
+                regenerate.update(impact.get("regenerateSources", []))
+                diagrams.update(impact.get("impactedDiagramKinds", []))
+            items.append({
+                "id": "%s-%d" % (drift["rule"], len(items) + 1),
+                "rule": drift["rule"],
+                "severity": drift["severity"],
+                "message": drift["message"],
+                "action": drift.get("suggestion") or RULE_ACTIONS.get(drift["rule"], "Reconcile canonical model and source projections."),
+                "sources": sorted(regenerate),
+                "affectedNodeIds": [],
+                "affectedConceptIds": affected,
+                "impactedConceptIds": sorted(impacted_set),
+                "affectedDiagramKinds": sorted(diagrams),
+                "regenerateSources": sorted(regenerate),
+            })
+
+    errors_count = len(errors) + (reconciliation["summary"]["errors"] if reconciliation else 0)
+    warnings_count = len(warnings) + (reconciliation["summary"]["warnings"] if reconciliation else 0)
+    infos_count = len(infos) + (reconciliation["summary"]["infos"] if reconciliation else 0)
+
     return {
         "schemaVersion": 2,
         "kind": "comet-repair-plan",
-        "modelFingerprint": model["fingerprint"],
+        "modelFingerprint": canonical_model["fingerprint"] if canonical_model is not None else model["fingerprint"],
+        "projectionFingerprint": model["fingerprint"],
+        "canonicalModelFingerprint": canonical_model["fingerprint"] if canonical_model is not None else None,
         "summary": {
-            "errors": len(errors),
-            "warnings": len(warnings),
-            "infos": len(infos),
+            "errors": errors_count,
+            "warnings": warnings_count,
+            "infos": infos_count,
             "steps": len(items),
         },
         "steps": items,
@@ -153,8 +196,14 @@ def main():
     ap = argparse.ArgumentParser(description="Xuat repair plan machine-readable cho bo COMET")
     ap.add_argument("specs", nargs="+")
     ap.add_argument("-o", "--output", help="ghi JSON plan vao file")
+    ap.add_argument("--canonical-model",
+                    help="model v2 authoritative; spec hien tai duoc xem la projection")
     a = ap.parse_args()
-    plan = build_plan(load(a.specs))
+    canonical = None
+    if a.canonical_model:
+        from comet_reconcile import load_model
+        canonical = load_model(a.canonical_model)
+    plan = build_plan(load(a.specs), canonical_model=canonical)
     text = json.dumps(plan, ensure_ascii=False, indent=2)
     if a.output:
         Path(a.output).parent.mkdir(parents=True, exist_ok=True)
