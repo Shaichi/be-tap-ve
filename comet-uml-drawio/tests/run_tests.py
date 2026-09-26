@@ -1278,6 +1278,8 @@ class TestCometCheck(unittest.TestCase):
         self.assertIn("state", ctl["diagramKinds"])
         self.assertIn("impactMap", model)
         self.assertTrue(model["impactMap"][ctl["id"]]["relatedLinkIds"])
+        alias_links = [x for x in model["links"].values() if x["kind"] == "actor-external-alias"]
+        self.assertTrue(any(x["semanticIdentity"] == "atm customer" for x in alias_links))
 
     def test_json_report(self):
         with tempfile.TemporaryDirectory() as td:
