@@ -192,7 +192,7 @@ Tuỳ chọn khác:
 - `--no-validate` bỏ bước kiểm tra.
 - `python scripts/validate_drawio.py file.drawio` kiểm tra một file draw.io bất kỳ, kể cả file vẽ tay.
 
-**Mã thoát:** `0` là sạch; `2` là còn ERROR.
+**Mã thoát `comet_check.py`:** `0` là sạch; `1` là có ERROR (hoặc có WARN khi dùng `--strict`).
 
 ---
 
