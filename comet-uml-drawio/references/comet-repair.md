@@ -42,3 +42,32 @@ Mỗi `step` gồm:
 7. Lặp tới khi plan sạch.
 
 `comet_plan.py` hiện là advisory; chưa tự chỉnh file để tránh sửa sai semantics nghiệp vụ.
+
+## Repair plan v2 và impact propagation
+
+Repair plan v2 giữ các trường v1 (`rule`, `severity`, `message`, `sources`, `affectedNodeIds`) nhưng bổ sung:
+
+- `affectedConceptIds`: canonical concepts trực tiếp liên quan đến violation.
+- `impactedConceptIds`: semantic dependency closure bị ảnh hưởng.
+- `affectedDiagramKinds`: loại diagram nên xem xét regenerate.
+- `regenerateSources`: source specs cần regenerate trực tiếp.
+
+Repair engine không tự kết luận business semantics. Agent nên dùng canonical concept + provenance để trả lời:
+
+```
+violation
+  ↓
+affectedConceptIds
+  ↓
+impactMap / dependencyGraph
+  ↓
+diagram-local representations
+  ↓
+source specs
+  ↓
+regenerate từ spec
+```
+
+Trong trường hợp ambiguity, giữ violation dưới dạng advisory và yêu cầu source khai báo
+`conceptId`/`aliasOf`; không sửa tên hay quan hệ nghiệp vụ một cách mù quáng.
+\n
