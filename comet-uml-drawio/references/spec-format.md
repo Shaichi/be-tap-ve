@@ -30,6 +30,9 @@ trung tâm trước, quan hệ theo luồng chính trước).
 Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `type`, `name`, `stereotype`
 (chuỗi hoặc mảng; viết trần, không « »), `in` (id phần tử cha – lồng vào container),
 `partition` (activity có `partitions`: id hoặc tên làn; phần tử không ghi sẽ theo làn của nút kề).
+Semantic identity v2 (tuỳ chọn): `conceptId`/`semanticId`/`modelId` để trỏ tới cùng canonical concept xuyên diagram;
+`aliases` để khai báo tên thay thế; `aliasOf` để biểu diễn rằng representation này là alias của concept đã biết.
+Không dùng `id` diagram-local làm canonical identity.
 
 | `type` | Trường riêng |
 |---|---|
