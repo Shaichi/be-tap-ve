@@ -96,6 +96,7 @@ def add_link(links, bundle, kind, source, target, spec, **fields):
 
 def build_model(specs):
     nodes, links = {}, {}
+    activity_sources = defaultdict(list)
     bundle_names = defaultdict(lambda: {"nodeIds": [], "linkIds": []})
 
     for spec in specs:
@@ -265,6 +266,7 @@ def build_model(specs):
             uc = spec.get("useCase")
             if uc:
                 add_node(nodes, bundle, "usecase", uc, spec)
+                activity_sources[(bundle, norm(uc))].append(spec.get("_src", ""))
 
         if diagram == "component":
             for e in spec.get("elements", []):
@@ -327,7 +329,7 @@ def build_model(specs):
                     "name": node["name"],
                     "actors": [],
                     "interactionSources": [],
-                    "activitySources": [],
+                    "activitySources": sorted(activity_sources.get((bundle_name, node["name"].lower()), [])),
                 }
             elif node["kind"] == "entity":
                 entities[nid] = {
