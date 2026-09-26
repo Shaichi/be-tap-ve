@@ -171,6 +171,9 @@ python scripts/uml2drawio.py examples/elearn_erd.json -o out/elearn_erd.drawio
 
 ```bash
 python scripts/comet_check.py --partial examples/elearn_erd.json
+
+python scripts/comet_check.py --strict "./uml/*.json"
+# --strict: còn WARN cũng trả mã thoát 1, phù hợp CI/lần kiểm cuối.
 ```
 
 ```bash
