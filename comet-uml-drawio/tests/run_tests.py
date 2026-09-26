@@ -1241,8 +1241,10 @@ class TestCometCheck(unittest.TestCase):
 
     def test_semantic_model(self):
         specs = C.load([str(EXAMPLES / "atm_usecase.json"),
+                        str(EXAMPLES / "atm_context.json"),
                         str(EXAMPLES / "atm_comm_validate_pin.json"),
                         str(EXAMPLES / "atm_seq_validate_pin.json"),
+                        str(EXAMPLES / "atm_statechart.json"),
                         str(EXAMPLES / "atm_entity.json"),
                         str(EXAMPLES / "banking_component.json"),
                         str(EXAMPLES / "atm_deployment.json")])
