@@ -162,3 +162,27 @@ def reconcile_file(canonical_path, specs):
     canonical = load_model(canonical_path)
     projection = build_model(specs, schema_version=2)
     return reconcile(canonical, projection)
+  
+  
+def main():
+    import argparse
+
+    from comet_check import load
+
+    ap = argparse.ArgumentParser(description="Reconcile source specs against canonical model v2")
+    ap.add_argument("canonical_model", help="authoritative schema-v2 model JSON")
+    ap.add_argument("specs", nargs="+")
+    ap.add_argument("-o", "--output", help="ghi reconciliation JSON ra file")
+    args = ap.parse_args()
+
+    result = reconcile_file(args.canonical_model, load(args.specs))
+    text = json.dumps(result, ensure_ascii=False, indent=2)
+    if args.output:
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.output).write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+
+
+if __name__ == "__main__":
+    main()
