@@ -79,10 +79,10 @@ có thể thêm các semantic drift steps:
 
 - **M1** — canonical concept chưa có projection.
 - **M2** — projection chứa concept chưa khai báo canonical.
-- **M3** — identity/name/alias của concept bị drift.
+- **M3** — identity/name của concept bị drift.
 - **M4** — canonical relationship không xuất hiện trong projection.
 - **M5** — projection chứa relationship chưa khai báo canonical.
-- **M6** — canonical alias bị thiếu trong projection.
+- **M6** — canonical alias bị thiếu trong projection (WARN, không phải lỗi identity).
 
 Các bước M1–M6 là advisory về business semantics: agent chỉ sửa source spec/model khi có
 đủ provenance; không patch trực tiếp `.drawio`. `regenerateSources` và

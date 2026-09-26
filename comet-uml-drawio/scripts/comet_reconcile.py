@@ -71,10 +71,7 @@ def reconcile(canonical_model, projection_model):
             changed.append("name")
         if left.get("bundle") != right.get("bundle"):
             changed.append("bundle")
-        authoritative_aliases = set(left.get("aliases", []))
-        projected_aliases = set(right.get("aliases", []))
-        if not authoritative_aliases <= projected_aliases:
-            changed.append("aliases")
+        # Alias thieu la M6 (warning), khong phai drift identity.
         if changed:
             item = {
                 "rule": "M3",
@@ -119,7 +116,7 @@ def reconcile(canonical_model, projection_model):
         expected = set(canonical[cid].get("aliases", []))
         observed = set(projected[cid].get("aliases", []))
         missing = sorted(expected - observed)
-        if missing and not any(d.get("rule") == "M3" and cid in d.get("affectedConceptIds", []) for d in drift):
+        if missing:
             item = {
                 "rule": "M6",
                 "severity": "warning",

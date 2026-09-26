@@ -272,7 +272,8 @@ def _build_model_v1(specs):
             uc = spec.get("useCase")
             if uc:
                 add_node(nodes, bundle, "usecase", uc, spec)
-                activity_sources[(bundle, norm(uc))].append(spec.get("_src", ""))
+                # Khoa theo bundle hien thi ("default") vi coverage duyet theo node["bundle"].
+                activity_sources[(display_bundle(bundle), norm(uc))].append(spec.get("_src", ""))
 
         if diagram == "component":
             for e in spec.get("elements", []):

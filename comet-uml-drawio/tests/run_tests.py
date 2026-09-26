@@ -1242,6 +1242,45 @@ class TestCometCheck(unittest.TestCase):
         E, W, I = check(role_cls, role_comm)
         self.assertFalse(codes(W, "X6"), "X6 khong duoc tron role khac bundle: %s" % W)
 
+    def test_R8_messages_show_class_name_not_scope_tuple(self):
+        E, W, I = C.check(C.load([str(p) for p in EXAMPLES.glob("atm_*.json")]))
+        r8 = [x for x in W + I if x.startswith("R8")]
+        self.assertTrue(r8)
+        self.assertFalse(any("__default__" in x or "('" in x for x in r8), r8)
+
+    def test_X1_X3_partial_bundle_without_model_is_info(self):
+        a = shop()
+        for sp in a.values():
+            sp["bundle"] = "shop-a"
+        ghost = copy.deepcopy(SHOP_COMM)
+        ghost["bundle"] = "shop-c"
+        ghost["useCase"] = "Ship Order"
+        st = {"diagram": "state", "title": "Ship Control", "stateMachineOf": "Ship Control", "bundle": "shop-c",
+              "elements": [{"id": "i", "type": "initial"}, {"id": "a", "type": "state", "name": "Idle"}],
+              "relations": [{"from": "i", "to": "a"}]}
+        E, W, I = check(a["uc"], a["comm"], a["seq"], ghost, st, partial=True)
+        self.assertFalse(codes(W, "X1") or codes(W, "X3"), "bundle chua co model -> chi INFO khi --partial: %s" % W)
+        self.assertTrue(codes(I, "X1") and codes(I, "X3"), I)
+        # Bundle co use case model nhung khong co ten nay -> van la tham chieu treo (WARN) ca khi --partial.
+        dangling = copy.deepcopy(a["comm"])
+        dangling["useCase"] = "Ghost Use Case"
+        E, W, I = check(a["uc"], a["comm"], a["seq"], dangling, partial=True)
+        self.assertTrue(codes(W, "X1"), W)
+
+    def test_X4_X5_scope_ignores_system_field_and_notes_unmatched_pair(self):
+        erd = {"diagram": "erd", "title": "Shop - ERD", "elements": [
+            {"id": "ord", "type": "entity", "name": "Order"}, {"id": "inv", "type": "entity", "name": "Invoice"}]}
+        cls = copy.deepcopy(SHOP_CLS)
+        cls["system"] = "Shop System"   # ten he thong, khong phai namespace -> khong duoc tat X4
+        E, W, I = check(erd, cls)
+        self.assertTrue(codes(W, "X4"), "system khong phai scope key: W=%s I=%s" % (W, I))
+        # Cap duy nhat, khong bundle, title khac, khong chung ten -> ghi chu thay vi im lang.
+        other = {"diagram": "erd", "title": "Warehouse ERD", "elements": [
+            {"id": "b", "type": "entity", "name": "Bin"}]}
+        E, W, I = check(other, copy.deepcopy(SHOP_CLS))
+        self.assertFalse(codes(W, "X4"), W)
+        self.assertTrue(any(x.startswith("X4") and "bundle" in x for x in I), I)
+
     def test_semantic_model(self):
         specs = C.load([str(EXAMPLES / "atm_usecase.json"),
                         str(EXAMPLES / "atm_context.json"),
@@ -1560,6 +1599,20 @@ class TestSemanticModelV2(unittest.TestCase):
         result = CR.reconcile(changed, M.build_model(copy.deepcopy(specs)))
         self.assertEqual(result["status"], "drift")
         self.assertTrue(any(x["rule"] == "M3" for x in result["drift"]))
+
+    def test_reconcile_missing_alias_is_M6_warning(self):
+        specs = self.specs()
+        canonical = M.build_model(copy.deepcopy(specs))
+        next(iter(canonical["concepts"].values()))["aliases"].append("Declared Alias")
+        result = CR.reconcile(canonical, M.build_model(copy.deepcopy(specs)))
+        self.assertEqual([(x["rule"], x["severity"]) for x in result["drift"]], [("M6", "warning")])
+        self.assertEqual(result["summary"]["errors"], 0)
+
+    def test_activity_coverage_default_bundle(self):
+        specs = C.load([str(EXAMPLES / "atm_usecase.json"), str(EXAMPLES / "atm_activity_withdraw.json")])
+        model = M.build_model(specs, schema_version=1)
+        withdraw = next(u for u in model["coverage"]["default"]["useCases"].values() if u["name"] == "Withdraw Funds")
+        self.assertTrue(any("atm_activity_withdraw.json" in s for s in withdraw["activitySources"]), withdraw)
 
     def test_manifest_binds_authoritative_fingerprint(self):
         specs = self.specs()

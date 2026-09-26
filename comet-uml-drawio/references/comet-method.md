@@ -82,11 +82,11 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | F1–F2 | Screen flow (site map): mọi màn hình tới được từ màn hình gốc; không initial/decision, không `items`, mũi tên không nhãn | WARN |
 | B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 | L1 | Mọi sơ đồ: chữ trên sơ đồ mặc định tiếng Anh – có chữ có dấu (tiếng Việt…) mà spec chưa đặt `"lang"` khác `"en"` | WARN |
-| X1 | Interaction/activity tham chiếu `useCase` không tồn tại trong use case model cùng `bundle` | WARN |
+| X1 | Interaction/activity tham chiếu `useCase` không tồn tại trong use case model cùng `bundle` | WARN (bundle chưa có use case model + `--partial`: INFO) |
 | X2 | Actor được gán cho use case phải xuất hiện trong interaction của use case đó, cùng `bundle` | WARN (`--partial`: INFO) |
-| X3 | Statechart phải truy vết được về `state dependent control` cùng tên trong interaction, cùng `bundle` | WARN |
-| X4 | ERD và entity class model phải khớp thực thể khi có cùng bundle | WARN/INFO |
-| X5 | Component và deployment phải khớp tên khi có cùng bundle | WARN/INFO |
+| X3 | Statechart phải truy vết được về `state dependent control` cùng tên trong interaction, cùng `bundle` | WARN (`--partial`: INFO) |
+| X4 | ERD và entity class model phải khớp thực thể khi có cùng bundle (không có bundle: cùng tiền tố title hoặc ≥2 tên chung; cặp duy nhất không ghép được → INFO) | WARN/INFO |
+| X5 | Component và deployment phải khớp tên khi có cùng bundle (cùng quy tắc ghép như X4) | WARN/INFO |
 | X6 | Cùng một tên structural không được đổi vai trò entity ↔ boundary/control/application logic | WARN |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).

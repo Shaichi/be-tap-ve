@@ -589,6 +589,7 @@ def check(specs, partial=False):
                         % (cls, cls))
     for k, s in sm_of.items():
         src = s["_src"]
+        key_name = k[1]   # k = (scope, ten chuan hoa); chi in ten nhu truoc khi co bundle
         events, actions = set(), set()
         for r in s.get("relations", []):
             if str(r.get("type", "transition")).lower() not in ("transition", "flow"):
@@ -604,17 +605,17 @@ def check(specs, partial=False):
         if not any(k in d for d in (ctl_in, ctl_out, rep_in, rep_out)):
             if inter:
                 I.append("R8 [%s] Statechart '%s' khong khop voi doi tuong «state dependent control» nao trong cac "
-                         "so do tuong tac da cho - bo qua kiem tra event/action." % (src, k))
+                         "so do tuong tac da cho - bo qua kiem tra event/action." % (src, key_name))
             continue
         for ev in sorted(events):
             if ev not in ctl_in[k] and ev not in rep_in[k]:
                 I.append("R8 [%s] Event '%s' chua xuat hien la message DEN '%s' trong so do tuong tac nao "
-                         "(co the thuoc use case chua ve)." % (src, ev, k))
+                         "(co the thuoc use case chua ve)." % (src, ev, key_name))
         for ac in sorted(actions):
             if ac not in ctl_out[k] and ac not in rep_out[k]:
                 I.append("R8 [%s] Action '%s' chua xuat hien la message DI tu '%s' trong so do tuong tac nao."
-                         % (src, ac, k))
-        cls = sdc_classes.get(k, k[1] if isinstance(k, tuple) else k)
+                         % (src, ac, key_name))
+        cls = sdc_classes.get(k, key_name)
         for m in sorted(ctl_in[k]):   # reply den control (du lieu tra ve) khong bat buoc la event
             if m not in events:
                 W.append("R8 [%s] Message '%s' den '%s' khong la event cua transition nao tren statechart - dat "
@@ -702,17 +703,9 @@ def _spec_ref_name(s):
     return norm(s.get("useCase"))
 
 
-def _bundle_key(s):
-    """Opt-in scope key khi nguoi dung muon tach nhieu bo diagram trong cung lan kiem."""
-    for k in ("bundle", "system", "project", "systemName"):
-        v = norm(s.get(k))
-        if v:
-            return v
-    return ""
-
-
 def _same_bundle(a, b, shared_names=()):
-    ka, kb = _bundle_key(a), _bundle_key(b)
+    # Chi `bundle` la khoa namespace (giong _scope_key); `system` cua use case la ten he thong, khong phai scope.
+    ka, kb = norm(a.get("bundle")), norm(b.get("bundle"))
     if ka and kb:
         return ka == kb
     if ka or kb:
@@ -734,6 +727,18 @@ def _same_bundle(a, b, shared_names=()):
     return len(set(shared_names)) >= 2
 
 
+def _note_unmatched_pair(rule, left, right, left_kind, right_kind, I):
+    """Mot cap duy nhat khong khai bao bundle ma heuristic khong ghep duoc -> ghi chu thay vi bo qua im lang."""
+    if len(left) != 1 or len(right) != 1:
+        return
+    (ls, lnames), (rs, rnames) = left[0], right[0]
+    if ls.get("bundle") or rs.get("bundle") or _same_bundle(ls, rs, lnames & rnames):
+        return
+    I.append("%s [%s <> %s] Khong so sanh %s voi %s: khong co \"bundle\", title khac tien to va chung it hon 2 ten. "
+             "Neu cung mot he thong, dat cung \"bundle\" de kiem %s." % (rule, ls["_src"], rs["_src"], left_kind,
+                                                                      right_kind, rule))
+
+
 def check_cross_diagrams(by, partial=False):
     """X1-X6: traceability cheo mo rong; X1-X3 ton trong namespace `bundle` neu duoc khai bao."""
     E, W, I = [], [], []
@@ -748,10 +753,17 @@ def check_cross_diagrams(by, partial=False):
                 declared_uc[scope].add(norm(e.get("name", e.get("id"))))
     for s in by["communication"] + by["sequence"] + by["activity"]:
         ref = _spec_ref_name(s)
-        if ref and declared_uc and ref not in declared_uc.get(_scope_key(s), set()):
-            W.append("X1 [%s] %s '%s' tham chieu use case '%s' nhung use case nay khong ton tai trong bundle '%s'."
-                     % (s["_src"], s.get("diagram", "diagram"), s.get("title") or ref,
-                        s.get("useCase") or s.get("title"), s.get("bundle") or "default"))
+        if not ref or not declared_uc:
+            continue
+        in_scope = declared_uc.get(_scope_key(s))
+        if in_scope and ref in in_scope:
+            continue
+        # Bundle co use case model ma khong co ten nay -> tham chieu treo (WARN);
+        # bundle chua co use case model nao -> co the chi la bo so do chua day du (--partial: INFO).
+        (W if in_scope else MISS).append(
+            "X1 [%s] %s '%s' tham chieu use case '%s' nhung use case nay khong ton tai trong bundle '%s'."
+            % (s["_src"], s.get("diagram", "diagram"), s.get("title") or ref,
+               s.get("useCase") or s.get("title"), s.get("bundle") or "default"))
 
     # ------------------------------------------------ X2: actor gan use case phai xuat hien trong interaction CÙNG bundle
     actor_by_uc = defaultdict(set)
@@ -806,11 +818,12 @@ def check_cross_diagrams(by, partial=False):
         if not cls:
             W.append("X3 [%s] Statechart khong co 'stateMachineOf'/'title' de truy vet ve control object." % s["_src"])
             continue
-        if (by["communication"] or by["sequence"]) and ( _scope_key(s), cls ) not in controls:
-            W.append("X3 [%s] Statechart '%s' (bundle '%s') khong truy vet duoc toi doi tuong "
-                     "«state dependent control» cung ten trong communication/sequence cung bundle." %
-                     (s["_src"], s.get("stateMachineOf") or s.get("title"),
-                      s.get("bundle") or "default"))
+        # Control co the nam trong interaction chua duoc dua vao lan kiem nay (--partial: INFO).
+        if (by["communication"] or by["sequence"]) and (_scope_key(s), cls) not in controls:
+            MISS.append("X3 [%s] Statechart '%s' (bundle '%s') khong truy vet duoc toi doi tuong "
+                        "«state dependent control» cung ten trong communication/sequence cung bundle." %
+                        (s["_src"], s.get("stateMachineOf") or s.get("title"),
+                         s.get("bundle") or "default"))
 
     # ------------------------------------------------ X4: ERD <-> entity class, chi so sanh khi co dau hieu cung bundle
     erd_specs = []
@@ -825,6 +838,7 @@ def check_cross_diagrams(by, partial=False):
                  if st_of(e) == "entity" and (e.get("name") or e.get("id"))}
         if names:
             cls_specs.append((s, names))
+    _note_unmatched_pair("X4", erd_specs, cls_specs, "ERD", "entity class model", I)
     for es, enames in erd_specs:
         for cs, cnames in cls_specs:
             shared = sorted(enames & cnames)
@@ -857,6 +871,7 @@ def check_cross_diagrams(by, partial=False):
                  if e.get("type") == "component" and (e.get("name") or e.get("id"))}
         if names:
             dep_specs.append((s, names))
+    _note_unmatched_pair("X5", comp_specs, dep_specs, "component diagram", "deployment diagram", I)
     for cs, cnames in comp_specs:
         for ds, dnames in dep_specs:
             shared = sorted(cnames & dnames)
