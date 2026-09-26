@@ -823,8 +823,12 @@ def check_cross_diagrams(by, partial=False):
     comp_specs = []
     dep_specs = []
     for s in by["component"]:
+        # Deployment thường map subsystem/component cấp cao; component con có "in" được triển khai
+        # cùng container cha và không bắt buộc phải xuất hiện như một artifact/component riêng.
         names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
-                 if e.get("type") in ("component", "subsystem") and (e.get("name") or e.get("id"))}
+                 if e.get("type") in ("component", "subsystem")
+                 and not e.get("in")
+                 and (e.get("name") or e.get("id"))}
         if names:
             comp_specs.append((s, names))
     for s in by["deployment"]:
