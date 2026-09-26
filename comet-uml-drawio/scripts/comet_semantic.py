@@ -770,7 +770,8 @@ def model_for_schema(model, schema_version):
     if int(schema_version) == LEGACY_SCHEMA_VERSION:
         return {k: v for k, v in model.items() if k not in {
             "concepts", "representations", "aliases", "relationships",
-            "constraints", "dependencyGraph", "derivedArtifacts", "compatibility"
+            "constraints", "dependencyGraph", "derivedArtifacts",
+            "compatibility", "sourceOfTruth", "conceptImpactMap"
         }} | {"schemaVersion": LEGACY_SCHEMA_VERSION}
     if int(schema_version) != SCHEMA_VERSION:
         raise ValueError("Unsupported semantic model schema version: %s" % schema_version)
