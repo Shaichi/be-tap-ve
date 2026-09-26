@@ -91,7 +91,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 
-**Bundle isolation:** nếu spec có `"bundle"`, validator coi đó là namespace consistency. Hai diagram cùng tên nhưng khác bundle không được dùng để thỏa R1/R7/R8/R12 hoặc X1–X6 cho nhau; spec không có bundle vẫn giữ hành vi cũ.
+**Bundle isolation:** nếu spec có `"bundle"`, validator coi đó là namespace consistency. Hai diagram cùng tên nhưng khác bundle không được dùng để thỏa R1/R7/R8/R12 hoặc X1–X6 cho nhau; R2/R5/R14 chỉ áp dụng khi chính bundle đó có use case model / entity class model / context diagram; spec không có bundle vẫn giữ hành vi cũ.
 `--partial` dùng khi mới vẽ một phần bộ sơ đồ; lần kiểm cuối cho cả bộ chạy **không** `--partial`.
 
 ## 6. Quy ước message trong COMET

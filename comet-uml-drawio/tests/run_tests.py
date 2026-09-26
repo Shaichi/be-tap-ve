@@ -1196,6 +1196,35 @@ class TestCometCheck(unittest.TestCase):
         E, W, I = check(*s.values())
         self.assertTrue(codes(W, "X6"), "thieu X6. E=%s W=%s I=%s" % (E, W, I))
 
+    def test_R2_R5_R14_scoped_to_bundle(self):
+        # Bundle co use case/entity model/context khong duoc ap R2/R5/R14 len bundle khac chua co cac so do do.
+        a = shop()
+        for sp in a.values():
+            sp["bundle"] = "shop-a"
+        b_comm = copy.deepcopy(SHOP_COMM)
+        b_comm["bundle"] = "shop-b"
+        b_comm["elements"].append({"id": "aud", "type": "actor", "name": "Auditor"})
+        b_comm["elements"].append({"id": "inv", "type": "object", "class": "Invoice", "stereotype": "entity"})
+        b_uc = copy.deepcopy(SHOP_UC)
+        b_uc["bundle"] = "shop-b"
+        b_uc["elements"].append({"id": "aud2", "type": "actor", "name": "Auditor"})
+        E, W, I = check(*a.values(), b_comm)
+        self.assertFalse([x for x in codes(W, "R2") + codes(W, "R5") if "Auditor" in x or "Invoice" in x], W)
+        E, W, I = check(*a.values(), b_uc)
+        self.assertFalse([x for x in I if x.startswith("R14") and "Auditor" in x], I)
+        # Cung bundle van kiem nhu cu.
+        b_ctx = copy.deepcopy(a["ctx"])
+        b_ctx["bundle"] = "shop-b"
+        b_cls = copy.deepcopy(a["cls"])
+        b_cls["bundle"] = "shop-b"
+        E, W, I = check(b_uc, b_comm, b_ctx, b_cls)
+        self.assertTrue(any("Invoice" in x for x in codes(W, "R5")), W)
+        self.assertTrue(any("Auditor" in x for x in codes(I, "R14")), I)
+        b_uc2 = copy.deepcopy(SHOP_UC)
+        b_uc2["bundle"] = "shop-b"
+        E, W, I = check(b_uc2, b_comm)
+        self.assertTrue(any("Auditor" in x for x in codes(W, "R2")), W)
+
     def test_bundle_isolation(self):
         # Cùng tên use case nhưng khác bundle không được trộn coverage/actors.
         a = shop()
