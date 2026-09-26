@@ -71,6 +71,7 @@ Các link semantic chính:
 - `state-action`
 - `component-relation`
 - `deployment-contained`
+- `actor-external-alias`: nối semantic identity giữa actor của use case và external cùng tên trong context.
 
 ### Coverage
 
