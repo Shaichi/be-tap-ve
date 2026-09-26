@@ -196,6 +196,9 @@ python scripts/comet_project.py bootstrap "./uml/*.json" -o ./uml/system.canonic
 # canonical-first: gom mọi spec thành MỘT file nguồn sự thật (kiểm round-trip exact).
 python scripts/comet_project.py compile ./uml/system.canonical.json -o ./uml/
 # sinh lại toàn bộ spec từ file canonical; đổi tên concept một chỗ → mọi sơ đồ đổi theo. --check: báo spec cũ/sửa tay.
+# chạy compile MỘT lần ngay sau bootstrap để spec mang conceptId; từ đó chỉ sửa file canonical.
+# concept/quan hệ không view nào chiếu ra → cảnh báo K10/K11 (stderr); family có một view thì tự autoInclude.
+# comet_check/uml2drawio bỏ qua các artifact comet-* khi glob "*.json"; R2/R5/R14 xét theo từng bundle.
 # comet_manifest.py/comet_reconcile.py nhận thẳng file canonical qua --canonical-model. Xem references/comet-project.md.
 # ba artifact dùng cùng modelFingerprint để agent/tool downstream làm việc trên cùng semantic snapshot.
 ```
