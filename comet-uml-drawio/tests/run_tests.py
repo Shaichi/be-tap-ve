@@ -1151,6 +1151,14 @@ class TestCometCheck(unittest.TestCase):
             s["uc"]["relations"].append({"type": "association", "from": "aud", "to": "po"})
         self.expect(f, "W", "X2", "Auditor")
 
+    def test_X2_interaction_without_actor_lifeline(self):
+        def f(s):
+            for k in ("comm", "seq"):
+                for e in s[k]["elements"]:
+                    if e.get("type") == "actor":
+                        e.update(type="object", **{"class": e.pop("name")})
+        self.expect(f, "W", "X2", "Customer")
+
     def test_X3_statechart_reverse_traceability(self):
         s = shop()
         el(s["comm"], "ctl")["stereotype"] = "control"

@@ -793,9 +793,9 @@ def check_cross_diagrams(by, partial=False):
         actors_in_inter[(_scope_key(s), ref)].update(
             norm(e.get("name", e.get("id"))) for e in s.get("elements", []) if e.get("type") == "actor")
     for (scope, uc), actors in actor_by_uc.items():
-        actual = actors_in_inter.get((scope, uc), set())
-        if not actual:
-            continue  # R1 xu ly thieu interaction
+        if (scope, uc) not in actors_in_inter:
+            continue  # R1 xu ly thieu interaction; interaction co nhung khong co actor van phai bao X2
+        actual = actors_in_inter[(scope, uc)]
         missing = sorted(actors - actual)
         if missing:
             MISS.append("X2 [%s] Use case '%s' (bundle '%s') co actor %s trong use case model nhung actor do khong "
