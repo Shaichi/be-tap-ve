@@ -1539,6 +1539,7 @@ class TestSemanticModelV2(unittest.TestCase):
         self.assertNotIn("concepts", legacy)
         self.assertNotIn("sourceOfTruth", legacy)
         self.assertNotIn("conceptImpactMap", legacy)
+        self.assertEqual(legacy["fingerprint"], v1["fingerprint"])
 
     def test_repair_plan_carries_canonical_impact(self):
         specs = self.specs()
