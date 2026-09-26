@@ -137,8 +137,8 @@ tự chọn đúng lệnh.
 **AI sẽ làm theo quy trình cố định:**
 1. Đọc ví dụ mẫu và quy tắc của loại sơ đồ.
 2. Viết spec vào `./uml/<tên>.json`.
-3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_check.py` (luật UML/COMET), rồi
-   `preview_svg.py --png` (chụp ảnh).
+3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_model.py` (xây semantic model), rồi
+   `comet_check.py` (luật UML/COMET + traceability), rồi `preview_svg.py --png` (chụp ảnh).
 4. Sửa đến khi **0 ERROR** và hết WARN, rồi tự xem ảnh để soát lại.
 5. Nếu có draw.io MCP: mở sơ đồ trên diagrams.net. Nếu không: đưa đường dẫn file `.drawio` và `.png`.
 
