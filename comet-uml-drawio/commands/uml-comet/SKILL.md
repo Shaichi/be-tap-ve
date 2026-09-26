@@ -23,7 +23,7 @@ Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn
 tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet_check` báo L1). Trả lời người dùng vẫn
 bằng ngôn ngữ của họ.
 
-- **Gán cùng một `"bundle"` cho toàn bộ spec của cùng hệ thống** (ví dụ `"bundle": "atm-banking"`). Validator dùng khoá này để kiểm tra chéo chính xác X1–X6 giữa các diagram.
+- **Gán cùng một `"bundle"` cho toàn bộ spec của cùng hệ thống** (ví dụ `"bundle": "atm-banking"`). Validator dùng khoá này để cô lập namespace consistency giữa các diagram; nên giữ nguyên `"bundle"` cho toàn bộ 14 bước. Các luật R1/R2/R5/R7/R8/R12/R14 và X1–X6 sẽ không mượn dữ liệu từ bundle khác.
 
 ## 1. Đọc bắt buộc
 - Trước khi bắt đầu: `<ENGINE>/references/comet-method.md` (toàn bộ) và `<ENGINE>/SKILL.md`.
@@ -70,7 +70,7 @@ python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_th
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
 1. `uml2drawio.py` gộp mọi spec thành **một** file nhiều trang, tự chạy validator → phải **0 ERROR** (mã thoát 2 =
    còn lỗi).
-2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 + X1–X6 giữa các sơ đồ, S1–S5, A1–A6, C1–C2) → 0 ERROR
+2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 + X1–X6 giữa các sơ đồ, S1–S5, A1–A6, C1–C2; nếu cần tích hợp CI/tooling có thể chạy thêm `--json` để lấy report máy-đọc) → 0 ERROR
    và **sửa hết WARN** trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó không đúng ngữ cảnh — nêu mã luật +
    lý do. Không biện minh kiểu "chỉ là cảnh báo nhỏ".
 3. **Mở từng ảnh** `./uml/<He_thong>_p<N>.png` (mỗi trang một ảnh) bằng công cụ đọc file và tự soát: chữ đọc được,
