@@ -11,6 +11,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 |---|---|---|
 | `diagram` | ✔ | `usecase` · `context` · `class` · `communication` · `sequence` · `state` · `activity` · `component` · `deployment` · `package` · `erd` · `screenflow` · `bizcontext` |
 | `title` | | Tên hiển thị trên khung (`uc Title`, `sd Title`...) |
+| `lang` | | Ngôn ngữ chữ trên sơ đồ, mặc định `"en"` – mọi chữ viết tiếng Anh. Chỉ đặt `"vi"`… khi người dùng yêu cầu rõ ngôn ngữ khác (không đặt mà có chữ có dấu → L1) |
 | `useCase` | tương tác | Tên use case mà communication/sequence hiện thực (khớp R1) |
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
 | `system` | usecase | Tên hệ thống trên system boundary (mặc định = `title`) |
@@ -40,7 +41,7 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `state` | `activities[]` (vd `"entry / Display Welcome"`); con lồng qua `in` → composite state |
 | `action` | (activity diagram) |
 | `initial`, `final`, `activityFinal`, `flowFinal` | – |
-| `choice`, `decision`, `merge` | `question` (hoặc `name`): câu hỏi điều kiện in trong thoi, vd `"PIN hợp lệ?"` – thoi tự nới cho vừa chữ; `showName: false` để ẩn; `merge` chỉ in khi `showName: true` |
+| `choice`, `decision`, `merge` | `question` (hoặc `name`): câu hỏi điều kiện in trong thoi, vd `"Valid PIN?"` – thoi tự nới cho vừa chữ; `showName: false` để ẩn; `merge` chỉ in khi `showName: true` |
 | `junction` | – |
 | `fork`, `join` | `length` (mặc định 120) |
 | `history`, `deephistory` | – |
@@ -231,12 +232,12 @@ Cây điều hướng toàn hệ thống từ Home: ô chỉ ghi tên màn hình
 ### Context diagram nghiệp vụ
 
 ```json
-{"diagram": "bizcontext", "title": "Cửa hàng – ngữ cảnh", "elements": [
-  {"id": "shop", "type": "system", "name": "Hệ thống bán hàng"},
-  {"id": "kh", "type": "external", "name": "Khách hàng"}],
+{"diagram": "bizcontext", "title": "Online Store – Context", "elements": [
+  {"id": "shop", "type": "system", "name": "Sales System"},
+  {"id": "kh", "type": "external", "name": "Customer"}],
  "relations": [
-  {"from": "kh", "to": "shop", "label": "Đơn đặt hàng"},
-  {"from": "shop", "to": "kh", "label": "Hoá đơn"}]}
+  {"from": "kh", "to": "shop", "label": "Purchase Order"},
+  {"from": "shop", "to": "kh", "label": "Invoice"}]}
 ```
 Hệ thống là hình tròn giữa; thực thể ngoài xếp 2 cột trái/phải (tự chia cân số luồng theo thứ tự `elements`,
 ép bằng `"side": "left"|"right"` trên element), cột căn giữa theo hình tròn. **Mỗi relation là 1 mũi tên

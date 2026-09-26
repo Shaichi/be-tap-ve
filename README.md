@@ -70,7 +70,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
   trong vòng tròn…
 - Kiểm tra nhất quán COMET giữa các sơ đồ, ví dụ: actor chỉ nói chuyện với đối tượng boundary; event trên
   statechart phải khớp message trong communication diagram.
-- Tên tiếng Việt có dấu hiển thị đúng.
+- Chữ trên sơ đồ mặc định tiếng Anh; yêu cầu tiếng Việt thì tên có dấu vẫn hiển thị đúng.
 
 ---
 
@@ -194,22 +194,26 @@ Tuỳ chọn khác:
 
 ## 6. Viết spec JSON – ví dụ nhanh
 
+> **Chữ trên sơ đồ mặc định là tiếng Anh**, kể cả khi bạn mô tả yêu cầu bằng tiếng Việt: AI tự dịch sang thuật
+> ngữ tiếng Anh chuẩn. Muốn sơ đồ tiếng Việt thì nói rõ (vd "vẽ bằng tiếng Việt"); khi đó spec có `"lang": "vi"`.
+> Spec chưa đặt `lang` mà có chữ có dấu → `comet_check` báo **L1**.
+
 **Activity có swimlane** (decision ghi câu hỏi, guard là câu trả lời):
 ```json
 {
-  "diagram": "activity", "title": "Rút tiền", "partitions": ["Khách hàng", "ATM"],
+  "diagram": "activity", "title": "Withdraw Cash", "partitions": ["Customer", "ATM"],
   "elements": [
-    {"id": "s", "type": "initial", "partition": "Khách hàng"},
-    {"id": "a", "type": "action", "name": "Nhập số tiền", "partition": "Khách hàng"},
-    {"id": "d", "type": "decision", "question": "Đủ số dư?", "partition": "ATM"},
-    {"id": "b", "type": "action", "name": "Nhả tiền", "partition": "ATM"},
-    {"id": "e", "type": "action", "name": "Báo lỗi", "partition": "ATM"},
+    {"id": "s", "type": "initial", "partition": "Customer"},
+    {"id": "a", "type": "action", "name": "Enter Amount", "partition": "Customer"},
+    {"id": "d", "type": "decision", "question": "Sufficient balance?", "partition": "ATM"},
+    {"id": "b", "type": "action", "name": "Dispense Cash", "partition": "ATM"},
+    {"id": "e", "type": "action", "name": "Show Error", "partition": "ATM"},
     {"id": "m", "type": "merge", "partition": "ATM"},
     {"id": "f", "type": "activityFinal", "partition": "ATM"}
   ],
   "relations": [
     {"from": "s", "to": "a"}, {"from": "a", "to": "d"},
-    {"from": "d", "to": "b", "guard": "Có"}, {"from": "d", "to": "e", "guard": "Không"},
+    {"from": "d", "to": "b", "guard": "Yes"}, {"from": "d", "to": "e", "guard": "No"},
     {"from": "b", "to": "m"}, {"from": "e", "to": "m"}, {"from": "m", "to": "f"}
   ]
 }
@@ -218,7 +222,7 @@ Tuỳ chọn khác:
 **Design class diagram** (visibility `+ - # ~`, kiểu, operation, role, chiều điều hướng, lớp trừu tượng):
 ```json
 {
-  "diagram": "class", "title": "Đặt hàng",
+  "diagram": "class", "title": "Ordering",
   "elements": [
     {"id": "ord", "type": "class", "name": "Order",
      "attributes": ["-date: Date", "-status: String"], "operations": ["+calcTotal(): float"]},
@@ -242,15 +246,15 @@ Tuỳ chọn khác:
 **ERD (Chen):**
 ```json
 {
-  "diagram": "erd", "title": "Bán hàng",
+  "diagram": "erd", "title": "Sales",
   "elements": [
-    {"id": "kh", "type": "entity", "name": "KhachHang"},
-    {"id": "dh", "type": "entity", "name": "DonHang"},
-    {"id": "sp", "type": "entity", "name": "SanPham"}
+    {"id": "kh", "type": "entity", "name": "Customer"},
+    {"id": "dh", "type": "entity", "name": "Order"},
+    {"id": "sp", "type": "entity", "name": "Product"}
   ],
   "relations": [
-    {"from": "kh", "to": "dh", "name": "dat", "fromCard": "1", "toCard": "N"},
-    {"from": "dh", "to": "sp", "name": "gom", "fromCard": "M", "toCard": "N"}
+    {"from": "kh", "to": "dh", "name": "places", "fromCard": "1", "toCard": "N"},
+    {"from": "dh", "to": "sp", "name": "contains", "fromCard": "M", "toCard": "N"}
   ]
 }
 ```
@@ -258,17 +262,17 @@ Tuỳ chọn khác:
 **Context diagram nghiệp vụ:**
 ```json
 {
-  "diagram": "bizcontext", "title": "Cửa hàng",
+  "diagram": "bizcontext", "title": "Online Store",
   "elements": [
-    {"id": "shop", "type": "system", "name": "Hệ thống bán hàng"},
-    {"id": "kh", "type": "external", "name": "Khách hàng"},
-    {"id": "nh", "type": "external", "name": "Ngân hàng"}
+    {"id": "shop", "type": "system", "name": "Sales System"},
+    {"id": "kh", "type": "external", "name": "Customer"},
+    {"id": "nh", "type": "external", "name": "Bank"}
   ],
   "relations": [
-    {"from": "kh", "to": "shop", "label": "Đơn đặt hàng"},
-    {"from": "shop", "to": "kh", "label": "Hoá đơn"},
-    {"from": "shop", "to": "nh", "label": "Yêu cầu thanh toán"},
-    {"from": "nh", "to": "shop", "label": "Kết quả giao dịch"}
+    {"from": "kh", "to": "shop", "label": "Purchase Order"},
+    {"from": "shop", "to": "kh", "label": "Invoice"},
+    {"from": "shop", "to": "nh", "label": "Payment Request"},
+    {"from": "nh", "to": "shop", "label": "Transaction Result"}
   ]
 }
 ```
@@ -303,6 +307,7 @@ Nhóm luật của `comet_check.py`:
 | E1–E3 | ERD (quan hệ nối đúng thực thể, đủ bản số 2 đầu, hình thoi có tên) |
 | F1–F2 | Screen flow (mọi màn hình tới được từ gốc; chỉ màn hình/popup + mũi tên không nhãn) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
+| L1 | Mọi sơ đồ: chữ mặc định tiếng Anh (có chữ có dấu mà chưa đặt `"lang"`) |
 
 `--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
 INFO.
@@ -338,7 +343,7 @@ be-tap-ve/
 python comet-uml-drawio/tests/run_tests.py
 ```
 
-Bộ test gồm 80 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
+Bộ test gồm 81 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
 với code, và fuzz trên spec ngẫu nhiên. Các biến môi trường điều chỉnh:
 - `COMET_FUZZ_SEEDS=300`: số spec fuzz (mặc định 80).
 - `COMET_TEST_PNG=0`: bỏ test xuất PNG.

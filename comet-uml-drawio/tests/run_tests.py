@@ -952,8 +952,8 @@ class TestGenerator(unittest.TestCase):
             nxt = pts[1] if e.get("target") == "shop" else pts[-2]
             self.assertLess(abs(ext_end[1] - nxt[1]), 0.5)                             # ra ngang tu canh hop
             labels.setdefault((e.get("source"), e.get("target")), []).append(text(e))
-        self.assertEqual(sorted(labels[("kh", "shop")]), sorted(["Đơn đặt hàng", "Thông tin thanh toán"]))
-        self.assertEqual(sorted(labels[("shop", "kh")]), sorted(["Xác nhận đơn hàng", "Hoá đơn điện tử"]))
+        self.assertEqual(sorted(labels[("kh", "shop")]), sorted(["Purchase Order", "Payment Details"]))
+        self.assertEqual(sorted(labels[("shop", "kh")]), sorted(["Order Confirmation", "E-Invoice"]))
         self.assertEqual(G.label_poly, {})                                             # nhan nam ngang
         self.assertAlmostEqual(c[2] - c[0], c[3] - c[1], delta=0.5)                   # hinh tron
         cx, cy, r = (c[0] + c[2]) / 2, (c[1] + c[3]) / 2, (c[2] - c[0]) / 2
@@ -1193,6 +1193,20 @@ class TestCometCheck(unittest.TestCase):
                         "W", "A6", "join ngam")
         self.expect_one(act(*ACT_OK, {"from": "a", "to": "f"}), "W", "A6", "fork ngam")
 
+    def test_lang_default_english(self):
+        sp = {"diagram": "activity", "title": "Rút tiền", "elements": [
+            {"id": "s", "type": "initial"}, {"id": "d", "type": "decision", "question": "Đủ số dư?"},
+            {"id": "a", "type": "action", "name": "Dispense Cash"}, {"id": "f", "type": "activityFinal"}],
+            "relations": [{"from": "s", "to": "d"}, {"from": "d", "to": "a", "guard": "Có"},
+                          {"from": "d", "to": "f", "guard": "else"}, {"from": "a", "to": "f"}]}
+        self.expect_one(sp, "W", "L1", "3 chuoi co dau")
+        self.assertIn("'Rút tiền'", codes(check(sp)[1], "L1")[0])
+        sp["lang"] = "vi"                                                               # yeu cau ro -> het L1
+        self.assertEqual(codes(check(sp)[1], "L1"), [])
+        en = {"diagram": "class", "title": "Order «entity» – Model", "elements": [   # «», – khong tinh la chu co dau
+            {"id": "c", "type": "class", "name": "Order", "attributes": ["id: String"]}], "relations": []}
+        self.assertEqual(codes(check(en)[1], "L1"), [])
+
     def test_erd_screenflow_bizcontext_rules(self):
         for f in ("elearn_erd", "lms_screenflow_sitemap", "shop_bizcontext"):
             sp = json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
@@ -1420,10 +1434,10 @@ class TestDocs(unittest.TestCase):
                     self.assertTrue((ENGINE / rel).is_file())
 
     def test_rule_codes_documented(self):
-        emitted = set(re.findall(r'"([RSACEFB]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
+        emitted = set(re.findall(r'"([RSACEFBL]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
         documented = set()
         doc = (REFS / "comet-method.md").read_text(encoding="utf-8")
-        for a, b in re.findall(r"(?m)^\| ([RSACEFB]\d{1,2})(?:–([RSACEFB]\d{1,2}))? \|", doc):
+        for a, b in re.findall(r"(?m)^\| ([RSACEFBL]\d{1,2})(?:–([RSACEFBL]\d{1,2}))? \|", doc):
             documented |= {"%s%d" % (a[0], k) for k in range(int(a[1:]), int((b or a)[1:]) + 1)}
         self.assertEqual(emitted, documented)
 

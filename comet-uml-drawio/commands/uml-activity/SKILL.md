@@ -17,6 +17,12 @@ quy trình nào thì hỏi lại một câu ngắn rồi mới vẽ.
 **spec JSON**, script tự bố cục (không chồng/dính hình) và kiểm tra. Lưu spec + kết quả vào `./uml/` của thư mục
 làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ khác.
 
+**Ngôn ngữ trên sơ đồ: mặc định tiếng Anh.** Mọi chữ hiện trên sơ đồ (`title`, tên phần tử, thuộc tính, thao
+tác, nhãn quan hệ, message, guard, câu hỏi decision…) viết bằng tiếng Anh, kể cả khi người dùng mô tả bằng tiếng
+Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn ngữ khác khi người dùng yêu cầu rõ (vd "vẽ bằng
+tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet_check` báo L1). Trả lời người dùng vẫn
+bằng ngôn ngữ của họ.
+
 ## 1. Đọc bắt buộc (chưa đọc xong thì chưa viết spec)
 - `<ENGINE>/examples/atm_activity_withdraw.json` — khuôn chuẩn (3 làn, decision + merge, fork/join, vòng lặp nhập
   lại PIN).
@@ -32,9 +38,9 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
   `decision` (1 vào, ≥ 2 ra), `merge` (≥ 2 vào, 1 ra), `fork` / `join` (song song), `activityFinal` (kết thúc cả
   activity), `flowFinal` (kết thúc một luồng).
 - Action vẽ thành hình chữ nhật bo góc. `decision` ghi **câu hỏi điều kiện** trong hình thoi:
-  `{"type": "decision", "question": "PIN hợp lệ?"}` (hình thoi tự nới cho vừa chữ; `merge` để trống).
-- Luồng `{"type": "flow", "from", "to"}`; luồng ra khỏi `decision` **luôn có** `"guard"` trả lời câu hỏi ("Có" /
-  "Không", "Yes" / "No"; tối đa một `"else"`) — A1; luồng thường không có guard.
+  `{"type": "decision", "question": "Valid PIN?"}` (hình thoi tự nới cho vừa chữ; `merge` để trống).
+- Luồng `{"type": "flow", "from", "to"}`; luồng ra khỏi `decision` **luôn có** `"guard"` trả lời câu hỏi ("Yes" /
+  "No"; tối đa một `"else"`) — A1; luồng thường không có guard.
 - **Action có ≥ 2 luồng vào là sai ngữ nghĩa** (join ngầm: chờ đủ mọi luồng → nhánh rẽ từ decision sẽ kẹt): gộp
   nhánh bằng `merge` rồi mới vào action (A6). Action có ≥ 2 luồng ra = fork ngầm → dùng `decision` + guard, hoặc
   `fork`.

@@ -1,28 +1,28 @@
 {
   "diagram": "bizcontext",
-  "title": "Sơ đồ ngữ cảnh nghiệp vụ - Cửa hàng trực tuyến",
+  "title": "Business Context Diagram - Online Store",
   "elements": [
-    {"id": "shop", "type": "system", "name": "Hệ thống bán hàng trực tuyến"},
-    {"id": "kh", "type": "external", "name": "Khách hàng"},
-    {"id": "ncc", "type": "external", "name": "Nhà cung cấp"},
-    {"id": "nh", "type": "external", "name": "Ngân hàng / Cổng thanh toán"},
-    {"id": "vc", "type": "external", "name": "Đơn vị vận chuyển"},
-    {"id": "bgd", "type": "external", "name": "Ban giám đốc"},
-    {"id": "thue", "type": "external", "name": "Cơ quan thuế"}
+    {"id": "shop", "type": "system", "name": "Online Sales System"},
+    {"id": "kh", "type": "external", "name": "Customer"},
+    {"id": "ncc", "type": "external", "name": "Supplier"},
+    {"id": "nh", "type": "external", "name": "Bank / Payment Gateway"},
+    {"id": "vc", "type": "external", "name": "Shipping Carrier"},
+    {"id": "bgd", "type": "external", "name": "Management Board"},
+    {"id": "thue", "type": "external", "name": "Tax Authority"}
   ],
   "relations": [
-    {"from": "kh", "to": "shop", "label": "Đơn đặt hàng"},
-    {"from": "kh", "to": "shop", "label": "Thông tin thanh toán"},
-    {"from": "shop", "to": "kh", "label": "Xác nhận đơn hàng"},
-    {"from": "shop", "to": "kh", "label": "Hoá đơn điện tử"},
-    {"from": "shop", "to": "ncc", "label": "Đơn nhập hàng"},
-    {"from": "ncc", "to": "shop", "label": "Phiếu giao hàng"},
-    {"from": "shop", "to": "nh", "label": "Yêu cầu thanh toán"},
-    {"from": "nh", "to": "shop", "label": "Kết quả giao dịch"},
-    {"from": "shop", "to": "vc", "label": "Yêu cầu giao hàng"},
-    {"from": "vc", "to": "shop", "label": "Trạng thái vận đơn"},
-    {"from": "shop", "to": "bgd", "label": "Báo cáo doanh thu"},
-    {"from": "bgd", "to": "shop", "label": "Chính sách giá"},
-    {"from": "shop", "to": "thue", "label": "Tờ khai thuế"}
+    {"from": "kh", "to": "shop", "label": "Purchase Order"},
+    {"from": "kh", "to": "shop", "label": "Payment Details"},
+    {"from": "shop", "to": "kh", "label": "Order Confirmation"},
+    {"from": "shop", "to": "kh", "label": "E-Invoice"},
+    {"from": "shop", "to": "ncc", "label": "Restock Order"},
+    {"from": "ncc", "to": "shop", "label": "Delivery Note"},
+    {"from": "shop", "to": "nh", "label": "Payment Request"},
+    {"from": "nh", "to": "shop", "label": "Transaction Result"},
+    {"from": "shop", "to": "vc", "label": "Shipping Request"},
+    {"from": "vc", "to": "shop", "label": "Shipment Status"},
+    {"from": "shop", "to": "bgd", "label": "Sales Report"},
+    {"from": "bgd", "to": "shop", "label": "Pricing Policy"},
+    {"from": "shop", "to": "thue", "label": "Tax Return"}
   ]
 }

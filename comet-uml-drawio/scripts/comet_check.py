@@ -52,6 +52,8 @@ ERD / screen flow / context diagram nghiep vu:
   F1  Moi man hinh toi duoc tu man hinh goc. F2 Site map chi gom man hinh/popup + mui ten khong nhan: khong
       initial/final/decision, khong "items", khong trigger/guard/label.
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
+Ngon ngu (moi spec):
+  L1  Chu tren so do mac dinh tieng Anh: co chu co dau (tieng Viet...) ma spec khong dat "lang" khac "en" -> WARN.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
 """
@@ -62,6 +64,7 @@ import glob
 import json
 import re
 import sys
+import unicodedata
 from collections import defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
@@ -427,8 +430,44 @@ def check_bizcontext(s, E, W, I):
             W.append("B3 [%s] Thuc the ngoai '%s' khong trao doi luong du lieu nao voi he thong." % (src, name(i)))
 
 
+NO_TEXT_KEYS = {"_src", "id", "from", "to", "type", "diagram", "lang", "style", "direction", "notation", "side"}
+
+
+def _accented(s):
+    """Co chu cai mang dau (a-grave, e-circumflex, d-stroke...) -> khong phai tieng Anh thuan."""
+    return any(ch in "đĐ" or (ch.isalpha() and any(unicodedata.combining(c)
+                                                     for c in unicodedata.normalize("NFD", ch)))
+               for ch in s)
+
+
+def check_lang(s, W):
+    """L1: chu hien tren so do mac dinh bang tieng Anh; ngon ngu khac phai khai "lang" ro rang."""
+    if not str(s.get("lang") or "en").lower().startswith("en"):
+        return
+    found = []
+
+    def walk(v, key=None):
+        if key in NO_TEXT_KEYS:
+            return
+        if isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, k)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, key)
+        elif isinstance(v, str) and _accented(v) and v not in found:
+            found.append(v)
+    walk(s)
+    if found:
+        W.append("L1 [%s] So do mac dinh viet tieng Anh nhung co %d chuoi co dau (vd %s) - dich sang tieng Anh, "
+                 "hoac dat \"lang\": \"vi\" neu nguoi dung yeu cau ro ngon ngu khac."
+                 % (s["_src"], len(found), ", ".join("'%s'" % t for t in found[:3])))
+
+
 def check(specs, partial=False):
     E, W, I = [], [], []
+    for s in specs:
+        check_lang(s, W)
     MISS = I if partial else W   # "thieu so do doi ung": chi la ghi chu khi co y kiem mot phan bo so do
     by = defaultdict(list)
     for s in specs:

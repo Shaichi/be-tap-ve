@@ -58,6 +58,10 @@ integrated communication diagram, subsystem/component/deployment.
 - Stereotype viết tên trần (`"entity"`, `"state dependent control"`); script tự thêm « ».
 - Mỗi sơ đồ 1 spec. Tên use case / lớp / message phải **viết giống hệt nhau** giữa các sơ đồ
   (comet_check so khớp theo tên).
+- **Ngôn ngữ trên sơ đồ mặc định là tiếng Anh** (title, tên, thuộc tính, nhãn, message, guard, câu hỏi decision…),
+  kể cả khi người dùng mô tả bằng tiếng Việt → tự dịch sang thuật ngữ tiếng Anh chuẩn. Người dùng yêu cầu rõ ngôn
+  ngữ khác → đặt `"lang": "vi"` (…) trong spec; không đặt mà có chữ có dấu thì `comet_check` báo L1.
+  Trả lời người dùng vẫn bằng ngôn ngữ của họ.
 
 ### Bước 2 – Sinh file
 ```bash
@@ -78,7 +82,7 @@ python <skill>/scripts/preview_svg.py diagram.drawio -o preview.html --png   # �
 - **ERROR** (bắt buộc sửa): hình chồng nhau, đường xuyên hình, 2 đường đè khít, message sequence
   không nằm ngang, «include»/«extend» sai nét, id trùng/treo; COMET R9/R11, statechart S1–S2…
 - **WARN**: nhãn đè hình/nhãn, hình sát < 8px, dùng `<<>>` thay «», vi phạm quy tắc COMET (R1–R14),
-  statechart (S1–S5), activity (A1–A6), class (C1–C2). **Sửa hết WARN trong spec** rồi chạy lại; chỉ giữ một WARN
+  statechart (S1–S5), activity (A1–A6), class (C1–C2), chữ không phải tiếng Anh khi chưa đặt `lang` (L1). **Sửa hết WARN trong spec** rồi chạy lại; chỉ giữ một WARN
   khi chắc chắn nó không đúng ngữ cảnh, và nêu mã luật + lý do cho người dùng (không biện minh "chỉ là cảnh báo").
 - **INFO**: stereotype lạ, event/action chưa khớp message (có thể do use case chưa vẽ), thiếu tên quan hệ.
 - `comet_check.py --partial`: khi mới vẽ một phần bộ sơ đồ, "thiếu sơ đồ đối ứng" (R1 use case chưa có sơ đồ
@@ -107,6 +111,7 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 
 ## Checklist trước khi trả lời
 - [ ] Đúng loại sơ đồ & ký hiệu UML (bảng trong `uml-notation.md`).
+- [ ] Chữ trên sơ đồ bằng tiếng Anh (trừ khi người dùng yêu cầu ngôn ngữ khác và spec có `"lang"`).
 - [ ] Stereotype COMET đúng nhóm; actor chỉ nói chuyện với đối tượng boundary; entity thụ động.
 - [ ] Message đánh số, tên message trong communication = sequence; event/action statechart khớp message.
 - [ ] `uml2drawio.py`/`validate_drawio.py` 0 ERROR; `comet_check.py` 0 ERROR, WARN đã sửa (WARN nào còn lại:

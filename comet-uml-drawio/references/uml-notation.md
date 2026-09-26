@@ -92,7 +92,7 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 ## Activity diagram – quy tắc hợp lệ (comet_check A1–A6)
 
 - Decision: 1 luồng vào, ≥ 2 luồng ra, **mỗi luồng ra có guard**, tối đa một `[else]` (A1). Câu hỏi điều kiện
-  ghi trong hình thoi (`"question": "Đủ số dư?"`), guard là câu trả lời (`[Có]` / `[Không]`).
+  ghi trong hình thoi (`"question": "Sufficient balance?"`), guard là câu trả lời (`[Yes]` / `[No]`).
 - Merge: ≥ 2 luồng vào, 1 luồng ra (không dùng để rẽ nhánh) (A4). Fork: 1 vào/≥ 2 ra; join: ≥ 2 vào/1 ra (A2).
 - Initial: không có luồng vào, đúng 1 luồng ra. Activity final / flow final: không có luồng ra (A3).
 - Mỗi action có luồng vào và luồng ra (không ngõ cụt) (A5).
@@ -134,7 +134,7 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 
 - Dạng DFD mức 0 / business context: **hình tròn** ở giữa = hệ thống / doanh nghiệp / quy trình nghiệp vụ; hình
   chữ nhật xung quanh = thực thể ngoài (người, tổ chức, bộ phận, hệ thống khác).
-- Mũi tên vuông góc, đầu tam giác đặc, ghi **tên dữ liệu** (danh từ: "Đơn đặt hàng", "Hoá đơn"), không ghi hành
+- Mũi tên vuông góc, đầu tam giác đặc, ghi **tên dữ liệu** (danh từ: "Purchase Order", "Invoice"), không ghi hành
   động. **Mỗi luồng dữ liệu một mũi tên** – không gộp nhiều luồng vào một mũi tên/một khối chữ; tên luồng nằm
   ngang trên đoạn ngang của mũi tên.
 - Đúng 1 hình tròn trung tâm (B1); mọi luồng có tên và nối trung tâm với bên ngoài (B2); thực thể ngoài không có

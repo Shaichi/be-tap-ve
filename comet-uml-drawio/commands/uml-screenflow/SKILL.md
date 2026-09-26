@@ -17,6 +17,12 @@ hệ thống nào thì hỏi lại một câu ngắn rồi mới vẽ.
 **spec JSON**, script tự bố cục (không chồng/dính hình) và kiểm tra. Lưu spec + kết quả vào `./uml/` của thư mục
 làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ khác.
 
+**Ngôn ngữ trên sơ đồ: mặc định tiếng Anh.** Mọi chữ hiện trên sơ đồ (`title`, tên phần tử, thuộc tính, thao
+tác, nhãn quan hệ, message, guard, câu hỏi decision…) viết bằng tiếng Anh, kể cả khi người dùng mô tả bằng tiếng
+Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn ngữ khác khi người dùng yêu cầu rõ (vd "vẽ bằng
+tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet_check` báo L1). Trả lời người dùng vẫn
+bằng ngôn ngữ của họ.
+
 ## 1. Đọc bắt buộc (chưa đọc xong thì chưa viết spec)
 - `<ENGINE>/examples/lms_screenflow_sitemap.json` — khuôn chuẩn duy nhất: cây điều hướng từ Home, List → Details
   → Edit, Add ở hàng dưới, popup đăng nhập bên trái, nhánh toả từ cạnh phải.

@@ -21,6 +21,12 @@ thuật.
 **spec JSON**, script tự bố cục (không chồng/dính hình) và kiểm tra. Lưu spec + kết quả vào `./uml/` của thư mục
 làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ khác.
 
+**Ngôn ngữ trên sơ đồ: mặc định tiếng Anh.** Mọi chữ hiện trên sơ đồ (`title`, tên phần tử, thuộc tính, thao
+tác, nhãn quan hệ, message, guard, câu hỏi decision…) viết bằng tiếng Anh, kể cả khi người dùng mô tả bằng tiếng
+Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn ngữ khác khi người dùng yêu cầu rõ (vd "vẽ bằng
+tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet_check` báo L1). Trả lời người dùng vẫn
+bằng ngôn ngữ của họ.
+
 ## 1. Đọc bắt buộc (chưa đọc xong thì chưa viết spec)
 - `<ENGINE>/examples/shop_bizcontext.json` — khuôn chuẩn (1 hệ thống trung tâm, 6 bên ngoài, 13 luồng).
 - `<ENGINE>/references/spec-format.md` — mục *Context diagram nghiệp vụ*; `<ENGINE>/references/uml-notation.md` —
@@ -28,12 +34,12 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
 
 ## 2. Quy tắc
 - `"diagram": "bizcontext"`, `"title"`.
-- **Đúng 1** phần tử trung tâm `{"id", "type": "system", "name": "Hệ thống bán hàng trực tuyến"}` (B1) — vẽ thành
+- **Đúng 1** phần tử trung tâm `{"id", "type": "system", "name": "Online Sales System"}` (B1) — vẽ thành
   hình tròn ở giữa.
-- Thực thể ngoài `{"id", "type": "external", "name": "Khách hàng"}`: người, tổ chức, bộ phận, hệ thống khác trao đổi
+- Thực thể ngoài `{"id", "type": "external", "name": "Customer"}`: người, tổ chức, bộ phận, hệ thống khác trao đổi
   thông tin với hệ thống. Tự chia 2 cột trái/phải cho cân số luồng, giữ thứ tự `elements` từ trên xuống; ép
   cột bằng `"side": "left"` / `"right"` trên element.
-- Luồng `{"from", "to", "label": "Đơn đặt hàng"}` — **danh từ** chỉ dữ liệu / chứng từ / thông tin (không phải
+- Luồng `{"from", "to", "label": "Purchase Order"}` — **danh từ** chỉ dữ liệu / chứng từ / thông tin (không phải
   hành động), mỗi luồng **có tên** và **một đầu là hệ thống trung tâm** (B2). **Mỗi luồng = 1 mũi tên riêng**
   (không gộp), thứ tự luồng trong spec = thứ tự từ trên xuống ở cạnh hộp. Mũi tên đi ngang ra từ cạnh hộp, tên
   luồng nằm ngang trên đoạn ngang (dễ đọc); các luồng ngang tầm hình tròn cắm thẳng vào hông, luồng cao hơn /
