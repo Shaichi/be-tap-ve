@@ -1340,6 +1340,7 @@ class TestCLI(TmpMixin, unittest.TestCase):
         r = run("comet_check.py", "--partial", EXAMPLES / "*.json")
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertIn("0 loi, 0 canh bao", r.stdout)
+
         d = self.tmpdir()
         bad = copy.deepcopy(SHOP_COMM)
         bad["messages"][2]["seq"] = "2"
@@ -1347,6 +1348,15 @@ class TestCLI(TmpMixin, unittest.TestCase):
         r = run("comet_check.py", d / "bad.json")
         self.assertEqual(r.returncode, 1)
         self.assertIn("ERROR: R9", r.stdout)
+
+        warn = copy.deepcopy(SHOP_COMM)
+        warn["useCase"] = "Ghost Use Case"
+        (d / "warn.json").write_text(json.dumps(warn), encoding="utf-8")
+        r = run("comet_check.py", d / "warn.json")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        r = run("comet_check.py", "--strict", d / "warn.json")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("WARN", r.stdout)
 
     def test_preview_svg(self):
         for p in EXAMPLE_FILES:
