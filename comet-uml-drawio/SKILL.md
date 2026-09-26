@@ -118,3 +118,5 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
       nêu mã luật + lý do).
 - [ ] Đã mở ảnh `--png` từng trang và tự soát (chữ đọc được, không chồng hình/nhãn).
 - [ ] Đã mở qua MCP hoặc đưa đường dẫn file `.drawio`.
+
+- Traceability chéo mở rộng: **X1–X6** (use case, actor, statechart, ERD/entity, component/deployment, role consistency).
