@@ -301,6 +301,20 @@ def build_model(specs):
                     parent_id = add_node(nodes, bundle, norm(parent.get("type")), parent.get("name", parent.get("id")), spec)
                     add_link(links, bundle, "deployment-contained", parent_id, child, spec)
 
+    # Semantic identity: actor va external cung ten trong cung bundle la cung mot concept ben ngoai,
+    # nhung van giu hai kind de bieu dien dung vai tro tren tung diagram.
+    by_identity = defaultdict(list)
+    for nid, node in nodes.items():
+        by_identity[(node["bundle"], node["nameKey"])].append(nid)
+    inferred = {"_src": "semantic-inference"}
+    for (bundle_name, name_key), ids in sorted(by_identity.items()):
+        actors = [nid for nid in ids if nodes[nid]["kind"] == "actor"]
+        externals = [nid for nid in ids if nodes[nid]["kind"] == "external"]
+        for aid in actors:
+            for eid in externals:
+                add_link(links, "__default__" if bundle_name == "default" else bundle_name,
+                         "actor-external-alias", aid, eid, inferred, semanticIdentity=name_key)
+
     for nid, node in sorted(nodes.items()):
         bundle_names[node["bundle"]]["nodeIds"].append(nid)
     for link in sorted(links.values(), key=lambda x: x["id"]):
