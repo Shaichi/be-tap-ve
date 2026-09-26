@@ -68,7 +68,7 @@ import unicodedata
 from collections import defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
-from uml2drawio import CHEN_REL, FLOW_NODES, NAV_LABELS  # noqa: E402
+from uml2drawio import CHEN_REL, FLOW_NODES, NAV_LABELS, is_artifact  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -141,6 +141,8 @@ def load(paths):
     for p in expand(paths):
         with open(p, encoding="utf-8") as f:
             d = json.load(f)
+        if is_artifact(d):
+            continue
         items = d["diagrams"] if isinstance(d, dict) and "diagrams" in d else (d if isinstance(d, list) else [d])
         for i, s in enumerate(items):
             s["_src"] = p if len(items) == 1 else "%s#%d" % (p, i + 1)
