@@ -82,6 +82,13 @@ AUTO_REL_TYPES = {
     "screenflow": {"navigate"},
     "bizcontext": {"flow"},
 }
+# Bootstrap bat autoInclude theo nhom so do: concept moi cua cac kind nay tu vao view duy nhat cua nhom.
+AUTO_KINDS = {
+    "usecase": ("usecase", ["actor", "usecase"]),
+    "context": ("context", ["external"]),
+    "bizcontext": ("context", ["external"]),
+    "erd": ("erd", ["entity"]),
+}
 
 
 class CanonicalError(ValueError):
@@ -335,13 +342,25 @@ def bootstrap_canonical(specs, bundle=None):
     doc.update({"concepts": concepts, "relationships": relationships, "interactions": interactions,
                 "views": views})
 
-    # 3) Auto-include cho use case view chi bat khi no khong them gi (hanh vi hien tai giu nguyen).
+    # 3) Auto-include chi bat cho view duy nhat cua nhom (vd mot use case view) va chi khi no khong them gi
+    #    luc bootstrap (round-trip giu nguyen); ve sau concept moi cung kind tu xuat hien trong view do.
+    families = defaultdict(list)
     for view in views:
-        if norm(view.get("diagram")) == "usecase":
-            before = _compile_view(doc, view, "", [])
-            view["autoInclude"] = {"kinds": ["actor", "usecase"], "relationships": True}
-            if _compile_view(doc, view, "", []) != before:
-                del view["autoInclude"]
+        auto = AUTO_KINDS.get(norm(view.get("diagram")))
+        if auto:
+            families[auto[0]].append(view)
+    for family_views in families.values():
+        if len(family_views) != 1:
+            continue
+        view = family_views[0]
+        diagram = norm(view.get("diagram"))
+        before = _compile_view(doc, view, "", [])
+        options = [True, False] if AUTO_REL_TYPES.get(diagram) else [False]
+        for with_rels in options:
+            view["autoInclude"] = {"kinds": list(AUTO_KINDS[diagram][1]), "relationships": with_rels}
+            if _compile_view(doc, view, "", []) == before:
+                break
+            del view["autoInclude"]
     return doc
 
 
@@ -453,11 +472,13 @@ def _issue(sink, code, view, message, severity="error"):
                  "message": "%s [%s] %s" % (code, view, message)})
 
 
-def _compile_view(doc, view, base, sink):
+def _compile_view(doc, view, base, sink, projected=None):
     concepts = doc.get("concepts", {})
     relationships = doc.get("relationships", {})
     vid = str(view.get("id") or view.get("output") or "?")
     diagram = norm(view.get("diagram"))
+
+    named_refs = set()
 
     def ref_name(value, where):
         if isinstance(value, dict) and set(value) == {"ref"}:
@@ -465,6 +486,7 @@ def _compile_view(doc, view, base, sink):
             if key not in concepts:
                 _issue(sink, "K4", vid, "%s tham chieu concept khong ton tai '%s'." % (where, key))
                 return str(key)
+            named_refs.add(key)
             return concepts[key].get("name")
         return value
 
@@ -522,7 +544,7 @@ def _compile_view(doc, view, base, sink):
             e["in"] = resolve(e["in"], "in")
 
     # Quan he.
-    relations, used_rels = [], set()
+    relations, used_rels, emitted_rels = [], set(), set()
     for vr in view.get("relations", []) or []:
         if isinstance(vr, dict) and "ref" in vr:
             rid = vr["ref"]
@@ -531,6 +553,7 @@ def _compile_view(doc, view, base, sink):
                 _issue(sink, "K4", vid, "Quan he tham chieu relationship khong ton tai '%s'." % rid)
                 continue
             used_rels.add(rid)
+            emitted_rels.add(rid)
             relations.append(_compile_relation(rel, vr, diagram, by_key, resolve, sink, vid, rid))
         else:
             r = copy.deepcopy(vr)
@@ -548,6 +571,7 @@ def _compile_view(doc, view, base, sink):
             if users.get(rid) and diagram not in users[rid]:
                 continue
             if rel.get("from") in present and rel.get("to") in present:
+                emitted_rels.add(rid)
                 relations.append(_compile_relation(rel, {"ref": rid}, diagram, by_key, resolve, sink, vid, rid))
 
     # Message tu interaction dung chung.
@@ -597,6 +621,10 @@ def _compile_view(doc, view, base, sink):
             spec[k] = copy.deepcopy(v)
     if auto and "elements" not in spec and elements:
         spec["elements"] = elements
+    if projected is not None:
+        projected["concepts"].update(k for k in element_keys if k)
+        projected["concepts"].update(named_refs)
+        projected["relationships"].update(emitted_rels)
     if auto.get("relationships") and relations and "relations" not in view:
         spec["relations"] = relations
     spec["_src"] = os.path.join(base, view.get("output") or vid + ".json") if base else \
@@ -698,6 +726,7 @@ def validate_canonical(doc):
     if sink:
         return sink
     outputs = defaultdict(int)
+    projected = {"concepts": set(), "relationships": set()}
     doc_bundle = _bundle_key(doc.get("bundle"))
     for view in doc.get("views", []):
         vid = str(view.get("id") or view.get("output") or "?")
@@ -709,10 +738,17 @@ def validate_canonical(doc):
         outputs[str(view.get("output"))] += 1
         if _bundle_key(view.get("bundle")) not in ("", doc_bundle):
             _issue(sink, "K7", vid, "Bundle cua view khac bundle cua file canonical.")
-        _compile_view(doc, view, "", sink)
+        _compile_view(doc, view, "", sink, projected)
     for out, n in outputs.items():
         if n > 1 and out != "None":
             _issue(sink, "K7", out, "Nhieu view cung output '%s'." % out)
+    # Khai bao canonical ma khong view nao ve -> canh bao (dung vi tri bao M1/M4 cho canonical-first).
+    for rid in sorted(set(doc.get("relationships", {})) - projected["relationships"]):
+        _issue(sink, "K10", "relationships", "Relationship '%s' khong duoc view nao chieu - them {\"ref\": \"%s\"} "
+               "vao relations cua view phu hop (hoac bat autoInclude)." % (rid, rid), severity="warning")
+    for key in sorted(set(concepts) - projected["concepts"]):
+        _issue(sink, "K11", "concepts", "Concept '%s' khong duoc view nao chieu - them {\"ref\": \"%s\"} vao "
+               "elements cua view phu hop." % (key, key), severity="warning")
     return sink
 
 
@@ -832,6 +868,8 @@ def main(argv=None):
                               "concepts": len(model["concepts"])}, ensure_ascii=False, indent=2))
             return 0
         specs = compile_projections(doc)
+        for i in validate_canonical(doc):
+            print("WARN  " + i["message"], file=sys.stderr)
         stale = []
         for spec in specs:
             path = Path(a.outdir) / spec.pop("_src")

@@ -1848,6 +1848,52 @@ class TestCanonicalProjection(TmpMixin, unittest.TestCase):
         self.assertIn("K7", {i["rule"] for i in PJ.validate_canonical(doc)})
         self.assertEqual(PJ.validate_canonical({"kind": "x"})[0]["rule"], "K1")
 
+    def test_unprojected_declarations_warn(self):
+        doc = self.doc()
+        doc["concepts"]["orphan"] = {"name": "Orphan Concept", "kind": "class"}
+        doc["relationships"]["association:bank->orphan"] = {"type": "association", "from": "bank", "to": "orphan"}
+        issues = PJ.validate_canonical(doc)
+        self.assertEqual([(i["rule"], i["severity"]) for i in issues], [("K10", "warning"), ("K11", "warning")])
+        PJ.compile_projections(doc)   # canh bao khong chan compile
+        # Da duoc chieu (ref hoac autoInclude) -> het canh bao.
+        doc = self.doc()
+        doc["concepts"]["change-pin"] = {"name": "Change PIN", "kind": "usecase"}
+        doc["relationships"]["association:atm-customer->change-pin"] = {
+            "type": "association", "from": "atm-customer", "to": "change-pin"}
+        self.assertEqual(PJ.validate_canonical(doc), [])
+
+    def test_auto_include_one_view_per_family(self):
+        specs = C.load([str(EXAMPLES / n) for n in ("atm_usecase.json", "atm_context.json", "atm_entity.json")])
+        doc = PJ.bootstrap_canonical(specs)
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+        ctx = next(v for v in doc["views"] if v["diagram"] == "context")
+        self.assertEqual(ctx["autoInclude"]["kinds"], ["external"])
+        self.assertNotIn("autoInclude", next(v for v in doc["views"] if v["diagram"] == "class"))
+        doc["concepts"]["fraud-monitor"] = {"name": "Fraud Monitor", "kind": "external"}
+        compiled = {s["diagram"]: s for s in PJ.compile_projections(doc)}
+        self.assertIn("Fraud Monitor", {e.get("name") for e in compiled["context"]["elements"]})
+        self.assertNotIn("Fraud Monitor", {e.get("name") for e in compiled["class"]["elements"]})
+        # Hai view cung nhom -> khong bat autoInclude (khong doan concept moi thuoc view nao).
+        both = self.examples()
+        doc = PJ.bootstrap_canonical(both)
+        self.assertFalse([v["id"] for v in doc["views"] if v["diagram"] in ("context", "bizcontext")
+                          and v.get("autoInclude")])
+        erd = C.load([str(EXAMPLES / "elearn_erd.json")])
+        doc = PJ.bootstrap_canonical(erd)
+        doc["concepts"]["badge"] = {"name": "Badge", "kind": "entity"}
+        self.assertIn("Badge", {e.get("name") for e in PJ.compile_projections(doc)[0]["elements"]})
+
+    def test_rename_system_keeps_identity(self):
+        specs = C.load([str(p) for p in EXAMPLE_FILES if p.name.startswith("atm_")])
+        doc = PJ.bootstrap_canonical(specs)
+        before = M.build_model(PJ.compile_projections(doc))
+        doc["concepts"]["banking-system"]["name"] = "Bank ATM System"
+        compiled = PJ.compile_projections(doc)
+        self.assertEqual(self.by_diagram(compiled, "usecase")[0]["system"], "Bank ATM System")
+        after = M.build_model(compiled)
+        self.assertEqual(set(before["concepts"]), set(after["concepts"]))
+        self.assertEqual(CR.reconcile(PJ.canonical_semantic_model(doc), after)["status"], "clean")
+
     def test_bundle_preserved_and_mixed_bundles_rejected(self):
         a = dict(copy.deepcopy(SHOP_UC), bundle="Shop", _src="uc.json")
         b = dict(copy.deepcopy(SHOP_CTX), bundle="Shop", _src="ctx.json")

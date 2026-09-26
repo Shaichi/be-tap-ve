@@ -393,8 +393,8 @@ One canonical document (`kind: "comet-canonical-model"`, `schemaVersion: 1`) hol
 - `bootstrap` lifts the existing specs into a canonical document and verifies the round-trip. It is exact for all 14 examples: 120 concepts, 141 relationships, 1 shared interaction, 14 views. The `.drawio` files rendered from the compiled specs are byte-identical to the originals.
 - Concept `conceptId` = the name-based semantic id at bootstrap, so fingerprints are unchanged. Compiled specs carry `conceptId`, `useCaseConceptId` and `stateMachineOfConceptId`, so identity survives a rename.
 - Communication and sequence views share one interaction message list, so R12 cannot drift.
-- `autoInclude` on usecase views: a new actor or use case plus its relationships appears automatically.
-- K1–K9 validation, `compile --check` for stale or hand-edited specs, and `model` exports an authoritative v2 model with `sourceOfTruth.mode = "canonical"`.
+- `autoInclude`, enabled by bootstrap on the single view of each family (usecase: actor/usecase, context/bizcontext: external, erd: entity). A new concept of that kind, plus its relationships, appears automatically.
+- K1–K9 validation errors; K10/K11 warnings for declarations no view projects; `compile --check` for stale or hand-edited specs, and `model` exports an authoritative v2 model with `sourceOfTruth.mode = "canonical"`.
 - `comet_reconcile.load_model` (and therefore `comet_manifest.py --canonical-model`) accepts the canonical document directly.
 
 Related fixes:
@@ -402,13 +402,9 @@ Related fixes:
 - `comet_semantic`: concepts, relationships and aliases created by the v1 upgrade that no representation uses are pruned. They used to become ghosts when an explicit `conceptId` differed from the name-based id.
 - `comet_reconcile` M3: when the canonical model has representations, a projection representation name that is not a canonical one is also drift. This catches a hand-edited compiled spec.
 
-Status: **119 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
+Status: **124 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
 
-Known limitations:
-
-- A canonical relationship used by no view is not reported (no M4 for it).
-- The `system` spec field gets no conceptId.
-- Bootstrap enables `autoInclude` only on usecase views.
+Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram.
 
 ---
 
@@ -796,9 +792,6 @@ all diagrams
 
 Next candidates:
 
-- M4 for canonical relationships no view projects.
-- conceptId for `system`.
-- `autoInclude` for more view kinds.
 - Authoring helpers (add concept, rename) on top of the canonical document.
 
 ---

@@ -88,7 +88,17 @@ A communication view and a sequence view of the same use case share one message 
 
 ### autoInclude
 
-`{"kinds": [...], "relationships": true}` adds every concept of the listed kinds that the view does not already contain. With `"relationships": true` it also adds every relationship between concepts in the view whose type is allowed for that diagram. Relationships already used by a view of another diagram kind are not added. Bootstrap enables it only on usecase views, and only when doing so adds nothing, so round-trip stays exact. After that, a new actor or use case added to the canonical file appears in the use case diagram automatically.
+`{"kinds": [...], "relationships": true}` adds every concept of the listed kinds that the view does not already contain. With `"relationships": true` it also adds every relationship between concepts in the view whose type is allowed for that diagram. Relationships already used by a view of another diagram kind are not added.
+
+Bootstrap enables it per family, only when the family has exactly one view, and only when doing so adds nothing, so round-trip stays exact:
+
+| Family | Views | Kinds |
+|---|---|---|
+| usecase | usecase | `actor`, `usecase` |
+| context | context, bizcontext | `external` |
+| erd | erd | `entity` |
+
+After that, a new actor or use case appears in the use case diagram, a new external in the context diagram, and a new entity in the ERD, with no view edit. Class, package, component and deployment views are never auto-enabled, because a new class could belong to any of them. Add the `ref` by hand, or set `autoInclude` on the one view that should receive it.
 
 ## Compiled spec
 
@@ -109,6 +119,10 @@ A communication view and a sequence view of the same use case share one message 
 | K7 | Unsupported diagram, missing `output`, view bundle differs from the document bundle, or two views with the same output |
 | K8 | Communication message endpoint has no element in the view |
 | K9 | Relationship endpoint is not a concept |
+| K10 | Warning: a relationship is not projected by any view (neither `ref` nor autoInclude) |
+| K11 | Warning: a concept is not projected by any view (element, anchor, partition or autoInclude) |
+
+K1–K9 are errors and block `compile`. K10/K11 are warnings: `validate` lists them and `compile` prints them to stderr. They are the canonical-first counterpart of reconcile M1/M4, with the exact declaration to add to a view.
 
 ## Workflow
 
@@ -120,8 +134,7 @@ A communication view and a sequence view of the same use case share one message 
 
 Never repair semantics in the `.drawio` or in a compiled spec. Fix the canonical file and compile again.
 
-## Limitations
+## Notes
 
-- A canonical relationship not used by any view is not reported as M4. Only unprojected concepts are reported (M1).
-- The use case `system` boundary is resolved by ref, but the compiled spec does not carry a conceptId for it.
-- Bootstrap enables `autoInclude` only on usecase views. Other views can opt in by hand.
+- Reconcile reports an unprojected canonical concept as M1. An unprojected relationship is reported by `validate` as K10, not by reconcile, because the model v2 derives relationships from the diagrams.
+- The use case `system` boundary is a ref only when a concept with that name exists, which is normally the «software system» of the context diagram. That element carries the `conceptId`, so renaming the system keeps its identity.

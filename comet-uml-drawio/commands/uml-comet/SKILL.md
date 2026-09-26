@@ -77,6 +77,11 @@ python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_th
 2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 + X1–X6 giữa các sơ đồ, S1–S5, A1–A6, C1–C2; nếu cần tích hợp CI/tooling có thể chạy thêm `--json` để lấy report máy-đọc) → 0 ERROR
    và **sửa hết WARN** trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó không đúng ngữ cảnh — nêu mã luật +
    lý do. Không biện minh kiểu "chỉ là cảnh báo nhỏ".
+2a. Khi cả bộ đã sạch, chốt nguồn sự thật: `python "<ENGINE>/scripts/comet_project.py" bootstrap "./uml/*.json" -o
+   ./uml/<He_thong>.canonical.json` (phải báo `"roundTrip": "exact"`). Từ lần sửa sau (đổi tên, thêm actor/use case…):
+   sửa file canonical → `comet_project.py validate` → `comet_project.py compile ./uml/<He_thong>.canonical.json -o ./uml/`
+   → chạy lại các lệnh trên; KHÔNG sửa tay spec đã compile (`compile --check` phát hiện). Xem
+   `<ENGINE>/references/comet-project.md`.
 3. **Mở từng ảnh** `./uml/<He_thong>_p<N>.png` (mỗi trang một ảnh) bằng công cụ đọc file và tự soát: chữ đọc được,
    không hình/nhãn chồng nhau, ký hiệu đúng.
 
