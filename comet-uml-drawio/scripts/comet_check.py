@@ -704,7 +704,7 @@ def _spec_ref_name(s):
 
 def _bundle_key(s):
     """Opt-in scope key khi nguoi dung muon tach nhieu bo diagram trong cung lan kiem."""
-    for k in ("system", "project", "bundle", "systemName"):
+    for k in ("bundle", "system", "project", "systemName"):
         v = norm(s.get(k))
         if v:
             return v
