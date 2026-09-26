@@ -1383,37 +1383,12 @@ def build_sequence(spec, warns, origin):
 BIZ_CENTER = {"system", "process", "business", "center", "centre", "organization"}
 
 
-def _seg_hits(p, q, r, shrink=2.0):
-    """Doan pq di vao phan trong hinh chu nhat r=(x0,y0,x1,y1) (Liang-Barsky) - giong validator."""
-    x0, y0, x1, y1 = r[0] + shrink, r[1] + shrink, r[2] - shrink, r[3] - shrink
-    if x0 >= x1 or y0 >= y1:
-        return False
-    dx, dy = q[0] - p[0], q[1] - p[1]
-    t0, t1 = 0.0, 1.0
-    for pp, qq in ((-dx, p[0] - x0), (dx, x1 - p[0]), (-dy, p[1] - y0), (dy, y1 - p[1])):
-        if abs(pp) < 1e-9:
-            if qq < 0:
-                return False
-        else:
-            t = qq / pp
-            if pp < 0:
-                t0 = max(t0, t)
-            else:
-                t1 = min(t1, t)
-            if t0 > t1:
-                return False
-    return t1 - t0 > 1e-6
-
-
-def _rects_hit(a, b, pad=0.0):
-    return a[0] < b[2] + pad and b[0] < a[2] + pad and a[1] < b[3] + pad and b[1] < a[3] + pad
-
-
 def build_bizcontext(spec, warns, origin):
-    """Context diagram nghiep vu: he thong/doanh nghiep la hinh tron o giua, thuc the ngoai xep deu tren mot
-    vong tron bao quanh; moi thuc the co toi da 2 mui ten thang (vao he thong / ra khoi he thong), nhieu luong
-    du lieu cung chieu gop thanh 1 mui ten nhieu dong nhan. Nhan dat ben ngoai cap mui ten -> khong cat duong
-    khac; ban kinh vong tu tang cho toi khi khong con chong hinh / nhan / duong."""
+    """Context diagram nghiep vu: he thong/doanh nghiep la hinh tron o giua, thuc the ngoai xep 2 cot trai/phai.
+    MOI luong du lieu la MOT mui ten vuong goc rieng: di ngang ra tu canh hop (nhan nam ngang tren doan ngang,
+    de doc), luong ngang tam hinh tron cam thang vao hong, luong cao hon / thap hon gap vuong goc cam vao dinh /
+    day. Cac duong gap long nhau (duong cang xa tam theo chieu doc thi re cang gan truc giua) -> khong cat nhau,
+    nhan xep thanh cot trong khoang trong giua cot hop va hinh tron -> khong de len duong/nhan khac."""
     sps = [dict(s) for s in spec.get("elements", [])]
     for s in sps:
         s.setdefault("id", s.get("name"))
@@ -1425,24 +1400,17 @@ def build_bizcontext(spec, warns, origin):
         cen = sps[0]
         warns.append("Khong co phan tu type 'system' lam trung tam -> dung '%s'." % cen["id"])
     exts = [s for s in sps if s is not cen]
+    cid = cen["id"]
 
-    # ---- hinh
     def lines_of(s, maxw):
         st = [stereo(s["stereotype"])] if s.get("stereotype") else []
         return st, wrap(str(s.get("name", s["id"])), maxw)
 
-    st_c, nm_c = lines_of(cen, 150)
+    st_c, nm_c = lines_of(cen, 170)
     tw, th = text_size("\n".join(st_c + nm_c), 12, True)
-    D = max(150.0, math.ceil(math.hypot(tw + 20, th + 20)))
-    R0 = D / 2
-    shapes = {}
-    for s in exts:
-        st, nm = lines_of(s, 160)
-        w, h = text_size("\n".join(st + nm), 12, True)
-        shapes[s["id"]] = (max(120.0, w + 28), max(54.0, h + 24), st, nm)
 
-    # ---- luong: gom theo (thuc the ngoai, chieu)
-    flows = OrderedDict()   # ext id -> {"in": [(rid, text)], "out": [...]}
+    # ---- luong: moi relation mot mui ten (theo thu tu spec)
+    tracks = OrderedDict((s["id"], []) for s in exts)   # ext -> [(rid, dir, lines, lw, lh)]
     ids = {s["id"] for s in sps}
     for i, r in enumerate(spec.get("relations", spec.get("flows", [])) or []):
         u, v = str(r.get("from")), str(r.get("to"))
@@ -1451,121 +1419,173 @@ def build_bizcontext(spec, warns, origin):
         if u not in ids or v not in ids:
             warns.append("Luong #%d: phan tu '%s' hoac '%s' khong ton tai -> bo qua." % (i + 1, u, v))
             continue
-        if cen["id"] not in (u, v) or u == v:
+        if cid not in (u, v) or u == v:
             warns.append("Luong #%d %s -> %s khong di qua he thong trung tam (context diagram chi ve luong giua "
                          "he thong va ben ngoai) -> bo qua." % (i + 1, u, v))
             continue
-        ext, d = (u, "in") if v == cen["id"] else (v, "out")
-        flows.setdefault(ext, {"in": [], "out": []})[d].append((rid, str(text or "")))
+        ext, d = (u, "in") if v == cid else (v, "out")
+        lab = wrap(str(text), 240, 11) if text else []
+        lw, lh = text_size("\n".join(lab), 11) if lab else (0, 14)
+        tracks[ext].append((rid, d, lab, lw, lh))
     for s in exts:
-        if s["id"] not in flows:
+        if not tracks[s["id"]]:
             warns.append("Thuc the ngoai '%s' khong co luong du lieu nao." % s.get("name", s["id"]))
 
-    arrows = []   # (ext, dir, rid, label_lines, offset_sign)
+    # ---- chia 2 cot: "side": "left"/"right" tren element, con lai chia theo thu tu cho can so luong
+    side = {s["id"]: str(s.get("side", "")).lower() for s in exts if str(s.get("side", "")).lower() in ("left", "right")}
+    free = [s["id"] for s in exts if s["id"] not in side]
+    cnt = {e: max(1, len(tracks[e])) for e in tracks}
+    fl = sum(cnt[e] for e in side if side[e] == "left")
+    fr = sum(cnt[e] for e in side if side[e] == "right")
+    best = None
+    for k in range(len(free) + 1):
+        L, R = fl + sum(cnt[e] for e in free[:k]), fr + sum(cnt[e] for e in free[k:])
+        empty = (L == 0 or R == 0) and len(exts) > 1
+        key = (empty, abs(L - R), -k)
+        if best is None or key < best[0]:
+            best = (key, k)
+    for j, e in enumerate(free):
+        side[e] = "left" if j < best[1] else "right"
+    cols = {"left": [s["id"] for s in exts if side[s["id"]] == "left"],
+            "right": [s["id"] for s in exts if side[s["id"]] == "right"]}
+
+    # ---- hop: rong theo ten; chieu cao + vi tri duong tinh lai theo cach chia duong (xem layout)
+    box = {}   # ext -> [w, h, st, nm, offs]
+    base_h = {}
     for s in exts:
-        f = flows.get(s["id"])
-        if not f:
-            continue
-        dirs = [d for d in ("in", "out") if f[d]]
-        for d in dirs:
-            lab = [l for _, t in f[d] for l in wrap(t, 170) if t]
-            sign = 0 if len(dirs) == 1 else (-1 if d == "in" else 1)
-            arrows.append((s["id"], d, f[d][0][0], lab, sign))
+        st, nm = lines_of(s, 160)
+        w, h = text_size("\n".join(st + nm), 12, True)
+        base_h[s["id"]] = h
+        box[s["id"]] = [max(120.0, w + 28), max(54.0, h + 24), st, nm, []]
 
-    N = max(1, len(exts))
-    GAP = 28.0   # khoang cach 2 mui ten song song cua cung thuc the
-    ang = {s["id"]: -math.pi / 2 + 2 * math.pi * k / N for k, s in enumerate(exts)}
-    maxdiag = max([math.hypot(w, h) for w, h, _, _ in shapes.values()] or [0])
-    labsz = {}
-    for a in arrows:
-        labsz[a[2]] = text_size("\n".join(a[3]), 11) if a[3] else (0, 0)
-    maxlab = max([max(w, h) for w, h in labsz.values()] or [0])
-    R = R0 + maxdiag / 2 + max(90.0, maxlab * 0.6 + 40)
-    if N > 1:
-        R = max(R, (maxdiag + 40) / (2 * math.sin(math.pi / N)))
+    # ---- gan duong: moi phia xet tat ca duong theo thu tu tu tren xuong (dem chung ca cot). Mot nhom lien tiep
+    #      o giua (duong i..j-1) cam thang vao hong hinh tron (|y| <= BAND r); cac duong tren gap xuong cam vao
+    #      dinh, duong duoi gap len cam vao day; duong cang xa tam theo chieu doc re cang gan truc giua -> long
+    #      nhau. Cho doi kieu duong nam giua mot hop thi hop chen them khe SPLIT de hai dau mui ten tren cung tron
+    #      khong sat nhau. Ban kinh r = nho nhat ma ca hai phia xep duoc -> hinh tron gon.
+    BAND, XMIN, XMAX, VMIN, SPLIT, GY = 0.7, 0.1, 0.85, 16.0, 16.0, 28.0
 
-    def layout(R):
-        rects = {cen["id"]: (-R0, -R0, R0, R0)}
-        ctr = {}
-        for s in exts:
-            w, h, _, _ = shapes[s["id"]]
-            cx, cy = R * math.cos(ang[s["id"]]), R * math.sin(ang[s["id"]])
-            ctr[s["id"]] = (cx, cy)
-            rects[s["id"]] = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-        lines = {}
-        for ext, d, rid, lab, sign in arrows:
-            th_ = ang[ext]
-            ux, uy = math.cos(th_), math.sin(th_)
-            nx, ny = -uy, ux
-            off = sign * GAP / 2
-            pc = (off * nx + math.sqrt(max(0.0, R0 * R0 - off * off)) * ux,
-                  off * ny + math.sqrt(max(0.0, R0 * R0 - off * off)) * uy)
-            # diem ra khoi hinh chu nhat cua thuc the ngoai, di nguoc tia ve tam
-            ex, ey = ctr[ext]
-            px, py = ex + off * nx, ey + off * ny
-            x0, y0, x1, y1 = rects[ext]
-            ts = []
-            for bound, p0, v in ((x0, px, -ux), (x1, px, -ux), (y0, py, -uy), (y1, py, -uy)):
-                if abs(v) > 1e-9:
-                    t = (bound - p0) / v
-                    if t > 0:
-                        ts.append(t)
-            t = min(ts) if ts else 0
-            pe = (px - ux * t, py - uy * t)
-            lines[rid] = (pc, pe, (ux, uy), (nx, ny), sign)
-        return rects, ctr, lines
+    def layout(c, i, j):
+        hts, offs, ys, top = {}, {}, [], 0.0
+        g = 0
+        for e in c:
+            tr, o, cur = tracks[e], [], 0.0
+            for k, t in enumerate(tr):
+                if k:
+                    cur += max(18.0, (tr[k - 1][4] + t[4]) / 2 + 5)
+                    if g + k in (i, j):
+                        cur += SPLIT
+                o.append(cur)
+            h = max(54.0, base_h[e] + 24, cur + 28)
+            hts[e], offs[e] = h, [x - cur / 2 for x in o]
+            ys += [(top + h / 2 + x, e, k) for k, x in enumerate(offs[e])]
+            top += h + GY
+            g += len(tr)
+        n = len(ys)
+        if i < j:
+            mid = (ys[i][0] + ys[j - 1][0]) / 2
+        elif 0 < i < n:
+            mid = (ys[i - 1][0] + ys[i][0]) / 2
+        else:
+            mid = (top - GY) / 2
+        cys, t0 = {}, 0.0
+        for e in c:
+            cys[e] = t0 + hts[e] / 2 - mid
+            t0 += hts[e] + GY
+        return hts, offs, cys, [(y - mid, e, k) for y, e, k in ys]
 
-    for _ in range(80):
-        rects, ctr, lines = layout(R)
-        segs = {rid: (pc, pe) for rid, (pc, pe, _, _, _) in lines.items()}
-        ok = True
-        # hinh / hinh
-        keys = list(rects)
-        for i in range(len(keys)):
-            for j in range(i + 1, len(keys)):
-                if _rects_hit(rects[keys[i]], rects[keys[j]], 30):
-                    ok = False
-        # duong / hinh (tru 2 dau cua chinh no)
-        own = {a[2]: a[0] for a in arrows}
-        for rid, (p, q) in segs.items():
-            for k_, r in rects.items():
-                if k_ in (cen["id"], own[rid]):
+    def place(lst, r, P):
+        """lst: duong theo thu tu xa tam -> gan tam; tra ve [X] (khoang cach toi truc giua) hoac None."""
+        xs, prev = [], None
+        for y, _, _ in lst:
+            d = abs(y) - VMIN
+            if d <= 0:
+                return None
+            lo = math.sqrt(r * r - d * d) if d < r else 0.0
+            x = max(XMIN * r, lo, prev + P if prev is not None else 0.0)
+            if x > XMAX * r:
+                return None
+            xs.append(x)
+            prev = x
+        return xs
+
+    def clash(y, xs, r):
+        """duong thang o do cao y cham dau doan doc (X -> cung tron) cua mot duong gap khong."""
+        xs_s = math.sqrt(max(0.0, r * r - y * y))
+        return any(x > xs_s - 10 and abs(y) > math.sqrt(max(0.0, r * r - x * x)) - 12 for x in xs)
+
+    def solve_side(c, r):
+        n = sum(len(tracks[e]) for e in c)
+        for ns in range(n, -1, -1):
+            i0 = (n - ns) // 2
+            for i in sorted({min(max(0, i0 + d), n - ns) for d in (0, 1, -1)}):
+                j = i + ns
+                if ns == 0 and n and not 0 < i < n:
                     continue
-                if _seg_hits(p, q, r, 1.5):
-                    ok = False
-        # nhan: thu vai vi tri doc duong, ben ngoai cap mui ten
-        labs = {}
-        if ok:
-            for ext, d, rid, lab, sign in arrows:
-                if not lab:
+                hts, offs, cys, ys = layout(c, i, j)
+                st = ys[i:j]
+                if st and max(abs(y) for y, _, _ in st) > BAND * r:
                     continue
-                lw, lh = labsz[rid]
-                pc, pe, (ux, uy), (nx, ny), sg = lines[rid]
-                side = sg or 1
-                half = (lw * abs(nx) + lh * abs(ny)) / 2
-                placed = None
-                for frac in (0.5, 0.42, 0.58, 0.34, 0.66):
-                    mx, my = pc[0] + (pe[0] - pc[0]) * frac, pc[1] + (pe[1] - pc[1]) * frac
-                    cx, cy = mx + side * nx * (half + 5), my + side * ny * (half + 5)
-                    r = (cx - lw / 2, cy - lh / 2, cx + lw / 2, cy + lh / 2)
-                    bad = any(_rects_hit(r, rr, 4) for rr in rects.values())
-                    bad = bad or any(_rects_hit(r, rr, 4) for rr in labs.values())
-                    bad = bad or any(_seg_hits(p, q, r, 0.0) for k_, (p, q) in segs.items() if k_ != rid)
-                    if not bad:
-                        placed = r
-                        break
-                if placed is None:
-                    ok = False
-                    break
-                labs[rid] = placed
-        if ok:
+                up, dn = ys[:i], ys[j:][::-1]
+                for P in (30.0, 26.0, 22.0, 18.0, 16.0):
+                    xu, xd = place(up, r, P), place(dn, r, P)
+                    if xu is None or xd is None:
+                        continue
+                    if any(clash(y, xu if y < 0 else xd, r) for y, _, _ in st):
+                        continue
+                    turn = {(e, k): x for (_, e, k), x in list(zip(up, xu)) + list(zip(dn, xd))}
+                    return hts, offs, cys, turn
+        return None
+
+    r = math.ceil(max(60.0, th / 2 * 1.6 + 12, math.hypot(tw, th) / 2 + 14))
+    while True:
+        res = {sd: solve_side(c, r) for sd, c in cols.items() if c}
+        if all(v is not None for v in res.values()):
             break
-        R += 30
-    else:
-        warns.append("Khong tim duoc ban kinh khong chong nhan - kiem tra lai (qua nhieu thuc the/nhan dai).")
+        r += 2
+    a = b = r   # hinh tron
+    cy, turn = {}, {}   # turn: (ext, j) -> x re (so duong, ca 2 phia)
+    for sd, (hts, offs, cys, tn) in res.items():
+        for e in cols[sd]:
+            box[e][1], box[e][4], cy[e] = hts[e], offs[e], cys[e]
+        for k, x in tn.items():
+            turn[k] = -x if sd == "left" else x
+
+    # ---- khoang trong giua cot hop va hinh tron: vua nhan dai nhat cua phia do
+    gap = {sd: max([80.0] + [t[3] + 44 for e in c for t in tracks[e]]) for sd, c in cols.items()}
+    xin = {"left": -a - gap["left"], "right": a + gap["right"]}
+    rects = {}
+    for sd, c in cols.items():
+        for e in c:
+            w, h = box[e][:2]
+            x0 = xin[sd] - w if sd == "left" else xin[sd]
+            rects[e] = (x0, cy[e] - h / 2, x0 + w, cy[e] + h / 2)
+
+    def ell_y(x, sgn):
+        return sgn * b * math.sqrt(max(0.0, 1 - (x / a) ** 2))
+
+    def ell_x(y, sgn):
+        return sgn * a * math.sqrt(max(0.0, 1 - (y / b) ** 2))
+
+    paths, labs = [], {}
+    for sd, c in cols.items():
+        sg = -1 if sd == "left" else 1
+        for e in c:
+            for j, (rid, d, lab, lw, lh) in enumerate(tracks[e]):
+                y = cy[e] + box[e][4][j]
+                p0 = (xin[sd], y)
+                if (e, j) in turn:
+                    x = turn[(e, j)]
+                    pts = [p0, (x, y), (x, ell_y(x, -1 if y < 0 else 1))]
+                else:
+                    pts = [p0, (ell_x(y, sg), y)]
+                lc = (xin[sd] - sg * gap[sd] / 2, y)
+                if lab:
+                    labs[(e, j)] = (lc[0] - lw / 2, y - lh / 2, lc[0] + lw / 2, y + lh / 2)
+                paths.append((e, j, rid, d, lab, pts, lc))
 
     # ---- dich toa do ve origin
-    allr = list(rects.values()) + list(labs.values())
+    allr = list(rects.values()) + list(labs.values()) + [(-a, -b, a, b)]
     minx = min(r[0] for r in allr)
     miny = min(r[1] for r in allr)
     dx, dy = origin[0] - minx, origin[1] - miny
@@ -1573,12 +1593,11 @@ def build_bizcontext(spec, warns, origin):
 
     out = Out()
     out.ids |= {s["id"] for s in sps}
-    cid = cen["id"]
     val = "<br>".join([esc(x) for x in st_c] + ["<b>%s</b>" % esc(x) for x in nm_c])
     out.vertex(cid, val, "ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeWidth=2;",
-               -R0 + dx, -R0 + dy, D, D)
+               -a + dx, -b + dy, 2 * a, 2 * b)
     for s in exts:
-        w, h, st, nm = shapes[s["id"]]
+        w, h, st, nm, _ = box[s["id"]]
         x0, y0, _, _ = rects[s["id"]]
         val = "<br>".join([esc(x) for x in st] + ["<b>%s</b>" % esc(x) for x in nm])
         out.vertex(s["id"], val, "rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;", x0 + dx, y0 + dy, w, h)
@@ -1587,22 +1606,22 @@ def build_bizcontext(spec, warns, origin):
         x0, y0, x1, y1 = r
         return (min(1, max(0, (p[0] - x0) / (x1 - x0))), min(1, max(0, (p[1] - y0) / (y1 - y0))))
 
-    for ext, d, rid, lab, sign in arrows:
-        pc, pe, _, _, _ = lines[rid]
-        fc, fe = frac_of(pc, rects[cid]), frac_of(pe, rects[ext])
-        if d == "in":
-            src, tgt, fs, ft, pts = ext, cid, fe, fc, [T(pe), T(pc)]
+    for e, j, rid, d, lab, pts, lc in sorted(paths, key=lambda p: (list(tracks).index(p[0]), p[1])):
+        fe, fc = frac_of(pts[0], rects[e]), frac_of(pts[-1], (-a, -b, a, b))
+        if d == "out":
+            pts = pts[::-1]
+            src, tgt, fs, ft = cid, e, fc, fe
         else:
-            src, tgt, fs, ft, pts = cid, ext, fc, fe, [T(pc), T(pe)]
+            src, tgt, fs, ft = e, cid, fe, fc
         style = (EDGE_BASE + "endArrow=block;endFill=1;"
                  "exitX=%s;exitY=%s;exitDx=0;exitDy=0;exitPerimeter=0;"
                  "entryX=%s;entryY=%s;entryDx=0;entryDy=0;entryPerimeter=0;"
                  % (_n(fs[0], 4), _n(fs[1], 4), _n(ft[0], 4), _n(ft[1], 4)))
+        tp = [T(p) for p in pts]
         gx = off = None
-        if lab and rid in labs:
-            r = labs[rid]
-            gx, off = label_geometry(pts, T(((r[0] + r[2]) / 2, (r[1] + r[3]) / 2)))
-        out.edge(out.uid(rid), esc("\n".join(lab)) if lab else "", style, src, tgt, [], "1", gx, off)
+        if lab:
+            gx, off = label_geometry(tp, T(lc))
+        out.edge(out.uid(rid), "<br>".join(esc(x) for x in lab), style, src, tgt, tp[1:-1], "1", gx, off)
     for r in allr:
         out.maxx, out.maxy = max(out.maxx, r[2] + dx), max(out.maxy, r[3] + dy)
     return out

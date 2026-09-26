@@ -930,23 +930,76 @@ class TestGenerator(unittest.TestCase):
         self.assertTrue(U.sitemap_mode(sp))
         self.assertEqual(check(sp, partial=True)[:2], ([], []))
 
-    def test_bizcontext_ring(self):
+    def test_bizcontext_orthogonal(self):
         sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))
         xml, cs, G = self.clean(sp)
         R = rects(G)
         self.assertEqual(style(cs["shop"]).get("_base"), "ellipse")
         c = R["shop"]
-        self.assertAlmostEqual(c[2] - c[0], c[3] - c[1], delta=0.5)                   # hinh tron
-        cx, cy = (c[0] + c[2]) / 2, (c[1] + c[3]) / 2
         ext = [e["id"] for e in sp["elements"] if e["type"] == "external"]
-        dist = [math.hypot((R[i][0] + R[i][2]) / 2 - cx, (R[i][1] + R[i][3]) / 2 - cy) for i in ext]
-        self.assertLess(max(dist) - min(dist), 0.35 * max(dist))                      # xep vong quanh tam
+        side = {i: (R[i][2] <= c[0]) - (R[i][0] >= c[2]) for i in ext}                # 1 trai, -1 phai
+        self.assertEqual(set(side.values()), {1, -1})                                  # 2 cot hai ben elip
         es = edges(cs)
-        self.assertEqual(len(es), 11)                                                  # luong cung chieu da gop
+        self.assertEqual(len(es), len(sp["relations"]))                                # moi luong 1 mui ten
+        labels = {}
         for e in es:
             self.assertIn("shop", (e.get("source"), e.get("target")))
-            self.assertIsNone(e.find("mxGeometry/Array"))                              # mui ten thang
-        self.assertEqual(text(edge_between(cs, "kh", "shop")), "Đơn đặt hàng\nThông tin thanh toán")
+            pts = G.edges[e.get("id")][1]
+            self.assertLessEqual(len(pts), 3)                                          # toi da 1 lan gap
+            for p, q in zip(pts, pts[1:]):
+                self.assertTrue(abs(p[0] - q[0]) < 0.5 or abs(p[1] - q[1]) < 0.5)      # vuong goc
+            ext_end = pts[0] if e.get("target") == "shop" else pts[-1]
+            nxt = pts[1] if e.get("target") == "shop" else pts[-2]
+            self.assertLess(abs(ext_end[1] - nxt[1]), 0.5)                             # ra ngang tu canh hop
+            labels.setdefault((e.get("source"), e.get("target")), []).append(text(e))
+        self.assertEqual(sorted(labels[("kh", "shop")]), sorted(["Đơn đặt hàng", "Thông tin thanh toán"]))
+        self.assertEqual(sorted(labels[("shop", "kh")]), sorted(["Xác nhận đơn hàng", "Hoá đơn điện tử"]))
+        self.assertEqual(G.label_poly, {})                                             # nhan nam ngang
+        self.assertAlmostEqual(c[2] - c[0], c[3] - c[1], delta=0.5)                   # hinh tron
+        cx, cy, r = (c[0] + c[2]) / 2, (c[1] + c[3]) / 2, (c[2] - c[0]) / 2
+        for _, pts in G.edges.values():                                                # khong xuyen hinh tron
+            for p, q in zip(pts, pts[1:]):
+                for k in range(1, 20):
+                    x, y = p[0] + (q[0] - p[0]) * k / 20, p[1] + (q[1] - p[1]) * k / 20
+                    self.assertGreater(math.hypot(x - cx, y - cy), r - 1.0)
+        self.assertTrue(any(len(p) == 3 for _, p in G.edges.values()))                 # co duong gap
+        # "side" tren element ep cot
+        sp2 = json.loads(json.dumps(sp))
+        for el in sp2["elements"]:
+            if el["id"] == "thue":
+                el["side"] = "left"
+        _, _, G2 = self.clean(sp2)
+        self.assertLessEqual(rects(G2)["thue"][2], rects(G2)["shop"][0])
+
+    def test_bizcontext_many_flows_compact(self):
+        # hop co nhieu luong: hop cao ra, hinh tron chi nho vua du (luong du thi gap vao dinh/day), khong cat nhau
+        els = [{"id": "s", "type": "system", "name": "Hệ thống"},
+               {"id": "a", "type": "external", "name": "Khách hàng", "side": "left"},
+               {"id": "b", "type": "external", "name": "Nhân viên", "side": "left"},
+               {"id": "c", "type": "external", "name": "Ngân hàng", "side": "right"}]
+        rel = [{"from": x, "to": "s", "label": "Luồng %s%d" % (x, k)} if k % 2 else
+               {"from": "s", "to": x, "label": "Luồng %s%d" % (x, k)} for x in "ab" for k in range(12)]
+        rel.append({"from": "c", "to": "s", "label": "Luồng c"})
+        xml, cs, G = self.clean({"diagram": "bizcontext", "title": "T", "elements": els, "relations": rel})
+        R = rects(G)
+        self.assertGreater(R["a"][3] - R["a"][1], 12 * 18)                              # hop cao du 12 mui ten
+        self.assertLess(R["s"][2] - R["s"][0], 400)                                     # hinh tron khong phinh
+        segs = [(p, q) for _, pts in G.edges.values() for p, q in zip(pts, pts[1:])]
+        for i, (p, q) in enumerate(segs):                                               # khong cat nhau
+            for u, v in segs[i + 1:]:
+                if (abs(p[0] - q[0]) < 0.5) == (abs(u[0] - v[0]) < 0.5):
+                    continue
+                (h1, h2), (v1, v2) = ((p, q), (u, v)) if abs(p[1] - q[1]) < 0.5 else ((u, v), (p, q))
+                self.assertFalse(min(h1[0], h2[0]) + 1 < v1[0] < max(h1[0], h2[0]) - 1 and
+                                 min(v1[1], v2[1]) + 1 < h1[1] < max(v1[1], v2[1]) - 1)
+
+    def test_rotated_label_geometry(self):
+        c45 = math.cos(math.radians(45))
+        P = V.rot_poly(0, 0, 100, 14, c45, c45)                         # nhan 100x14 xoay 45 do
+        self.assertTrue(V.poly_hit(P, [(-50, 50), (50, -50)], -2))      # doan cat ngang nhan
+        self.assertFalse(V.poly_hit(P, [(30, -30), (60, -10)], -2))     # trong khung bao nhung khong cham nhan
+        self.assertFalse(V.poly_hit(P, V.poly_of_rect((20, -40, 40, -20)), -1))
+        self.assertTrue(V.poly_hit(P, V.poly_of_rect((20, 20, 40, 40)), -1))
 
 # ============================================================ 5. comet_check
 def stm(*rels, extra=(), initial=True):

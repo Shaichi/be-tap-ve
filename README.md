@@ -46,7 +46,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
 | `/uml-erd` | **ERD (ký pháp Chen)** | thực thể chữ nhật + hình thoi quan hệ có tên, bản số `1` / `N` / `M`, quan hệ đệ quy, bậc 3 |
 | `/uml-screenflow` | **Screen flow (sơ đồ trang / site map)** | cây điều hướng từ Home, ô chỉ ghi tên màn hình, popup bo góc, mũi tên không nhãn |
-| `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp vòng quanh, luồng dữ liệu hai chiều |
+| `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp 2 cột trái/phải, mỗi luồng dữ liệu một mũi tên vuông góc, tên luồng nằm ngang |
 | `/uml-comet` | Trọn bộ COMET | use case → context → class → communication + sequence → statechart → (activity, package, component, deployment) |
 
 <p align="center">
@@ -272,6 +272,10 @@ Tuỳ chọn khác:
   ]
 }
 ```
+Hệ thống là hình tròn ở giữa, các bên ngoài tự chia 2 cột trái/phải cho cân số luồng (ép cột bằng
+`"side": "left"` / `"right"` trên element). Mỗi luồng là một mũi tên vuông góc riêng, tên luồng nằm ngang: luồng
+ngang tầm hình tròn cắm thẳng vào hông, luồng cao hơn / thấp hơn gập vào đỉnh / đáy, các đường gập lồng nhau nên
+không cắt nhau. Nhiều luồng thì hộp tự cao ra, hình tròn chỉ nới vừa đủ.
 
 Đặc tả đầy đủ các trường: [`references/spec-format.md`](comet-uml-drawio/references/spec-format.md). Ký hiệu UML:
 [`references/uml-notation.md`](comet-uml-drawio/references/uml-notation.md). Phương pháp COMET và bảng luật kiểm
@@ -334,7 +338,7 @@ be-tap-ve/
 python comet-uml-drawio/tests/run_tests.py
 ```
 
-Bộ test gồm 77 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
+Bộ test gồm 80 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
 với code, và fuzz trên spec ngẫu nhiên. Các biến môi trường điều chỉnh:
 - `COMET_FUZZ_SEEDS=300`: số spec fuzz (mặc định 80).
 - `COMET_TEST_PNG=0`: bỏ test xuất PNG.

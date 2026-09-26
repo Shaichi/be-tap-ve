@@ -175,6 +175,35 @@ def seg_hits_rect(p, q, r, shrink=1.0):
     return t1 - t0 > 1e-6
 
 
+def poly_of_rect(r):
+    return [(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])]
+
+
+def rot_poly(cx, cy, w, h, ux, uy):
+    """Hinh chu nhat w x h tam (cx, cy), canh dai w theo huong don vi (ux, uy) -> 4 dinh."""
+    nx, ny = -uy, ux
+    return [(cx + sx * w / 2 * ux + sy * h / 2 * nx, cy + sx * w / 2 * uy + sy * h / 2 * ny)
+            for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def poly_hit(A, B, pad=0.0):
+    """2 da giac loi (hoac doan thang = 2 dinh) cham nhau (SAT). pad > 0: gan hon pad cung tinh la cham;
+    pad < 0: phai lan vao nhau sau hon -pad."""
+    for P in (A, B):
+        for i in range(len(P)):
+            a, b = P[i], P[(i + 1) % len(P)]
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            L = math.hypot(ex, ey)
+            if L < 1e-9:
+                continue
+            ax, ay = -ey / L, ex / L
+            pa = [x * ax + y * ay for x, y in A]
+            pb = [x * ax + y * ay for x, y in B]
+            if max(pa) + pad <= min(pb) or max(pb) + pad <= min(pa):
+                return False
+    return True
+
+
 def rect_overlap(a, b, tol=EPS):
     return a[0] < b[2] - tol and b[0] < a[2] - tol and a[1] < b[3] - tol and b[1] < a[3] - tol
 
@@ -403,6 +432,7 @@ class Geometry:
 
         # ---- nhan: (rect, owner_id, mo_ta, text, style)
         self.labels = []
+        self.label_poly = {}   # chi so trong labels -> (da giac, (cx, cy, w, h, goc)) cua nhan xoay
         for eid, (c, pts) in self.edges.items():
             if plain(c.value).strip():
                 w, h = text_box(c.value, float(c.st.get("fontSize", 11)))
@@ -424,7 +454,14 @@ class Geometry:
                 off = _offset(c.geo)
                 (px, py), _ = point_along(pts, c.x)
                 cx, cy = px + off[0], py + off[1]
-                self.labels.append(((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), c.parent,
+                rot = float(c.st.get("rotation", 0) or 0)
+                if rot % 180:   # nhan xoay (vd. viet doc theo mui ten): luu da giac that, rect = khung bao
+                    P = rot_poly(cx, cy, w, h, math.cos(math.radians(rot)), math.sin(math.radians(rot)))
+                    self.label_poly[len(self.labels)] = (P, (cx, cy, w, h, rot))
+                    r = (min(p[0] for p in P), min(p[1] for p in P), max(p[0] for p in P), max(p[1] for p in P))
+                else:
+                    r = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                self.labels.append((r, c.parent,
                                     "nhan '%s' cua canh %s" % (plain(c.value)[:30], edge_desc(ec, cells)), c))
         for v in self.verts:
             if v.st.get("labelPosition") == "right" and plain(v.value).strip():
@@ -533,6 +570,24 @@ def analyze_page(name, model):
             if r[0] + 1 < cx < r[2] - 1 and r[1] < v.ay + v.h and r[3] > top:
                 W.append("%s nam de len duong lifeline '%s' (doi vi tri nhan hoac dat labelBackgroundColor)."
                          % (d, lbl(v)))
+    lpoly = G.label_poly
+
+    def lab_hits(i, other, tol):
+        """Nhan i (xoay hay khong) lan vao hinh chu nhat / nhan / doan thang 'other' sau hon tol."""
+        if isinstance(other, int):
+            if i not in lpoly and other not in lpoly:
+                return rect_overlap(labels[i][0], labels[other][0], tol)
+            other = lpoly[other][0] if other in lpoly else poly_of_rect(labels[other][0])
+        elif len(other) == 4 and not isinstance(other[0], tuple):   # rect
+            if i not in lpoly:
+                return rect_overlap(labels[i][0], other, tol)
+            other = poly_of_rect(other)
+        else:                                                        # doan thang (p, q)
+            if i not in lpoly:
+                return seg_hits_rect(other[0], other[1], labels[i][0], tol)
+            other = list(other)
+        return poly_hit(lpoly[i][0] if i in lpoly else poly_of_rect(labels[i][0]), other, -tol)
+
     for i, (r, owner, d, _) in enumerate(labels):
         for v in prim:
             if v.id == owner or is_frame(v):
@@ -543,17 +598,17 @@ def analyze_page(name, model):
                     continue
             if owner in anc.get(v.id, set()) or v.id in anc.get(owner, set()):
                 continue
-            if rect_overlap(r, shape_rect(v), 1.0):
+            if lab_hits(i, shape_rect(v), 1.0):
                 W.append("%s de len hinh '%s'." % (d, lbl(v)))
         for j in range(i + 1, len(labels)):
             r2, o2, d2, _ = labels[j]
-            if rect_overlap(r, r2, 1.0):
+            if lab_hits(i, j, 1.0):
                 W.append("%s de len %s." % (d, d2))
         for eid, (c, pts) in edges.items():
             if eid == owner:
                 continue
             for p, q in zip(pts, pts[1:]):
-                if seg_hits_rect(p, q, r, 2.0):
+                if lab_hits(i, (p, q), 2.0):
                     W.append("%s bi canh %s cat ngang." % (d, edge_desc(c, cells)))
                     break
 

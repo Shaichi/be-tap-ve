@@ -134,7 +134,9 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 
 - Dạng DFD mức 0 / business context: **hình tròn** ở giữa = hệ thống / doanh nghiệp / quy trình nghiệp vụ; hình
   chữ nhật xung quanh = thực thể ngoài (người, tổ chức, bộ phận, hệ thống khác).
-- Mũi tên thẳng, đầu tam giác đặc, ghi **tên dữ liệu** (danh từ: "Đơn đặt hàng", "Hoá đơn"), không ghi hành động.
+- Mũi tên vuông góc, đầu tam giác đặc, ghi **tên dữ liệu** (danh từ: "Đơn đặt hàng", "Hoá đơn"), không ghi hành
+  động. **Mỗi luồng dữ liệu một mũi tên** – không gộp nhiều luồng vào một mũi tên/một khối chữ; tên luồng nằm
+  ngang trên đoạn ngang của mũi tên.
 - Đúng 1 hình tròn trung tâm (B1); mọi luồng có tên và nối trung tâm với bên ngoài (B2); thực thể ngoài không có
   luồng thì bỏ (B3). Không vẽ luồng giữa hai thực thể ngoài, không vẽ kho dữ liệu hay tiến trình con.
 - Khác context diagram COMET (`context`): cái đó là class diagram «software system» / «external …» cho kỹ sư.

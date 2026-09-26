@@ -289,10 +289,19 @@ def render_svg(model):
             S.append(marker(sa, st.get("startFill", "1") != "0", pts[0], pts[1]))
         for p in pts:
             maxx, maxy = max(maxx, p[0]), max(maxy, p[1])
-    for r, owner, d, cell in G.labels:
+    for i, (r, owner, d, cell) in enumerate(G.labels):
         if cell.vertex and not cell.relative:
             continue  # nhan cua hinh da ve
         bg = cell.st.get("labelBackgroundColor", "#ffffff")
+        if i in G.label_poly:   # nhan xoay theo mui ten
+            cx, cy, w, h, rot = G.label_poly[i][1]
+            S.append('<g transform="rotate(%.2f %.1f %.1f)">' % (rot, cx, cy))
+            if bg != "none":
+                S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#fff" opacity="0.9"/>'
+                         % (cx - w / 2, cy - h / 2, w, h))
+            S.append(_lines_block(cx, cy, _rich(cell.value), 11) + "</g>")
+            maxx, maxy = max(maxx, r[2]), max(maxy, r[3])
+            continue
         if bg != "none":
             S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#fff" opacity="0.9"/>'
                      % (r[0], r[1], r[2] - r[0], r[3] - r[1]))

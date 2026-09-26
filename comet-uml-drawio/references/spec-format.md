@@ -238,7 +238,9 @@ Cây điều hướng toàn hệ thống từ Home: ô chỉ ghi tên màn hình
   {"from": "kh", "to": "shop", "label": "Đơn đặt hàng"},
   {"from": "shop", "to": "kh", "label": "Hoá đơn"}]}
 ```
-Hệ thống là hình tròn giữa; thực thể ngoài xếp vòng theo chiều kim đồng hồ từ đỉnh (thứ tự `elements`); luồng
-cùng cặp + cùng chiều gộp 1 mũi tên nhiều dòng, hai chiều → 2 mũi tên thẳng song song; bán kính tự nới tới khi
-không nhãn nào đè hình/đường. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
+Hệ thống là hình tròn giữa; thực thể ngoài xếp 2 cột trái/phải (tự chia cân số luồng theo thứ tự `elements`,
+ép bằng `"side": "left"|"right"` trên element), cột căn giữa theo hình tròn. **Mỗi relation là 1 mũi tên
+vuông góc riêng** (không gộp): đi ngang ra từ cạnh hộp, tên luồng nằm ngang trên đoạn ngang; luồng ngang tầm cắm
+thẳng vào hông hình tròn, luồng cao hơn / thấp hơn gập một lần cắm vào đỉnh / đáy, các đường gập lồng nhau nên không cắt nhau.
+Hộp tự cao theo số luồng; bán kính hình tròn (nhỏ nhất xếp được) và khoảng cách cột tự nới tới khi không nhãn nào đè hình/đường/nhãn. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
 comet_check B1–B3.

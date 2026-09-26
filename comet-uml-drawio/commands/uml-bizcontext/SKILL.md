@@ -1,6 +1,6 @@
 ---
 name: uml-bizcontext
-description: Vẽ sơ đồ ngữ cảnh nghiệp vụ (business context diagram / DFD mức 0) ra draw.io – hình tròn trung tâm là hệ thống / doanh nghiệp, các thực thể bên ngoài xếp vòng quanh, mũi tên thẳng ghi luồng dữ liệu / thông tin trao đổi 2 chiều – bố cục tự động không chồng hình, nhãn không đè đường. Dùng khi người dùng gọi /uml-bizcontext hoặc cần mô tả phạm vi nghiệp vụ cho người không làm kỹ thuật.
+description: Vẽ sơ đồ ngữ cảnh nghiệp vụ (business context diagram / DFD mức 0) ra draw.io – hình tròn trung tâm là hệ thống / doanh nghiệp, các thực thể bên ngoài xếp 2 cột trái/phải, mỗi luồng dữ liệu / thông tin là một mũi tên vuông góc riêng, tên luồng nằm ngang trên đoạn ngang – bố cục tự động không chồng hình, nhãn không đè đường. Dùng khi người dùng gọi /uml-bizcontext hoặc cần mô tả phạm vi nghiệp vụ cho người không làm kỹ thuật.
 argument-hint: "<hệ thống / doanh nghiệp + các bên liên quan>"
 user-invocable: true
 ---
@@ -31,10 +31,15 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
 - **Đúng 1** phần tử trung tâm `{"id", "type": "system", "name": "Hệ thống bán hàng trực tuyến"}` (B1) — vẽ thành
   hình tròn ở giữa.
 - Thực thể ngoài `{"id", "type": "external", "name": "Khách hàng"}`: người, tổ chức, bộ phận, hệ thống khác trao đổi
-  thông tin với hệ thống. Thứ tự trong `elements` = thứ tự xếp vòng theo chiều kim đồng hồ từ đỉnh.
+  thông tin với hệ thống. Tự chia 2 cột trái/phải cho cân số luồng, giữ thứ tự `elements` từ trên xuống; ép
+  cột bằng `"side": "left"` / `"right"` trên element.
 - Luồng `{"from", "to", "label": "Đơn đặt hàng"}` — **danh từ** chỉ dữ liệu / chứng từ / thông tin (không phải
-  hành động), mỗi luồng **có tên** và **một đầu là hệ thống trung tâm** (B2). Nhiều luồng cùng chiều giữa một cặp
-  được gộp vào 1 mũi tên nhiều dòng; hai chiều → 2 mũi tên song song.
+  hành động), mỗi luồng **có tên** và **một đầu là hệ thống trung tâm** (B2). **Mỗi luồng = 1 mũi tên riêng**
+  (không gộp), thứ tự luồng trong spec = thứ tự từ trên xuống ở cạnh hộp. Mũi tên đi ngang ra từ cạnh hộp, tên
+  luồng nằm ngang trên đoạn ngang (dễ đọc); các luồng ngang tầm hình tròn cắm thẳng vào hông, luồng cao hơn /
+  thấp hơn gập vuông góc một lần cắm vào đỉnh / đáy, các đường gập lồng nhau → không cắt nhau, không nhãn nào
+  đè đường/nhãn khác. Nhiều luồng thì hộp tự cao ra, hình tròn chỉ nới vừa đủ. Tên luồng nên ngắn (≤ ~6 từ);
+  dài quá 240px sẽ tự xuống dòng.
 - Mỗi thực thể ngoài có ít nhất 1 luồng (B3). Luồng giữa hai thực thể ngoài nằm ngoài phạm vi – bỏ.
 
 ## 3. Chạy – sửa đến sạch
