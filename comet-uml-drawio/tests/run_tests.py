@@ -1242,14 +1242,14 @@ class TestCometCheck(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
             warn = copy.deepcopy(SHOP_COMM)
-            warn["useCase"] = "Ghost Use Case"
+            warn["elements"][1]["stereotype"] = "invalid stereotype"
             (d / "warn.json").write_text(json.dumps(warn), encoding="utf-8")
             r = run("comet_check.py", "--json", d / "warn.json")
             self.assertEqual(r.returncode, 0, r.stdout)
             payload = json.loads(r.stdout)
             self.assertIn("summary", payload)
             self.assertGreaterEqual(payload["summary"]["warnings"], 1)
-            self.assertTrue(any("X1" in x for x in payload["warnings"]))
+            self.assertTrue(any("R4" in x for x in payload["warnings"]))
 
     def test_statechart_rules(self):
         self.assertEqual(check(stm(*STM_OK)), ([], [], []))
