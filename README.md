@@ -137,7 +137,10 @@ tự chọn đúng lệnh.
 **AI sẽ làm theo quy trình cố định:**
 1. Đọc ví dụ mẫu và quy tắc của loại sơ đồ.
 2. Viết spec vào `./uml/<tên>.json`.
-3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_check.py` (luật UML/COMET), rồi
+3. Chạy `uml2drawio.py` (sinh file và kiểm tra hình học), rồi `comet_model.py` (xây canonical semantic model v2),
+   `comet_check.py` (luật UML/COMET + traceability), rồi `comet_manifest.py` (model/consistency/repair),
+   nếu đã có canonical model thì chạy reconcile để kiểm tra các spec có đúng là projection không (dự án có
+   `system.canonical.json` thì sửa file đó rồi `comet_project.py compile` sinh lại spec trước), rồi
    `preview_svg.py --png` (chụp ảnh).
 4. Sửa đến khi **0 ERROR** và hết WARN, rồi tự xem ảnh để soát lại.
 5. Nếu có draw.io MCP: mở sơ đồ trên diagrams.net. Nếu không: đưa đường dẫn file `.drawio` và `.png`.
@@ -171,6 +174,33 @@ python scripts/uml2drawio.py examples/elearn_erd.json -o out/elearn_erd.drawio
 
 ```bash
 python scripts/comet_check.py --partial examples/elearn_erd.json
+
+python scripts/comet_model.py "./uml/*.json" -o "./uml/<He_thong>.model.json"
+# schema v2: canonical concepts + diagram-local representations + aliases + relationships + provenance + impact graph.
+# --legacy hoặc --schema-version 1 vẫn xuất model v1.
+
+python scripts/comet_check.py --strict "./uml/*.json"
+# --json: xuất report machine-readable và nhúng semantic model.
+# --strict: còn WARN cũng trả mã thoát 1, phù hợp CI/lần kiểm cuối.
+
+python scripts/comet_plan.py "./uml/*.json" -o "./uml/<He_thong>.repair.json"
+# repair plan v2: rule + canonical concept + impacted diagrams/specs + hướng sửa/regenerate.
+
+python scripts/comet_manifest.py "./uml/*.json" -o "./uml/<He_thong>"
+# sinh đồng bộ: <He_thong>.model.json + <He_thong>.consistency.json + <He_thong>.repair.json.
+
+python scripts/comet_reconcile.py --help
+# khi đã có canonical model v2, dùng nó làm authority và coi các spec hiện tại là projections.
+
+python scripts/comet_project.py bootstrap "./uml/*.json" -o ./uml/system.canonical.json
+# canonical-first: gom mọi spec thành MỘT file nguồn sự thật (kiểm round-trip exact).
+python scripts/comet_project.py compile ./uml/system.canonical.json -o ./uml/
+# sinh lại toàn bộ spec từ file canonical; đổi tên concept một chỗ → mọi sơ đồ đổi theo. --check: báo spec cũ/sửa tay.
+# chạy compile MỘT lần ngay sau bootstrap để spec mang conceptId; từ đó chỉ sửa file canonical.
+# concept/quan hệ không view nào chiếu ra → cảnh báo K10/K11 (stderr); family có một view thì tự autoInclude.
+# comet_check/uml2drawio bỏ qua các artifact comet-* khi glob "*.json"; R2/R5/R14 xét theo từng bundle.
+# comet_manifest.py/comet_reconcile.py nhận thẳng file canonical qua --canonical-model. Xem references/comet-project.md.
+# ba artifact dùng cùng modelFingerprint để agent/tool downstream làm việc trên cùng semantic snapshot.
 ```
 
 ```bash
@@ -188,7 +218,7 @@ Tuỳ chọn khác:
 - `--no-validate` bỏ bước kiểm tra.
 - `python scripts/validate_drawio.py file.drawio` kiểm tra một file draw.io bất kỳ, kể cả file vẽ tay.
 
-**Mã thoát:** `0` là sạch; `2` là còn ERROR.
+**Mã thoát `comet_check.py`:** `0` là sạch; `1` là có ERROR (hoặc có WARN khi dùng `--strict`).
 
 ---
 
@@ -301,6 +331,7 @@ Nhóm luật của `comet_check.py`:
 | Mã | Phạm vi |
 |---|---|
 | R1–R14 | Nhất quán COMET giữa các sơ đồ (use case ↔ tương tác ↔ statechart ↔ context ↔ class) |
+| X1–X6 | Traceability mở rộng giữa use case ↔ interaction/activity ↔ statechart ↔ ERD/entity ↔ component/deployment |
 | S1–S5 | Statechart hợp lệ |
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
@@ -309,8 +340,19 @@ Nhóm luật của `comet_check.py`:
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 | L1 | Mọi sơ đồ: chữ mặc định tiếng Anh (có chữ có dấu mà chưa đặt `"lang"`) |
 
-`--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7) chỉ còn là
-INFO.
+`--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7, X2, X3, và
+X1 khi bundle chưa có use case model) chỉ còn là INFO. Tham chiếu treo thật sự (bundle đã có use case model nhưng
+không có tên đó) vẫn là WARN.
+
+Ví dụ: bộ `examples/atm_*.json` cố ý chỉ vẽ luồng *Validate PIN*, nên chạy đầy đủ sẽ có 7 WARN R1 (các use case còn
+lại chưa có sơ đồ tương tác) và `--strict` trả mã thoát 1. Muốn kiểm tra bộ ví dụ như một bộ sơ đồ dở dang:
+
+```bash
+python scripts/comet_check.py --partial --strict examples/atm_*.json
+```
+
+Để gom nhiều spec của cùng một hệ thống khi chạy validator, nên đặt cùng `"bundle"` (ví dụ `"atm-banking"`). Khi có `bundle`, validator dùng nó làm namespace cho các luật consistency/traceability (R1, R2, R5, R7, R8, R12, R14 và X1–X6), tránh trộn hai hệ thống có cùng tên use case/class. Chỉ trường `bundle` là namespace; `system` chỉ là tên hiển thị. Không có `bundle` thì giữ hành vi tương thích ngược; X4/X5 ghép cặp theo heuristic `title` cùng gốc hoặc dùng chung ≥2 tên. Khi chỉ có đúng 1 ERD và 1 entity class model (hoặc 1 component và 1 deployment) mà heuristic không ghép được, validator ghi INFO gợi ý đặt cùng `bundle` thay vì bỏ qua im lặng.
+
 
 ---
 

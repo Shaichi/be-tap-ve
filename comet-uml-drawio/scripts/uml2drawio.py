@@ -1698,11 +1698,20 @@ def expand(paths):
     return out
 
 
+def is_artifact(data):
+    """Artifact do cac script sinh ra (model/consistency/repair/manifest...) nam cung thu muc voi spec:
+    co "kind" dang "comet-..." va khong co "diagram"/"diagrams" -> bo qua khi mo rong glob "./uml/*.json"."""
+    return (isinstance(data, dict) and str(data.get("kind", "")).startswith("comet-")
+            and "diagram" not in data and "diagrams" not in data)
+
+
 def load_specs(paths):
     specs = []
     for p in paths:
         with open(p, encoding="utf-8") as f:
             data = json.load(f)
+        if is_artifact(data):
+            continue
         if isinstance(data, dict) and "diagrams" in data:
             specs += data["diagrams"]
         elif isinstance(data, list):

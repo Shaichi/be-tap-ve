@@ -15,6 +15,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | `useCase` | tương tác | Tên use case mà communication/sequence hiện thực (khớp R1) |
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
 | `system` | usecase | Tên hệ thống trên system boundary (mặc định = `title`) |
+| `bundle` | mọi sơ đồ | Khoá namespace cho toàn bộ bộ diagram của cùng một hệ thống; nên đặt giống nhau cho tất cả spec. Khi có bundle, các luật consistency/traceability không mượn dữ liệu từ bundle khác; spec cũ không có bundle vẫn tương thích |
 | `direction` | | `TB` (trên→dưới) hoặc `LR` (trái→phải). Mặc định `LR` cho usecase/communication, `TB` còn lại |
 | `frame` | | `false` để bỏ khung UML ngoài |
 | `autonumber` | | communication: tự đánh số message nếu thiếu `seq` (mặc định true); sequence: mặc định false |
@@ -29,6 +30,12 @@ trung tâm trước, quan hệ theo luồng chính trước).
 Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `type`, `name`, `stereotype`
 (chuỗi hoặc mảng; viết trần, không « »), `in` (id phần tử cha – lồng vào container),
 `partition` (activity có `partitions`: id hoặc tên làn; phần tử không ghi sẽ theo làn của nút kề).
+Semantic identity v2 (tuỳ chọn): `conceptId`/`semanticId`/`modelId` để trỏ tới cùng canonical concept xuyên diagram;
+`aliases` để khai báo tên thay thế; `aliasOf` để biểu diễn rằng representation này là alias của concept đã biết.
+Không dùng `id` diagram-local làm canonical identity.
+Spec do `comet_project.py compile` sinh ra luôn mang `conceptId` trên phần tử concept, và `useCaseConceptId` /
+`stateMachineOfConceptId` ở cấp spec khi `useCase` / `stateMachineOf` là concept → identity giữ nguyên khi đổi tên
+(xem `references/comet-project.md`). Không sửa tay các spec này; sửa file canonical rồi compile lại.
 
 | `type` | Trường riêng |
 |---|---|

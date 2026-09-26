@@ -68,7 +68,7 @@ import unicodedata
 from collections import defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
-from uml2drawio import CHEN_REL, FLOW_NODES, NAV_LABELS  # noqa: E402
+from uml2drawio import CHEN_REL, FLOW_NODES, NAV_LABELS, is_artifact  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -141,6 +141,8 @@ def load(paths):
     for p in expand(paths):
         with open(p, encoding="utf-8") as f:
             d = json.load(f)
+        if is_artifact(d):
+            continue
         items = d["diagrams"] if isinstance(d, dict) and "diagrams" in d else (d if isinstance(d, list) else [d])
         for i, s in enumerate(items):
             s["_src"] = p if len(items) == 1 else "%s#%d" % (p, i + 1)
@@ -464,6 +466,15 @@ def check_lang(s, W):
                  % (s["_src"], len(found), ", ".join("'%s'" % t for t in found[:3])))
 
 
+def _scope_key(s):
+    """Phạm vi consistency opt-in: chỉ `bundle` tách namespace; spec cũ không có bundle giữ hành vi cũ."""
+    return norm(s.get("bundle")) or "__default__"
+
+
+def _scoped_name(s, value):
+    return (_scope_key(s), norm(value))
+
+
 def check(specs, partial=False):
     E, W, I = [], [], []
     for s in specs:
@@ -474,49 +485,52 @@ def check(specs, partial=False):
         by[str(s.get("diagram", "")).lower()].append(s)
 
     # ---- collect
-    usecases, uc_actors = {}, {}   # ten chuan hoa -> ten goc
+    usecases, uc_actors = {}, {}   # (scope, ten chuan hoa) -> ten goc
     for s in by["usecase"]:
         for e in s.get("elements", []):
             if e.get("type") == "usecase":
-                usecases[norm(e.get("name", e.get("id")))] = e.get("name", e.get("id"))
+                usecases[_scoped_name(s, e.get("name", e.get("id")))] = e.get("name", e.get("id"))
             if e.get("type") == "actor":
-                uc_actors[norm(e.get("name", e.get("id")))] = e.get("name", e.get("id"))
+                uc_actors[_scoped_name(s, e.get("name", e.get("id")))] = e.get("name", e.get("id"))
     entity_classes = {}
     for s in by["class"]:
         for e in s.get("elements", []):
             if st_of(e) == "entity":
-                entity_classes[norm(e.get("name", e.get("id")))] = e
+                entity_classes[_scoped_name(s, e.get("name", e.get("id")))] = e
                 if e.get("operations"):
                     W.append("R10 [%s] Lop «entity» '%s' co operations - trong mo hinh phan tich COMET, "
                              "entity class chi nen co thuoc tinh (operations xac dinh o pha thiet ke)."
                              % (s["_src"], e.get("name")))
 
+    # R2/R5/R14 chi so voi mo hinh CÙNG bundle: bundle khong co use case/entity model/context thi khong bi kiem.
+    uc_actor_scopes = {scope for scope, _ in uc_actors}
+    entity_scopes = {scope for scope, _ in entity_classes}
     inter = by["communication"] + by["sequence"]
-    ctl_in, ctl_out = defaultdict(set), defaultdict(set)   # class name -> messages (khong ke reply)
-    rep_in, rep_out = defaultdict(set), defaultdict(set)   # reply den / di tu control
+    ctl_in, ctl_out = defaultdict(set), defaultdict(set)   # (scope, class name) -> messages
+    rep_in, rep_out = defaultdict(set), defaultdict(set)   # (scope, class name) -> reply messages
     shown = {}   # ten da chuan hoa -> ten goc (de in thong bao)
     sdc_classes = {}
     covered = set()
     for s in inter:
         src = s["_src"]
-        covered.add(norm(s.get("useCase") or s.get("title")))
+        covered.add(_scoped_name(s, s.get("useCase") or s.get("title")))
         els = lifelines(s)
         seqs = defaultdict(int)
         talks_actor = set()
         for e in els.values():
             if e.get("type") == "actor":
-                if uc_actors and norm(e.get("name", e.get("id"))) not in uc_actors:
+                if _scope_key(s) in uc_actor_scopes and _scoped_name(s, e.get("name", e.get("id"))) not in uc_actors:
                     W.append("R2 [%s] Actor '%s' khong co trong mo hinh use case." % (src, e.get("name")))
                 continue
             st = st_of(e)
             if st not in COMET_OBJ:
                 W.append("R4 [%s] Doi tuong '%s' co stereotype «%s» khong phai stereotype cau truc doi tuong COMET "
                          "(boundary/control/application logic/entity)." % (src, obj_class(e), st or "?"))
-            if st in ENTITY and entity_classes and norm(obj_class(e)) not in entity_classes:
+            if st in ENTITY and _scope_key(s) in entity_scopes and _scoped_name(s, obj_class(e)) not in entity_classes:
                 W.append("R5 [%s] Doi tuong «entity» ':%s' khong co lop «entity» tuong ung trong entity class model."
                          % (src, obj_class(e)))
             if st in SDC:
-                sdc_classes[norm(obj_class(e))] = obj_class(e)
+                sdc_classes[_scoped_name(s, obj_class(e))] = obj_class(e)
         for m in s.get("messages", []):
             a, b = els.get(str(m.get("from"))), els.get(str(m.get("to")))
             name = m.get("name", m.get("label"))
@@ -544,9 +558,9 @@ def check(specs, partial=False):
             if name:
                 shown.setdefault(mname(name), name)
             if tb in SDC and a is not b and name:
-                (rep_in if is_reply(m) else ctl_in)[norm(obj_class(b))].add(mname(name))
+                (rep_in if is_reply(m) else ctl_in)[_scoped_name(s, obj_class(b))].add(mname(name))
             if ta in SDC and a is not b and name:
-                (rep_out if is_reply(m) else ctl_out)[norm(obj_class(a))].add(mname(name))
+                (rep_out if is_reply(m) else ctl_out)[_scoped_name(s, obj_class(a))].add(mname(name))
             if b.get("type") == "actor":
                 talks_actor.add(str(m.get("from")))
             if a.get("type") == "actor":
@@ -573,13 +587,15 @@ def check(specs, partial=False):
     sm_of = {}
     for s in by["state"]:
         cls = s.get("stateMachineOf") or s.get("title")
-        sm_of[norm(cls)] = s
+        sm_of[_scoped_name(s, cls)] = s
     for k, cls in sdc_classes.items():
         if k not in sm_of:
             MISS.append("R7 Doi tuong «state dependent control» '%s' chua co statechart (\"stateMachineOf\": \"%s\")."
                         % (cls, cls))
     for k, s in sm_of.items():
         src = s["_src"]
+        # k = (scope, ten chuan hoa) -> in ten goc nhu tac gia viet (uu tien ten class trong interaction)
+        cls = sdc_classes.get(k) or str(s.get("stateMachineOf") or s.get("title") or k[1])
         events, actions = set(), set()
         for r in s.get("relations", []):
             if str(r.get("type", "transition")).lower() not in ("transition", "flow"):
@@ -595,17 +611,16 @@ def check(specs, partial=False):
         if not any(k in d for d in (ctl_in, ctl_out, rep_in, rep_out)):
             if inter:
                 I.append("R8 [%s] Statechart '%s' khong khop voi doi tuong «state dependent control» nao trong cac "
-                         "so do tuong tac da cho - bo qua kiem tra event/action." % (src, k))
+                         "so do tuong tac da cho - bo qua kiem tra event/action." % (src, cls))
             continue
         for ev in sorted(events):
             if ev not in ctl_in[k] and ev not in rep_in[k]:
                 I.append("R8 [%s] Event '%s' chua xuat hien la message DEN '%s' trong so do tuong tac nao "
-                         "(co the thuoc use case chua ve)." % (src, ev, k))
+                         "(co the thuoc use case chua ve)." % (src, ev, cls))
         for ac in sorted(actions):
             if ac not in ctl_out[k] and ac not in rep_out[k]:
                 I.append("R8 [%s] Action '%s' chua xuat hien la message DI tu '%s' trong so do tuong tac nao."
-                         % (src, ac, k))
-        cls = sdc_classes.get(k, k)
+                         % (src, ac, cls))
         for m in sorted(ctl_in[k]):   # reply den control (du lieu tra ve) khong bat buoc la event
             if m not in events:
                 W.append("R8 [%s] Message '%s' den '%s' khong la event cua transition nao tren statechart - dat "
@@ -640,14 +655,21 @@ def check(specs, partial=False):
                 I.append("R11 [%s] Quan he %s - %s nen co %s (nhu context diagram cua Gomaa)."
                          % (s["_src"], ends[0], ends[1], " va ".join(miss)))
 
-    # R14 - actor cua use case model <-> lop ngoai cua context diagram (khop ca cum tu: "ATM Customer" ~
-    # "ATM Customer Keypad Display"); actor nguoi chi tuong tac qua thiet bi co the vang -> chi ghi chu
+    # R14 - actor cua use case model <-> lop ngoai cua context diagram (khop ca cum tu).
+    # Khi spec co `bundle`, chi so sanh actor voi context cung bundle; spec cu khong co bundle van dung namespace mac dinh.
     if by["context"] and uc_actors:
-        ctx = [(s["_src"], norm(e.get("name", e.get("id")))) for s in by["context"] for e in s.get("elements", [])
-               if st_of(e) not in ("software system", "system") and norm(e.get("type")) != "note"]
-        srcs = ", ".join(s["_src"] for s in by["context"])
-        for k, aname in uc_actors.items():
-            if not any(re.search(r"(?<!\w)%s(?!\w)" % re.escape(k), x) for _, x in ctx):
+        ctx_by_scope = defaultdict(list)
+        for s in by["context"]:
+            for e in s.get("elements", []):
+                if st_of(e) not in ("software system", "system") and norm(e.get("type")) != "note":
+                    ctx_by_scope[_scope_key(s)].append((s["_src"], norm(e.get("name", e.get("id")))))
+        ctx_scopes = {_scope_key(s) for s in by["context"]}
+        for (scope, actor_key), aname in uc_actors.items():
+            if scope not in ctx_scopes:
+                continue
+            ctx = ctx_by_scope.get(scope, [])
+            srcs = ", ".join(src for src, _ in ctx) or ", ".join(s["_src"] for s in by["context"] if _scope_key(s) == scope)
+            if not any(re.search(r"(?<!\w)%s(?!\w)" % re.escape(actor_key), x) for _, x in ctx):
                 I.append("R14 [%s] Actor '%s' cua use case model chua co lop ngoai cung ten trong context diagram - "
                          "them lop «external …» ten '%s' (he thong ngoai: «external system», timer: «external timer»),"
                          " tru khi actor chi tuong tac qua cac thiet bi «external … device» da ve." % (srcs, aname, aname))
@@ -671,6 +693,238 @@ def check(specs, partial=False):
         check_screenflow(s, E, W, I)
     for s in by["bizcontext"]:
         check_bizcontext(s, E, W, I)
+
+    # Cross-diagram traceability layer (X1-X6).
+    xE, xW, xI = check_cross_diagrams(by, partial=partial)
+    E.extend(xE)
+    W.extend(xW)
+    I.extend(xI)
+    return E, W, I
+
+
+
+def _spec_ref_name(s):
+    """Khoa trace use case cho interaction/activity spec."""
+    d = norm(s.get("diagram"))
+    if d in ("communication", "sequence"):
+        return norm(s.get("useCase") or s.get("title"))
+    return norm(s.get("useCase"))
+
+
+def _same_bundle(a, b, shared_names=()):
+    # Chi `bundle` la khoa namespace (giong _scope_key); `system` cua use case la ten he thong, khong phai scope.
+    ka, kb = norm(a.get("bundle")), norm(b.get("bundle"))
+    if ka and kb:
+        return ka == kb
+    if ka or kb:
+        return False
+
+    # Nhan dien prefix cua title neu chua co bundle key.
+    def title_stem(s):
+        t = norm(s.get("title"))
+        for sep in (" - ", " — ", ":", " / "):
+            if sep in t:
+                return t.split(sep, 1)[0].strip()
+        return t
+
+    ta, tb = title_stem(a), title_stem(b)
+    if ta and tb and ta == tb and len(ta) >= 3:
+        return True
+
+    # Neu chia se it nhat 2 ten nghiep vu, coi nhu cung bundle.
+    return len(set(shared_names)) >= 2
+
+
+def _note_unmatched_pair(rule, left, right, left_kind, right_kind, I):
+    """Mot cap duy nhat khong khai bao bundle ma heuristic khong ghep duoc -> ghi chu thay vi bo qua im lang."""
+    if len(left) != 1 or len(right) != 1:
+        return
+    (ls, lnames), (rs, rnames) = left[0], right[0]
+    if ls.get("bundle") or rs.get("bundle") or _same_bundle(ls, rs, lnames & rnames):
+        return
+    I.append("%s [%s <> %s] Khong so sanh %s voi %s: khong co \"bundle\", title khac tien to va chung it hon 2 ten. "
+             "Neu cung mot he thong, dat cung \"bundle\" de kiem %s." % (rule, ls["_src"], rs["_src"], left_kind,
+                                                                      right_kind, rule))
+
+
+def check_cross_diagrams(by, partial=False):
+    """X1-X6: traceability cheo mo rong; X1-X3 ton trong namespace `bundle` neu duoc khai bao."""
+    E, W, I = [], [], []
+    MISS = I if partial else W
+
+    # ------------------------------------------------ X1: interaction/activity tham chieu use case khong ton tai trong CÙNG bundle
+    declared_uc = defaultdict(set)
+    for s in by["usecase"]:
+        scope = _scope_key(s)
+        for e in s.get("elements", []):
+            if e.get("type") == "usecase" and (e.get("name") or e.get("id")):
+                declared_uc[scope].add(norm(e.get("name", e.get("id"))))
+    for s in by["communication"] + by["sequence"] + by["activity"]:
+        ref = _spec_ref_name(s)
+        if not ref or not declared_uc:
+            continue
+        in_scope = declared_uc.get(_scope_key(s))
+        if in_scope and ref in in_scope:
+            continue
+        # Bundle co use case model ma khong co ten nay -> tham chieu treo (WARN);
+        # bundle chua co use case model nao -> co the chi la bo so do chua day du (--partial: INFO).
+        (W if in_scope else MISS).append(
+            "X1 [%s] %s '%s' tham chieu use case '%s' nhung use case nay khong ton tai trong bundle '%s'."
+            % (s["_src"], s.get("diagram", "diagram"), s.get("title") or ref,
+               s.get("useCase") or s.get("title"), s.get("bundle") or "default"))
+
+    # ------------------------------------------------ X2: actor gan use case phai xuat hien trong interaction CÙNG bundle
+    actor_by_uc = defaultdict(set)
+    actor_display = {}
+    for s in by["usecase"]:
+        els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+        scope = _scope_key(s)
+        for rel in s.get("relations", []):
+            a, b = els.get(str(rel.get("from"))), els.get(str(rel.get("to")))
+            if not a or not b:
+                continue
+            if a.get("type") == "actor" and b.get("type") == "usecase":
+                actor_key = norm(a.get("name", a.get("id")))
+                uc_key = (scope, norm(b.get("name", b.get("id"))))
+                actor_by_uc[uc_key].add(actor_key)
+                actor_display[(uc_key, actor_key)] = a.get("name", a.get("id"))
+            elif b.get("type") == "actor" and a.get("type") == "usecase":
+                actor_key = norm(b.get("name", b.get("id")))
+                uc_key = (scope, norm(a.get("name", a.get("id"))))
+                actor_by_uc[uc_key].add(actor_key)
+                actor_display[(uc_key, actor_key)] = b.get("name", b.get("id"))
+    actors_in_inter = defaultdict(set)
+    for s in by["communication"] + by["sequence"]:
+        ref = _spec_ref_name(s)
+        if not ref:
+            continue
+        actors_in_inter[(_scope_key(s), ref)].update(
+            norm(e.get("name", e.get("id"))) for e in s.get("elements", []) if e.get("type") == "actor")
+    for (scope, uc), actors in actor_by_uc.items():
+        if (scope, uc) not in actors_in_inter:
+            continue  # R1 xu ly thieu interaction; interaction co nhung khong co actor van phai bao X2
+        actual = actors_in_inter[(scope, uc)]
+        missing = sorted(actors - actual)
+        if missing:
+            MISS.append("X2 [%s] Use case '%s' (bundle '%s') co actor %s trong use case model nhung actor do khong "
+                        "xuat hien trong communication/sequence cua use case." %
+                        (", ".join(sorted(set(s["_src"] for s in by["usecase"] if _scope_key(s) == scope))),
+                         uc, "default" if scope == "__default__" else scope,
+                         ", ".join("'%s'" % actor_display.get(((scope, uc), x), x) for x in missing)))
+
+    # ------------------------------------------------ X3: statechart phai truy nguoc duoc ve SDC control trong CÙNG bundle
+    controls = defaultdict(list)
+    for s in by["communication"] + by["sequence"]:
+        scope = _scope_key(s)
+        for e in s.get("elements", []):
+            if e.get("type") == "actor":
+                continue
+            if st_of(e) in SDC:
+                controls[(scope, norm(obj_class(e)))].append(s["_src"])
+    for s in by["state"]:
+        cls = norm(s.get("stateMachineOf") or s.get("title"))
+        if not cls:
+            W.append("X3 [%s] Statechart khong co 'stateMachineOf'/'title' de truy vet ve control object." % s["_src"])
+            continue
+        # Control co the nam trong interaction chua duoc dua vao lan kiem nay (--partial: INFO).
+        if (by["communication"] or by["sequence"]) and (_scope_key(s), cls) not in controls:
+            MISS.append("X3 [%s] Statechart '%s' (bundle '%s') khong truy vet duoc toi doi tuong "
+                        "«state dependent control» cung ten trong communication/sequence cung bundle." %
+                        (s["_src"], s.get("stateMachineOf") or s.get("title"),
+                         s.get("bundle") or "default"))
+
+    # ------------------------------------------------ X4: ERD <-> entity class, chi so sanh khi co dau hieu cung bundle
+    erd_specs = []
+    cls_specs = []
+    for s in by["erd"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if e.get("type") == "entity" and (e.get("name") or e.get("id"))}
+        if names:
+            erd_specs.append((s, names))
+    for s in by["class"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if st_of(e) == "entity" and (e.get("name") or e.get("id"))}
+        if names:
+            cls_specs.append((s, names))
+    _note_unmatched_pair("X4", erd_specs, cls_specs, "ERD", "entity class model", I)
+    for es, enames in erd_specs:
+        for cs, cnames in cls_specs:
+            shared = sorted(enames & cnames)
+            if not _same_bundle(es, cs, shared):
+                continue
+            only_erd = sorted(enames - cnames)
+            only_cls = sorted(cnames - enames)
+            if only_erd:
+                W.append("X4 [%s <> %s] ERD co entity %s nhung entity class model thieu %s." %
+                         (es["_src"], cs["_src"], ", ".join("'%s'" % x for x in shared),
+                          ", ".join("'%s'" % x for x in only_erd)))
+            if only_cls:
+                I.append("X4 [%s <> %s] Entity class model co %s chua xuat hien trong ERD cung bundle." %
+                         (es["_src"], cs["_src"], ", ".join("'%s'" % x for x in only_cls)))
+
+    # ------------------------------------------------ X5: logical component <-> deployment component
+    comp_specs = []
+    dep_specs = []
+    for s in by["component"]:
+        # Deployment thường map subsystem/component cấp cao; component con có "in" được triển khai
+        # cùng container cha và không bắt buộc phải xuất hiện như một artifact/component riêng.
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if e.get("type") in ("component", "subsystem")
+                 and not e.get("in")
+                 and (e.get("name") or e.get("id"))}
+        if names:
+            comp_specs.append((s, names))
+    for s in by["deployment"]:
+        names = {norm(e.get("name", e.get("id"))) for e in s.get("elements", [])
+                 if e.get("type") == "component" and (e.get("name") or e.get("id"))}
+        if names:
+            dep_specs.append((s, names))
+    _note_unmatched_pair("X5", comp_specs, dep_specs, "component diagram", "deployment diagram", I)
+    for cs, cnames in comp_specs:
+        for ds, dnames in dep_specs:
+            shared = sorted(cnames & dnames)
+            if not _same_bundle(cs, ds, shared):
+                continue
+            missing_logical = sorted(dnames - cnames)
+            not_deployed = sorted(cnames - dnames)
+            if missing_logical:
+                W.append("X5 [%s <> %s] Deployment co component %s khong ton tai trong component diagram." %
+                         (cs["_src"], ds["_src"], ", ".join("'%s'" % x for x in missing_logical)))
+            if not_deployed:
+                I.append("X5 [%s <> %s] Component diagram co %s chua duoc anh xa vao deployment diagram." %
+                         (cs["_src"], ds["_src"], ", ".join("'%s'" % x for x in not_deployed)))
+
+    # ------------------------------------------------ X6: cung ten object khong duoc doi vai tro structural trong cung bundle
+    roles = defaultdict(set)
+    sources = defaultdict(set)
+    for s in by["communication"] + by["sequence"]:
+        scope = _scope_key(s)
+        for e in s.get("elements", []):
+            if e.get("type") == "actor":
+                continue
+            n = norm(obj_class(e))
+            if not n:
+                continue
+            key = (scope, n)
+            roles[key].add(st_of(e))
+            sources[key].add(s["_src"])
+    for s in by["class"]:
+        scope = _scope_key(s)
+        for e in s.get("elements", []):
+            if st_of(e) == "entity":
+                n = norm(e.get("name", e.get("id")))
+                if n:
+                    key = (scope, n)
+                    roles[key].add("entity")
+                    sources[key].add(s["_src"])
+    for (scope, n), rs in roles.items():
+        structural = {r for r in rs if r in COMET_OBJ or r == "entity"}
+        if "entity" in structural and len(structural) > 1:
+            W.append("X6 [%s] Ten '%s' trong bundle '%s' xuat hien voi vai tro structural mau thuan: %s. "
+                     "Mot doi tuong entity khong nen dong thoi la boundary/control/application logic." %
+                     (", ".join(sorted(sources[(scope, n)])), n,
+                      "default" if scope == "__default__" else scope,
+                      ", ".join(sorted(structural))))
     return E, W, I
 
 
@@ -679,13 +933,14 @@ def check_comm_vs_seq(inter, W, I):
     groups = defaultdict(lambda: defaultdict(list))
     for s in inter:
         uc = s.get("useCase") or s.get("title")
-        groups[norm(uc)][str(s.get("diagram", "")).lower()].append(s)
-    for uc, g in groups.items():
+        groups[(_scope_key(s), norm(uc))][str(s.get("diagram", "")).lower()].append(s)
+    for (scope, uc), g in groups.items():
         if not g["communication"] or not g["sequence"]:
             continue
         src = "%s <> %s" % (", ".join(s["_src"] for s in g["communication"]),
                             ", ".join(s["_src"] for s in g["sequence"]))
         ucname = g["communication"][0].get("useCase") or g["communication"][0].get("title")
+        bundle_name = "default" if scope == "__default__" else scope
         rows = {}
         for kind in ("communication", "sequence"):
             rows[kind] = []
@@ -709,7 +964,7 @@ def check_comm_vs_seq(inter, W, I):
                     continue   # ben kia la reply khong ten giua dung cap doi tuong
                 W.append("R12 [%s] Message '%s' co trong %s diagram nhung khong co trong %s diagram cua use case "
                          "'%s' - hai so do phai the hien cung kich ban (ten viet giong het)."
-                         % (src, shown[n], here, there, ucname))
+                         % (src, shown[n], here, there, ucname + " (bundle " + bundle_name + ")"))
         for n in sorted(nc & ns):
             pc = {(r[2], r[3]) for r in rc if r[0] == n}
             ps = {(r[2], r[3]) for r in rs if r[0] == n}
@@ -729,16 +984,39 @@ def main():
     ap.add_argument("specs", nargs="+")
     ap.add_argument("--partial", action="store_true",
                     help="chi kiem mot phan bo so do: R1/R7 (thieu so do doi ung) chi la INFO")
+    ap.add_argument("--strict", action="store_true",
+                    help="co WARN thi tra ma thoat 1 (dung cho CI/kiem tra cuoi)")
+    ap.add_argument("--json", action="store_true",
+                    help="xuat report JSON may-doc thay vi output text")
+    ap.add_argument("--model-schema-version", choices=("1", "2"), default="2",
+                    help="schema semantic model embedded in --json (mac dinh: 2)")
+    ap.add_argument("--legacy-model", action="store_true",
+                    help="alias cua --model-schema-version 1")
     a = ap.parse_args()
-    E, W, I = check(load(a.specs), partial=a.partial)
-    print("COMET check: %d loi, %d canh bao, %d ghi chu" % (len(E), len(W), len(I)))
-    for x in E:
-        print("  ERROR:", x)
-    for x in W:
-        print("  WARN :", x)
-    for x in I:
-        print("  INFO :", x)
-    sys.exit(1 if E else 0)
+    specs = load(a.specs)
+    E, W, I = check(specs, partial=a.partial)
+    if a.json:
+        # Import lazily de tranh circular import khi comet_model tai cac helper tu module nay.
+        from comet_model import build_model
+        version = 1 if a.legacy_model else int(a.model_schema_version)
+        print(json.dumps({
+            "summary": {"errors": len(E), "warnings": len(W), "infos": len(I)},
+            "errors": E,
+            "warnings": W,
+            "infos": I,
+            "partial": bool(a.partial),
+            "strict": bool(a.strict),
+            "model": build_model(specs, schema_version=version),
+        }, ensure_ascii=False, indent=2))
+    else:
+        print("COMET check: %d loi, %d canh bao, %d ghi chu" % (len(E), len(W), len(I)))
+        for x in E:
+            print("  ERROR:", x)
+        for x in W:
+            print("  WARN :", x)
+        for x in I:
+            print("  INFO :", x)
+    sys.exit(1 if E or (a.strict and W) else 0)
 
 
 if __name__ == "__main__":

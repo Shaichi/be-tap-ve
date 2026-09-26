@@ -23,6 +23,8 @@ Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn
 tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet_check` báo L1). Trả lời người dùng vẫn
 bằng ngôn ngữ của họ.
 
+- **Gán cùng một `"bundle"` cho toàn bộ spec của cùng hệ thống** (ví dụ `"bundle": "atm-banking"`). Validator dùng khoá này để cô lập namespace consistency giữa các diagram; nên giữ nguyên `"bundle"` cho toàn bộ 14 bước. Các luật R1/R2/R5/R7/R8/R12/R14 và X1–X6 sẽ không mượn dữ liệu từ bundle khác.
+
 ## 1. Đọc bắt buộc
 - Trước khi bắt đầu: `<ENGINE>/references/comet-method.md` (toàn bộ) và `<ENGINE>/SKILL.md`.
 - Trước **mỗi** bước ở bảng dưới: đọc file lệnh của bước đó (`../uml-<loại>/SKILL.md`, mục 1–2) và ví dụ nó chỉ tới
@@ -62,15 +64,24 @@ bằng ngôn ngữ của họ.
 Sau mỗi bước: chạy 3 lệnh của lệnh con (có `--partial`) cho spec vừa viết. Xong tất cả:
 ```bash
 python "<ENGINE>/scripts/uml2drawio.py" "./uml/*.json" -o ./uml/<He_thong>.drawio
-python "<ENGINE>/scripts/comet_check.py" "./uml/*.json"
+python "<ENGINE>/scripts/comet_model.py" "./uml/*.json" -o ./uml/<He_thong>.model.json
+python "<ENGINE>/scripts/comet_check.py" --strict "./uml/*.json"
+python "<ENGINE>/scripts/comet_plan.py" "./uml/*.json" -o ./uml/<He_thong>.repair.json
 python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_thong>.html --png
 ```
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
+0. `comet_model.py` gom semantic model thành một index ổn định (`<He_thong>.model.json`) gồm canonical ID, nodes, links, coverage, impact map và provenance; file này là output trung gian cho tooling/repair loop, không chứa tọa độ.
+0a. `comet_plan.py` tạo repair plan (`<He_thong>.repair.json`) gồm rule, severity, source và hành động sửa/regenerate; plan là advisory, không tự sửa semantics.
 1. `uml2drawio.py` gộp mọi spec thành **một** file nhiều trang, tự chạy validator → phải **0 ERROR** (mã thoát 2 =
    còn lỗi).
-2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 giữa các sơ đồ, S1–S5, A1–A6, C1–C2) → 0 ERROR
+2. `comet_check.py` lần cuối **không** `--partial` (kiểm đủ R1–R14 + X1–X6 giữa các sơ đồ, S1–S5, A1–A6, C1–C2; nếu cần tích hợp CI/tooling có thể chạy thêm `--json` để lấy report máy-đọc) → 0 ERROR
    và **sửa hết WARN** trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó không đúng ngữ cảnh — nêu mã luật +
    lý do. Không biện minh kiểu "chỉ là cảnh báo nhỏ".
+2a. Khi cả bộ đã sạch, chốt nguồn sự thật: `python "<ENGINE>/scripts/comet_project.py" bootstrap "./uml/*.json" -o
+   ./uml/<He_thong>.canonical.json` (phải báo `"roundTrip": "exact"`), rồi `compile` một lần để spec mang `conceptId`. Từ lần sửa sau (đổi tên, thêm actor/use case…):
+   sửa file canonical → `comet_project.py validate` → `comet_project.py compile ./uml/<He_thong>.canonical.json -o ./uml/`
+   → chạy lại các lệnh trên; KHÔNG sửa tay spec đã compile (`compile --check` phát hiện). Xem
+   `<ENGINE>/references/comet-project.md`.
 3. **Mở từng ảnh** `./uml/<He_thong>_p<N>.png` (mỗi trang một ảnh) bằng công cụ đọc file và tự soát: chữ đọc được,
    không hình/nhãn chồng nhau, ký hiệu đúng.
 
