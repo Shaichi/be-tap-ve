@@ -1164,12 +1164,12 @@ class TestCometCheck(unittest.TestCase):
         self.assertTrue(codes(W, "X4"), "thieu X4. E=%s W=%s I=%s" % (E, W, I))
 
     def test_X5_component_deployment_traceability(self):
-        comp = {"diagram": "component", "title": "Shop - Components", "system": "Shop",
+        comp = {"diagram": "component", "title": "Shop - Components", "system": "Shop", "bundle": "shop-bundle",
                 "elements": [{"id": "svc", "type": "component", "name": "Order Service"},
                              {"id": "pay", "type": "component", "name": "Payment Service"},
                              {"id": "dao", "type": "component", "name": "Order DAO", "in": "svc"}],
                 "relations": []}
-        dep = {"diagram": "deployment", "title": "Shop - Deployment", "system": "Shop",
+        dep = {"diagram": "deployment", "title": "Shop - Deployment", "system": "Different Metadata Name", "bundle": "shop-bundle",
                "elements": [{"id": "srv", "type": "node", "name": "Server"},
                              {"id": "svc", "type": "component", "name": "Order Service"},
                              {"id": "ghost", "type": "component", "name": "Ghost Service"}],
