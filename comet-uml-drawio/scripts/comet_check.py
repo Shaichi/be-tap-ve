@@ -735,74 +735,75 @@ def _same_bundle(a, b, shared_names=()):
 
 
 def check_cross_diagrams(by, partial=False):
-    """X1-X6: traceability cheo mo rong, tap trung vao cac lien ket chua duoc R1-R14 bao phu."""
+    """X1-X6: traceability cheo mo rong; X1-X3 ton trong namespace `bundle` neu duoc khai bao."""
     E, W, I = [], [], []
     MISS = I if partial else W
 
-    # ------------------------------------------------ X1: interaction/activity tham chieu use case khong ton tai
-    declared_uc = {
-        norm(e.get("name", e.get("id")))
-        for s in by["usecase"]
-        for e in s.get("elements", [])
-        if e.get("type") == "usecase" and (e.get("name") or e.get("id"))
-    }
-    if declared_uc:
-        for s in by["communication"] + by["sequence"] + by["activity"]:
-            ref = _spec_ref_name(s)
-            if ref and ref not in declared_uc:
-                W.append("X1 [%s] %s '%s' tham chieu use case '%s' nhung use case nay khong ton tai trong use case model."
-                         % (s["_src"], s.get("diagram", "diagram"), s.get("title") or ref, s.get("useCase") or s.get("title")))
+    # ------------------------------------------------ X1: interaction/activity tham chieu use case khong ton tai trong CÙNG bundle
+    declared_uc = defaultdict(set)
+    for s in by["usecase"]:
+        scope = _scope_key(s)
+        for e in s.get("elements", []):
+            if e.get("type") == "usecase" and (e.get("name") or e.get("id")):
+                declared_uc[scope].add(norm(e.get("name", e.get("id"))))
+    for s in by["communication"] + by["sequence"] + by["activity"]:
+        ref = _spec_ref_name(s)
+        if ref and declared_uc and ref not in declared_uc.get(_scope_key(s), set()):
+            W.append("X1 [%s] %s '%s' tham chieu use case '%s' nhung use case nay khong ton tai trong bundle '%s'."
+                     % (s["_src"], s.get("diagram", "diagram"), s.get("title") or ref,
+                        s.get("useCase") or s.get("title"), s.get("bundle") or "default"))
 
-    # ------------------------------------------------ X2: actor duoc gan use case phai xuat hien trong interaction cua use case do
+    # ------------------------------------------------ X2: actor gan use case phai xuat hien trong interaction CÙNG bundle
     actor_by_uc = defaultdict(set)
     for s in by["usecase"]:
         els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
-        for r in s.get("relations", []):
-            a = els.get(str(r.get("from")))
-            b = els.get(str(r.get("to")))
+        scope = _scope_key(s)
+        for rel in s.get("relations", []):
+            a, b = els.get(str(rel.get("from"))), els.get(str(rel.get("to")))
             if not a or not b:
                 continue
             if a.get("type") == "actor" and b.get("type") == "usecase":
-                actor_by_uc[norm(b.get("name", b.get("id")))].add(norm(a.get("name", a.get("id"))))
+                actor_by_uc[(scope, norm(b.get("name", b.get("id"))))].add(norm(a.get("name", a.get("id"))))
             elif b.get("type") == "actor" and a.get("type") == "usecase":
-                actor_by_uc[norm(a.get("name", a.get("id")))].add(norm(b.get("name", b.get("id"))))
+                actor_by_uc[(scope, norm(a.get("name", a.get("id"))))].add(norm(b.get("name", b.get("id"))))
     actors_in_inter = defaultdict(set)
     for s in by["communication"] + by["sequence"]:
         ref = _spec_ref_name(s)
         if not ref:
             continue
-        for e in s.get("elements", []):
-            if e.get("type") == "actor":
-                actors_in_inter[ref].add(norm(e.get("name", e.get("id"))))
-    for uc, actors in actor_by_uc.items():
-        actual = actors_in_inter.get(uc, set())
+        actors_in_inter[(_scope_key(s), ref)].update(
+            norm(e.get("name", e.get("id"))) for e in s.get("elements", []) if e.get("type") == "actor")
+    for (scope, uc), actors in actor_by_uc.items():
+        actual = actors_in_inter.get((scope, uc), set())
         if not actual:
-            continue  # R1/R1 partial da xu ly truong hop chua co interaction
+            continue  # R1 xu ly thieu interaction
         missing = sorted(actors - actual)
         if missing:
-            MISS.append("X2 [%s] Use case '%s' co actor %s trong use case model nhung actor do khong xuat hien trong "
-                         "communication/sequence cua use case." %
-                         (", ".join(sorted(set(s["_src"] for s in by["usecase"]))), uc,
-                          ", ".join("'%s'" % x for x in missing)))
+            MISS.append("X2 [%s] Use case '%s' (bundle '%s') co actor %s trong use case model nhung actor do khong "
+                        "xuat hien trong communication/sequence cua use case." %
+                        (", ".join(sorted(set(s["_src"] for s in by["usecase"] if _scope_key(s) == scope))),
+                         uc, "default" if scope == "__default__" else scope,
+                         ", ".join("'%s'" % x for x in missing)))
 
-    # ------------------------------------------------ X3: statechart phai truy nguoc duoc ve SDC control trong interaction
+    # ------------------------------------------------ X3: statechart phai truy nguoc duoc ve SDC control trong CÙNG bundle
     controls = defaultdict(list)
     for s in by["communication"] + by["sequence"]:
+        scope = _scope_key(s)
         for e in s.get("elements", []):
             if e.get("type") == "actor":
                 continue
             if st_of(e) in SDC:
-                controls[norm(obj_class(e))].append(s["_src"])
+                controls[(scope, norm(obj_class(e)))].append(s["_src"])
     for s in by["state"]:
         cls = norm(s.get("stateMachineOf") or s.get("title"))
         if not cls:
             W.append("X3 [%s] Statechart khong co 'stateMachineOf'/'title' de truy vet ve control object." % s["_src"])
             continue
-        if by["communication"] or by["sequence"]:
-            if cls not in controls:
-                W.append("X3 [%s] Statechart '%s' khong truy vet duoc toi doi tuong "
-                         "«state dependent control» cung ten trong communication/sequence." %
-                         (s["_src"], s.get("stateMachineOf") or s.get("title")))
+        if (by["communication"] or by["sequence"]) and ( _scope_key(s), cls ) not in controls:
+            W.append("X3 [%s] Statechart '%s' (bundle '%s') khong truy vet duoc toi doi tuong "
+                     "«state dependent control» cung ten trong communication/sequence cung bundle." %
+                     (s["_src"], s.get("stateMachineOf") or s.get("title"),
+                      s.get("bundle") or "default"))
 
     # ------------------------------------------------ X4: ERD <-> entity class, chi so sanh khi co dau hieu cung bundle
     erd_specs = []
