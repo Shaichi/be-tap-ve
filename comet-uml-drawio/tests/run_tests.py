@@ -1184,6 +1184,52 @@ class TestCometCheck(unittest.TestCase):
         E, W, I = check(*s.values())
         self.assertTrue(codes(W, "X6"), "thieu X6. E=%s W=%s I=%s" % (E, W, I))
 
+    def test_bundle_isolation(self):
+        # Cùng tên use case nhưng khác bundle không được trộn actor/interaction/statechart.
+        a = shop()
+        for sp in a.values():
+            sp["bundle"] = "shop-a"
+        b = shop()
+        b["uc"]["bundle"] = "shop-b"
+        b["uc"]["elements"].append({"id": "aud2", "type": "actor", "name": "Auditor"})
+        b["uc"]["relations"].append({"type": "association", "from": "aud2", "to": "po"})
+        b["comm"]["bundle"] = "shop-b"
+        b["comm"]["useCase"] = "Place Order"
+        b["seq"]["bundle"] = "shop-b"
+        b["seq"]["useCase"] = "Place Order"
+        # Không có interaction cho Auditor trong shop-b.
+        E, W, I = check(a["uc"], a["comm"], a["seq"], b["uc"])
+        self.assertTrue(codes(W, "R1"), "bundle-b phai tu kiem R1 rieng: %s" % W)
+        self.assertTrue(codes(W, "X2"), "bundle-b phai tu kiem X2 rieng: %s" % W)
+
+        # X1 không được "mượn" use case trùng tên ở bundle khác.
+        ghost = copy.deepcopy(b["comm"])
+        ghost["bundle"] = "shop-c"
+        E, W, I = check(a["uc"], a["comm"], a["seq"], ghost)
+        self.assertTrue(codes(W, "X1"), "tham chieu use case sang bundle khac phai bi bat: %s" % W)
+
+        # X3 không được "mượn" control từ bundle khác.
+        st = {
+            "diagram": "state", "title": "Order Control - State", "stateMachineOf": "Order Control",
+            "bundle": "shop-c",
+            "elements": [{"id": "i", "type": "initial"}, {"id": "a", "type": "state", "name": "Idle"}],
+            "relations": [{"from": "i", "to": "a"}],
+        }
+        E, W, I = check(a["uc"], a["comm"], a["seq"], st)
+        self.assertTrue(codes(W, "X3"), "statechart phai trace control cung bundle: %s" % W)
+
+    def test_json_report(self):
+        d = self.tmpdir()
+        warn = copy.deepcopy(SHOP_COMM)
+        warn["useCase"] = "Ghost Use Case"
+        (d / "warn.json").write_text(json.dumps(warn), encoding="utf-8")
+        r = run("comet_check.py", "--json", d / "warn.json")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        payload = json.loads(r.stdout)
+        self.assertIn("summary", payload)
+        self.assertGreaterEqual(payload["summary"]["warnings"], 1)
+        self.assertTrue(any("X1" in x for x in payload["warnings"]))
+
     def test_statechart_rules(self):
         self.assertEqual(check(stm(*STM_OK)), ([], [], []))
         self.expect_one(stm({"from": "i", "to": "a", "event": "Go"}, *STM_OK[1:]), "E", "S1", "event 'go'")
