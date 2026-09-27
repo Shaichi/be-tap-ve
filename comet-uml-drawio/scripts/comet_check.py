@@ -100,6 +100,8 @@ Ho so SEP490 (--profile sep490: Report 3 SRS + Report 4 SDS, moi bundle; --parti
   P13 Sequence thiet ke du: use case «include» phai co buoc/lifeline (hoac sequence rieng); tao entity cha co
       quan he ERD 1..N bat buoc thi phai tao entity con (loop).
   P14 (INFO) He thong ngoai trong context co lop/lifeline tich hop trong SDS; entity ERD co lop trong package.
+  P15 Moi lop ngoai cua context la actor trong so do use case (he thong ngoai = actor phu: use case -> actor);
+      actor phu khong can so do "UCs for" rieng (P3).
   P12/P13 la mau thuan (khong phai thieu so do) -> van la WARN khi --partial.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
@@ -658,7 +660,7 @@ def reach(adj, starts, blocked=()):
 
 
 def check_profile_sep490(specs, by, out, info=None, warn=None):
-    """P1-P14: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
+    """P1-P15: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
     scopes = defaultdict(lambda: defaultdict(list))   # bundle -> diagram -> specs
     for d, ss in by.items():
         for s in ss:
@@ -685,8 +687,10 @@ def check_profile_sep490(specs, by, out, info=None, warn=None):
 
         # P3 - moi actor mot so do use case rieng
         actors, own = {}, set()
+        secondary = secondary_actors(g["usecase"])
         for s in g["usecase"]:
-            names = [e.get("name", e.get("id")) for e in s.get("elements", []) if e.get("type") == "actor"]
+            names = [e.get("name", e.get("id")) for e in s.get("elements", []) if e.get("type") == "actor"
+                     and norm(e.get("name", e.get("id"))) not in secondary]
             for a in names:
                 actors.setdefault(norm(a), a)
             title = norm(s.get("title"))
@@ -697,6 +701,18 @@ def check_profile_sep490(specs, by, out, info=None, warn=None):
         if miss:
             out.append("P3 [%s] Actor chua co so do use case rieng (\"UCs for <Actor>\", SRS I.4.3): %s."
                        % (tag, ", ".join("'%s'" % a for a in miss)))
+        # P15 - moi lop ngoai cua context la actor trong so do use case (he thong ngoai = actor phu)
+        uc_actor = {norm(e.get("name", e.get("id"))) for s in g["usecase"] for e in s.get("elements", [])
+                    if e.get("type") == "actor"}
+        if g["usecase"]:
+            for s in g["bizcontext"]:
+                lost = [e.get("name", e.get("id")) for e in s.get("elements", [])
+                        if norm(e.get("type")) == "external" and norm(e.get("name", e.get("id"))) not in uc_actor]
+                if lost:
+                    out.append("P15 [%s] Lop ngoai cua context chua la actor trong so do use case nao: %s - ve lam "
+                               "actor phu trong \"UCs for <Actor>\" cua use case dung no (association use case -> "
+                               "actor, \"side\": \"right\"), ten y het context." % (
+                                   s["_src"], ", ".join("'%s'" % x for x in lost)))
 
         # P4 - business flow la swimlane co lan System
         for s in g["activity"]:
@@ -939,6 +955,26 @@ def pick_sm(sms, text, cls=None):
     return sms[0] if len(sms) == 1 else None
 
 
+def secondary_actors(usecase_specs):
+    """Actor chi o dau "to" cua association use case -> actor (actor phu / he thong ngoai), khong bao gio khoi tao."""
+    prim, sec = set(), set()
+    for s in usecase_specs:
+        kind = {e.get("id"): norm(e.get("type")) for e in s.get("elements", [])}
+        name = {e.get("id"): norm(e.get("name", e.get("id"))) for e in s.get("elements", [])}
+        for e in s.get("elements", []):
+            if e.get("type") == "actor" and e.get("primary"):
+                prim.add(name[e.get("id")])
+        for r in s.get("relations", []):
+            if norm(r.get("type")) not in ("", "association"):
+                continue
+            a, b = r.get("from"), r.get("to")
+            if kind.get(a) == "actor":
+                prim.add(name[a])
+            elif kind.get(b) == "actor" and kind.get(a) == "usecase":
+                sec.add(name[b])
+    return sec - prim
+
+
 def check_sep490_logic(g, tag, entity_keys, uc_names, out, info):
     """P12 trang thai BF / sequence thiet ke <-> statechart; P13 sequence thiet ke du use case include + entity con
     bat buoc; P14 (INFO) he thong ngoai co lop tich hop, entity ERD co lop trong package."""
@@ -1116,7 +1152,7 @@ def check_sep490_logic(g, tag, entity_keys, uc_names, out, info):
     design = [s for s in g["class"] + g["sequence"] if is_design(s)] + g["package"]
     if design:
         human = {norm(e.get("name", e.get("id"))) for s in g["usecase"] for e in s.get("elements", [])
-                 if e.get("type") == "actor"}
+                 if e.get("type") == "actor"} - secondary_actors(g["usecase"])
         names = " ".join(compact(obj_class(e)) for s in design for e in lifelines(s).values())
         for s in g["bizcontext"]:
             for e in s.get("elements", []):

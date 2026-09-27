@@ -154,7 +154,7 @@ trong kiến trúc, trang Mobile Screen Flow riêng). Nêu stack khác trong pro
 
 Kết quả gom thành `<Hệ thống>_SRS.drawio` và `<Hệ thống>_SDS.drawio` (mỗi mục một trang); `comet_check.py` chạy
 trên cả hai bộ cùng lúc để bắt lệch tên giữa SRS và SDS (X7, X8, R1…). Thêm `--profile sep490` để kiểm **độ đủ**
-theo template (P1–P14): thiếu mục nào, actor nào chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa
+theo template (P1–P15): thiếu mục nào, actor nào chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa
 có bảng, entity có `status` chưa có statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login, state lệch giá trị cột `status`, bước BF/sequence đổi trạng thái không khớp event của statechart hoặc không kiểm trạng thái nguồn, sequence thiếu use case «include» hay entity con 1..N…
 đều thành WARN. Data dictionary **sinh** từ ERD vật lý, không viết tay (sửa spec → chạy lại):
 
@@ -372,7 +372,7 @@ Nhóm luật của `comet_check.py`:
 | X7 | Bảng ERD vật lý (`table`.`entity`) ↔ entity của ERD khái niệm cùng bundle |
 | X8, X11 | Lifeline của sequence mức thiết kế ↔ lớp của class diagram thiết kế cùng use case; message ↔ operation (kể cả kế thừa / JpaRepository / getter-setter) |
 | X9, X10, X12 | Thuộc tính lớp entity thiết kế ↔ cột bảng vật lý (hai chiều: thuộc tính → cột, cột FK → thuộc tính quan hệ); lớp thiết kế ↔ lớp đặt trong package diagram |
-| P1–P14 | Chỉ khi `--profile sep490`: bộ sơ đồ đủ và đúng kiểu theo template Report 3 SRS + Report 4 SDS; P12–P14 kiểm logic nghiệp vụ chéo BF ↔ statechart ↔ sequence thiết kế ↔ ERD |
+| P1–P15 | Chỉ khi `--profile sep490`: bộ sơ đồ đủ và đúng kiểu theo template Report 3 SRS + Report 4 SDS; P12–P14 kiểm logic nghiệp vụ chéo BF ↔ statechart ↔ sequence thiết kế ↔ ERD |
 | S1–S5 | Statechart hợp lệ |
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |

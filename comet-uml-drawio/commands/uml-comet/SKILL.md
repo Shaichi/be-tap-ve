@@ -95,7 +95,7 @@ stack khác – khi đó ánh xạ tầng theo bảng cuối mục này và ghi 
 | SRS I.2 Main Business Flows | Activity swimlane **ngang** mỗi BF: `"direction": "LR"`, `partitions` = actor tham gia + `"System"` | [/uml-activity](../uml-activity/SKILL.md) | `srs_02_bf01_<flow>.json`… | `BF-01 <Flow Name>` |
 | SRS I.3.1 Entity Relationship Diagram | ERD khái niệm crow's foot: `"notation": "crowfoot"`, `entity` + `attributes` `"+ Full Name"`, quan hệ động từ -ing | [/uml-erd](../uml-erd/SKILL.md) | `srs_03_erd.json` | `<Sys> - Entity Relationship Diagram` |
 | SRS I.3 (kèm ERD) State Diagram | Statechart vòng đời **entity chính có cột `status`** (Appointment, Order, Application…): `"stateMachineOf": "<Entity>"` y hệt tên entity ERD, state = giá trị cột `status` – khai báo `"values"` cho cột đó trong SDS I.3 (P8, P11) | [/uml-statechart](../uml-statechart/SKILL.md) | `srs_03_<entity>_state.json` | `<Entity> - State Diagram` |
-| SRS I.4.3 Use Case Diagrams | **Mỗi actor 1 sơ đồ** (actor + use case của họ, include/extend) | [/uml-usecase](../uml-usecase/SKILL.md) | `srs_04_uc_<actor>.json` | `UCs for <Actor>` |
+| SRS I.4.3 Use Case Diagrams | **Mỗi actor chính 1 sơ đồ** (actor + use case của họ, include/extend + actor phụ / hệ thống ngoài tham gia: use case → actor, bên phải) | [/uml-usecase](../uml-usecase/SKILL.md) | `srs_04_uc_<actor>.json` | `UCs for <Actor>` |
 | SRS I.5.1a Screen Flow | Site map màn hình; dashboard/màn quản trị theo vai trò **chỉ** đi qua Login: `Home → Login → <Role> Dashboard → …` (P10) | [/uml-screenflow](../uml-screenflow/SKILL.md) | `srs_05_screenflow.json` | `<Sys> - Screen Flow` |
 | SDS I.1 Software Architecture | Component lồng tầng (component cha `"stereotype": "subsystem"`, con qua `"in"`): `Client Tier` (`React Web App`, + `Flutter Mobile App`) / `Application Tier` – Spring Boot (`Security Filter (JWT)`, `REST Controllers`, `Service Layer`, `Repository Layer (Spring Data JPA)`) / `Data Tier` (`PostgreSQL Database`) / `External Services`; quan hệ nối **component tầng**, nhãn giao thức (`REST/JSON over HTTPS`, `JDBC`, `SMTP`…). **Không** stereotype COMET (`control`, `database wrapper`, `proxy`…) – P9; view render phía server (JSP/Thymeleaf) thuộc Application Tier, không phải Client Tier | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
 | SDS I.2 Package Diagram | Package backend theo tầng: `controller`, `service`, `service.impl`, `repository`, `entity`, `dto`, `mapper`, `security`, `config`, `exception` + dependency (controller → service/dto; service.impl → service/repository/mapper/entity; repository → entity; mapper → entity/dto; security → repository); **mỗi lớp của SDS II** đặt vào package đúng tầng bằng `{"type": "class", "in": "<id package>"}` (X10) | [/uml-package](../uml-package/SKILL.md) | `sds_02_package.json` | `<Sys> - Package Diagram` |
@@ -105,8 +105,8 @@ stack khác – khi đó ánh xạ tầng theo bảng cuối mục này và ghi 
 | SDS III.1.1 Authentication Flow | Sequence thiết kế Login JWT: Client → `AuthController.login(LoginRequest)` → `AuthServiceImpl` → `AuthenticationManager` → `UserDetailsServiceImpl`/`UserRepository` → `PasswordEncoder` → `JwtService.generateToken` → `AuthResponse(token)`; `alt` sai mật khẩu → 401; request sau đi qua `JwtAuthenticationFilter` | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_05_auth_seq.json` | `Authentication Flow - Sequence Diagram` |
 
 Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm):
-- Actor: context (SRS I.1) = làn BF (I.2) = actor của `UCs for <Actor>` (I.4.3). Ngoài context chỉ có actor
-  người dùng + dịch vụ ngoài; dịch vụ ngoài (Email, Payment…) cũng là component trong `External Services` (SDS I.1).
+- Actor: context (SRS I.1) = làn BF (I.2) = actor của `UCs for <Actor>` (I.4.3); **mọi** lớp ngoài của context kể cả
+  dịch vụ ngoài phải là actor trong sơ đồ use case (actor phụ, P15). Ngoài context chỉ có actor người dùng + dịch vụ ngoài; dịch vụ ngoài (Email, Payment…) cũng là component trong `External Services` (SDS I.1).
 - Use case (I.4.3) = `"useCase"` của class/sequence thiết kế (SDS II) và auth flow (`"Login"`) – X1. Chọn 2–3 use
   case cốt lõi cho SDS II; các use case còn lại không có sequence là **INFO R1**, không phải lỗi.
 - Entity ERD SRS = `"entity"` của bảng SDS I.3 (X7); bảng PostgreSQL snake_case số nhiều (`job_postings`), kiểu
@@ -141,7 +141,7 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
 
 Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o ./uml/<Sys>_SRS.drawio` và
 `"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict --profile sep490 "./uml/*.json"` chạy
-**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P14: thiếu mục nào, actor nào chưa có
+**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P15: thiếu mục nào, actor nào chưa có
 "UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng, entity có `status` chưa có
 statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login, state ≠ giá trị status) + X9–X12/R15
 (thuộc tính ↔ cột, lớp ↔ package, message ↔ operation, cột FK ↔ thuộc tính, sync ↔ reply) + P12–P14 (trạng thái BF /

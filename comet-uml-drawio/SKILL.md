@@ -135,7 +135,7 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 - ERD có 2 ký pháp: Chen (mặc định) và `"notation": "crowfoot"` (entity/table + cột PK/FK, luật E1–E4).
 - Spec `"level": "design"` (class/sequence mức SDS: mặc định Spring Boot Controller/Service/Repository + React/Flutter + PostgreSQL, `activations`) bỏ qua luật phân tích
   R3/R4/R10; hồ sơ SEP490 (Report 3 SRS + Report 4 SDS) xem mục 2b của `commands/uml-comet/SKILL.md`.
-  Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P14, P11: state của statechart entity = `values` của cột status; P12: trạng thái trong BF/sequence ↔ statechart; P13: sequence thiết kế đủ «include» + entity con 1..N). Data dictionary: sinh bằng
+  Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P15, P15: hệ thống ngoài của context là actor phụ trong sơ đồ use case, P11: state của statechart entity = `values` của cột status; P12: trạng thái trong BF/sequence ↔ statechart; P13: sequence thiết kế đủ «include» + entity con 1..N). Data dictionary: sinh bằng
   `scripts/comet_datadict.py` từ ERD vật lý, không viết tay tài liệu song song với spec. Bộ SEP490 đầy đủ làm
   **hai phiên**: SRS (`--partial` trên `srs_*.json`, ghi `./uml/NOTES.md`) → phiên mới làm SDS, kiểm cả bộ không
   `--partial` (mục "Chia phiên" trong 2b).

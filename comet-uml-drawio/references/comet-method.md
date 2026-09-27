@@ -98,7 +98,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | X12 | Ngược với X9: mỗi cột FK (`"fk": true`) của bảng có thuộc tính quan hệ trong lớp entity thiết kế tương ứng (`job_id` ~ `job: JobPosting` / `jobId: Long`); bỏ qua lớp entity không vẽ thuộc tính nào | WARN |
 | P1 | `--profile sep490`: SRS đủ sơ đồ – context (bizcontext), business flow (activity), ERD khái niệm (có `entity`), use case, screen flow | WARN (`--partial`: INFO) |
 | P2 | `--profile sep490`: SDS đủ sơ đồ – architecture (component), package, database design (ERD có `table`), class + sequence `"level": "design"` | WARN (`--partial`: INFO) |
-| P3 | `--profile sep490`: mỗi actor có sơ đồ use case riêng ("UCs for <Actor>": actor duy nhất hoặc tên actor trong `title`) | WARN (`--partial`: INFO) |
+| P3 | `--profile sep490`: mỗi actor chính có sơ đồ use case riêng ("UCs for <Actor>": actor chính duy nhất hoặc tên actor trong `title`); actor phụ (chỉ ở đầu "to" của association use case → actor) không cần | WARN (`--partial`: INFO) |
 | P4 | `--profile sep490`: business flow là swimlane – `partitions` có làn `"System"` | WARN (`--partial`: INFO) |
 | P5 | `--profile sep490`: SDS II ≥ 2 use case có đủ cặp class + sequence thiết kế cùng `useCase`; class thiết kế có sequence cùng `useCase`; `useCase` của class thiết kế có trong use case model | WARN (`--partial`: INFO) |
 | P6 | `--profile sep490`: có sequence thiết kế cho luồng xác thực (`useCase`/`title` chứa Login / Sign in / Auth…) | WARN (`--partial`: INFO) |
@@ -110,6 +110,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | P12 | INFO: event của statechart entity không trùng use case nào; use case đổi trạng thái (event) chưa xuất hiện trong business flow nào | INFO |
 | P13 | `--profile sep490`: sequence thiết kế đủ – use case «include» có bước/lifeline (từ riêng của use case include, so khớp tiền tố: Pay ~ Payment) hoặc sequence riêng; sequence tạo entity cha (`save…`/`create…` tới `<Entity>Repository`, `"type": "create"`) có quan hệ ERD `1..N` bắt buộc thì phải nhắc entity con (lifeline/message: `addItem`, `PrescriptionItem`) | WARN (cả `--partial`) |
 | P14 | `--profile sep490`: hệ thống ngoài của context (không phải actor use case) có lớp/lifeline tích hợp trong SDS (class/sequence thiết kế, package); package diagram có lớp cho mọi entity ERD khái niệm | INFO |
+| P15 | `--profile sep490`: mỗi lớp ngoài của context (SRS I.1) là actor trong sơ đồ use case – hệ thống ngoài (VNPay, Email) vẽ làm actor phụ (use case → actor, `"side": "right"`) | WARN (`--partial`: INFO) |
 | P11 | `--profile sep490`: statechart của entity (P8) khớp tập giá trị cột status – khai báo `"values"` cho cột (hoặc enumeration trong class diagram mà thuộc tính `status` trỏ tới); mỗi state lá là 1 giá trị, mỗi giá trị là 1 state (`PENDING_PAYMENT` ~ `Pending Payment`) | WARN (`--partial`: INFO) |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).

@@ -1881,6 +1881,23 @@ class TestCometCheck(unittest.TestCase):
                 {"id": "e", "type": "package", "name": "entity"}, {"id": "o", "type": "class", "name": "Order", "in": "e"}]}
         i = codes(run_(pkg)[2], "P14")
         self.assertTrue(i and "'Order Item'" in i[0], i)
+        # P15: lop ngoai context phai la actor use case; actor phu (use case -> actor) khong can "UCs for" rieng (P3)
+        w = codes(run_()[1], "P15")
+        self.assertTrue(w and "'Stripe Gateway'" in w[0] and "Customer" not in w[0], w)
+        def secondary(sp):
+            sp["uc"]["elements"].append({"id": "sg", "type": "actor", "name": "Stripe Gateway", "side": "right"})
+            sp["uc"]["relations"].append({"from": "pay", "to": "sg"})
+        W2, I2 = run_(secondary)[1:]
+        self.assertEqual(codes(W2, "P15") + codes(W2, "P3"), [], W2)
+        def secondary_no_pay(sp):
+            secondary(sp)
+            no_pay(sp)
+        i = codes(run_(secondary_no_pay)[2], "P14")                           # actor phu van can lop tich hop
+        self.assertTrue(i and "'Stripe Gateway'" in i[0], i)
+        def initiates(sp):
+            secondary(sp)
+            sp["uc"]["relations"][-1] = {"from": "sg", "to": "pay"}
+        self.assertTrue(codes(run_(initiates)[1], "P3"))                      # actor khoi tao -> can so do rieng
 
     def test_P11_statechart_matches_status_values(self):
         def run_(values=None, enum=None, states=("Pending", "Under Review", "Accepted")):
