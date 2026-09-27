@@ -153,6 +153,9 @@ python "<ENGINE>/scripts/comet_plan.py" "./uml/*.json" -o ./uml/<He_thong>.repai
 python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_thong>.html --png
 ```
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
+**Tiết kiệm token:** chỉ đọc output của lệnh (checker in ra đủ luật, file, gợi ý sửa) và spec `srs_*/sds_*.json`
+cần sửa. **Không** mở toàn bộ file sinh ra: `*.model.json` (có thể vài MB), `*.repair.json`, `*.canonical.json`,
+`*.drawio`, `*.html` – cần tra thì `grep` đúng mục. Xem ảnh PNG từng trang thay vì đọc XML draw.io.
 0. `comet_model.py` gom semantic model thành một index ổn định (`<He_thong>.model.json`) gồm canonical ID, nodes, links, coverage, impact map và provenance; file này là output trung gian cho tooling/repair loop, không chứa tọa độ.
 0a. `comet_plan.py` tạo repair plan (`<He_thong>.repair.json`) gồm rule, severity, source và hành động sửa/regenerate; plan là advisory, không tự sửa semantics.
 1. `uml2drawio.py` gộp mọi spec thành **một** file nhiều trang, tự chạy validator → phải **0 ERROR** (mã thoát 2 =
