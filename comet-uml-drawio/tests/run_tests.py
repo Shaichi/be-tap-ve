@@ -140,11 +140,11 @@ def end_labels(cs, eid):
     return {text(c) for c in cs.values() if c.get("parent") == eid}
 
 
-def check(*specs, partial=False):
+def check(*specs, partial=False, profile=None):
     specs = copy.deepcopy(list(specs))
     for i, s in enumerate(specs):
         s.setdefault("_src", "%s#%d" % (s.get("diagram"), i + 1))
-    return C.check(specs, partial)
+    return C.check(specs, partial, profile=profile)
 
 
 def codes(msgs, code=None):
@@ -1556,6 +1556,95 @@ class TestCometCheck(unittest.TestCase):
 
 
 
+    @staticmethod
+    def sep490():
+        """Bo so do SEP490 toi thieu nhung du: SRS 5 muc + SDS 5 muc, 2 bo code design + auth flow."""
+        ex = lambda f: json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
+        uc = lambda a, ucs: {"diagram": "usecase", "title": "UCs for " + a, "elements": [
+            {"id": "a", "type": "actor", "name": a}] + [{"id": "u%d" % i, "type": "usecase", "name": n}
+                                                        for i, n in enumerate(ucs)],
+            "relations": [{"from": "a", "to": "u%d" % i} for i in range(len(ucs))]}
+
+        def design(name, cls):
+            c = {"diagram": "class", "level": "design", "useCase": name, "title": name + " - Class",
+                 "elements": [{"id": "k", "type": "class", "name": cls, "operations": ["+doPost(): void"]}]}
+            s = {"diagram": "sequence", "level": "design", "useCase": name, "title": name + " - Seq", "elements": [
+                {"id": "cl", "type": "object", "name": "Client", "external": True},
+                {"id": "k", "type": "object", "class": cls}],
+                "messages": [{"from": "cl", "to": "k", "name": "doPost"},
+                             {"from": "k", "to": "cl", "name": "page", "type": "reply"}]}
+            return c, s
+        specs = {
+            "ctx": {"diagram": "bizcontext", "title": "Ctx", "elements": [
+                {"id": "s", "type": "system", "name": "TalentHub"}, {"id": "c", "type": "external", "name": "Candidate"}],
+                "relations": [{"from": "c", "to": "s", "label": "Application"}]},
+            "bf": {"diagram": "activity", "title": "BF-01", "direction": "LR", "partitions": ["Candidate", "System"],
+                   "elements": [{"id": "i", "type": "initial", "partition": "Candidate"},
+                                {"id": "a", "type": "action", "name": "Apply", "partition": "Candidate"},
+                                {"id": "b", "type": "action", "name": "Save", "partition": "System"},
+                                {"id": "f", "type": "final", "partition": "System"}],
+                   "relations": [{"from": "i", "to": "a"}, {"from": "a", "to": "b"}, {"from": "b", "to": "f"}]},
+            "erd": ex("talenthub_erd_conceptual"), "db": ex("talenthub_erd_physical"),
+            "ucc": uc("Candidate", ["Login", "Submit Application"]), "uch": uc("HR Manager", ["Login", "Create Job"]),
+            "sf": {"diagram": "screenflow", "title": "SF", "elements": [
+                {"id": "h", "type": "screen", "name": "Home"}, {"id": "l", "type": "screen", "name": "Login"}],
+                "relations": [{"from": "h", "to": "l"}]},
+            "arch": {"diagram": "component", "title": "Arch", "elements": [
+                {"id": "w", "type": "component", "name": "Web"}, {"id": "d", "type": "component", "name": "DB"}],
+                "relations": [{"type": "usage", "from": "w", "to": "d"}]},
+            "pkg": {"diagram": "package", "title": "Pkg", "elements": [
+                {"id": "c", "type": "package", "name": "controller"}, {"id": "s", "type": "package", "name": "service"}],
+                "relations": [{"type": "dependency", "from": "c", "to": "s"}]},
+        }
+        specs["c1"], specs["s1"] = design("Submit Application", "ApplyServlet")
+        specs["c2"], specs["s2"] = design("Create Job", "JobServlet")
+        specs["auth"] = design("Login", "LoginServlet")[1]
+        for s in specs.values():
+            s["bundle"] = "th"
+        return specs
+
+    def test_profile_sep490(self):
+        base = self.sep490()
+        E, W, I = check(*base.values(), profile="sep490")
+        self.assertEqual((E, W), ([], []))
+        self.assertEqual(check(*base.values())[1], [])                   # khong profile: khong luat P
+
+        def warns(drop=(), change=None):
+            sp = copy.deepcopy(base)
+            for k in drop:
+                del sp[k]
+            if change:
+                change(sp)
+            return check(*sp.values(), profile="sep490")[1]
+        for key, needle in (("ctx", "SRS I.1"), ("bf", "SRS I.2"), ("erd", "SRS I.3.1"), ("sf", "SRS I.5.1a")):
+            self.assertTrue(any(needle in w for w in codes(warns([key]), "P1")), key)
+        for key, needle in (("arch", "SDS I.1"), ("pkg", "SDS I.2"), ("db", "SDS I.3")):
+            self.assertTrue(any(needle in w for w in codes(warns([key]), "P2")), key)
+        self.assertTrue(codes(warns(["c1", "c2"]), "P2"))                  # khong class thiet ke nao
+        # P3: gop 2 actor vao 1 so do chung
+        def merge(sp):
+            sp["ucc"]["elements"].append({"id": "h", "type": "actor", "name": "HR Manager"})
+            sp["ucc"]["title"] = "All UCs"
+            del sp["uch"]
+        w = codes(warns(change=merge), "P3")
+        self.assertTrue(w and "'Candidate'" in w[0] and "'HR Manager'" in w[0], w)
+        self.assertTrue(codes(warns(change=lambda sp: sp["bf"].pop("partitions")), "P4"))
+        # P5: con 1 bo; class khong co sequence; useCase la
+        self.assertTrue(any("hien co 1" in x for x in codes(warns(["c2", "s2"]), "P5")))
+        self.assertTrue(any("chua co sequence" in x for x in codes(warns(["s2"]), "P5")))
+        self.assertTrue(any("'Ghost'" in x for x in codes(warns(change=lambda sp: sp["c2"].update(useCase="Ghost")), "P5")))
+        self.assertTrue(codes(warns(["auth"]), "P6"))
+        # P7: bo "entity" o bang dau tien -> entity do chua co bang; thay cho ghi chu X7
+        sp = copy.deepcopy(base)
+        sp["db"]["elements"][0].pop("entity")
+        E, W, I = check(*sp.values(), profile="sep490")
+        self.assertTrue(codes(W, "P7"), W)
+        self.assertFalse([x for x in I if x.startswith("X7 [bundle")])
+        # --partial: P chi la INFO
+        E, W, I = check(*[v for k, v in base.items() if k != "ctx"], partial=True, profile="sep490")
+        self.assertEqual(codes(W, "P1"), [])
+        self.assertTrue(codes(I, "P1"))
+
     def test_crowfoot_erd_rules_and_x7(self):
         con = json.loads((EXAMPLES / "talenthub_erd_conceptual.json").read_text(encoding="utf-8"))
         phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
@@ -2282,10 +2371,10 @@ class TestDocs(unittest.TestCase):
                     self.assertTrue((ENGINE / rel).is_file())
 
     def test_rule_codes_documented(self):
-        emitted = set(re.findall(r'"([RSACEFBLX]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
+        emitted = set(re.findall(r'"([RSACEFBLXP]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
         documented = set()
         doc = (REFS / "comet-method.md").read_text(encoding="utf-8")
-        for a, b in re.findall(r"(?m)^\| ([RSACEFBLX]\d{1,2})(?:–([RSACEFBLX]\d{1,2}))? \|", doc):
+        for a, b in re.findall(r"(?m)^\| ([RSACEFBLXP]\d{1,2})(?:–([RSACEFBLXP]\d{1,2}))? \|", doc):
             documented |= {"%s%d" % (a[0], k) for k in range(int(a[1:]), int((b or a)[1:]) + 1)}
         self.assertEqual(emitted, documented)
 

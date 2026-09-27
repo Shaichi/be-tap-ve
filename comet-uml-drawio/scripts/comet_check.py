@@ -63,6 +63,16 @@ Muc thiet ke ("level": "design" - class/sequence kieu SDS: Servlet/Service/DAO/D
       "useCase" (WARN; use case khong co class diagram rieng -> so voi moi lop thiet ke cua bundle, INFO);
       lifeline "external": true (Client/Browser) bo qua; message khong trung operation cua lop -> INFO.
   X7  Bang vat ly ("type": "table", "entity": ...) tro toi entity cua ERD khai niem cung bundle.
+Ho so SEP490 (--profile sep490: Report 3 SRS + Report 4 SDS, moi bundle; --partial -> INFO):
+  P1  SRS du so do: context (bizcontext), business flow (activity), ERD khai niem, use case, screen flow.
+  P2  SDS du so do: architecture (component), package, database design (ERD co "table"), class + sequence
+      muc thiet ke.
+  P3  Moi actor cua use case model co so do use case rieng ("UCs for <Actor>").
+  P4  Business flow (activity) la swimlane: co "partitions" gom lan "System".
+  P5  Code designs: >= 2 use case co du cap class + sequence "level": "design" cung "useCase"; class thiet ke
+      phai co sequence cung useCase; "useCase" cua class thiet ke co trong use case model.
+  P6  Co sequence muc thiet ke cho luong xac thuc (Login / Sign in / Authentication).
+  P7  Moi entity cua ERD khai niem co bang vat ly tro toi ("entity") trong database design.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
 """
@@ -517,7 +527,105 @@ def _scoped_name(s, value):
     return (_scope_key(s), norm(value))
 
 
-def check(specs, partial=False):
+PROFILES = ("sep490",)
+AUTH_RE = re.compile(r"\b(log ?in|sign ?in|auth\w*)\b", re.I)
+
+
+def check_profile_sep490(specs, by, out):
+    """P1-P7: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
+    scopes = defaultdict(lambda: defaultdict(list))   # bundle -> diagram -> specs
+    for d, ss in by.items():
+        for s in ss:
+            scopes[_scope_key(s)][d].append(s)
+    for scope, g in sorted(scopes.items()):
+        tag = "bundle %s" % ("-" if scope == "__default__" else scope)
+        erd_types = lambda s: {norm(e.get("type")) for e in s.get("elements", [])}
+        concept_erd = [s for s in g["erd"] if "entity" in erd_types(s)]
+        physical_erd = [s for s in g["erd"] if "table" in erd_types(s)]
+        d_class = [s for s in g["class"] if is_design(s)]
+        d_seq = [s for s in g["sequence"] + g["communication"] if is_design(s)]
+        srs = (("SRS I.1 Context Diagram", g["bizcontext"], "bizcontext"),
+               ("SRS I.2 Business Flows", g["activity"], "activity swimlane"),
+               ("SRS I.3.1 Entity Relationship Diagram", concept_erd, "erd crowfoot co entity"),
+               ("SRS I.4.3 Use Case Diagrams", g["usecase"], "usecase"),
+               ("SRS I.5.1a Screen Flow", g["screenflow"], "screenflow"))
+        sds = (("SDS I.1 Software Architecture", g["component"], "component"),
+               ("SDS I.2 Package Diagram", g["package"], "package"),
+               ("SDS I.3 Database Design", physical_erd, "erd crowfoot co table"),
+               ("SDS II Code Designs - class", d_class, "class \"level\": \"design\""),
+               ("SDS II Code Designs - sequence", d_seq, "sequence \"level\": \"design\""))
+        out += ["P1 [%s] Thieu so do cho muc %s (%s)." % (tag, sec, kind) for sec, have, kind in srs if not have]
+        out += ["P2 [%s] Thieu so do cho muc %s (%s)." % (tag, sec, kind) for sec, have, kind in sds if not have]
+
+        # P3 - moi actor mot so do use case rieng
+        actors, own = {}, set()
+        for s in g["usecase"]:
+            names = [e.get("name", e.get("id")) for e in s.get("elements", []) if e.get("type") == "actor"]
+            for a in names:
+                actors.setdefault(norm(a), a)
+            title = norm(s.get("title"))
+            for a in names:
+                if len(names) == 1 or norm(a) in title:
+                    own.add(norm(a))
+        miss = [actors[a] for a in sorted(actors) if a not in own]
+        if miss:
+            out.append("P3 [%s] Actor chua co so do use case rieng (\"UCs for <Actor>\", SRS I.4.3): %s."
+                       % (tag, ", ".join("'%s'" % a for a in miss)))
+
+        # P4 - business flow la swimlane co lan System
+        for s in g["activity"]:
+            parts = [norm(x.get("name", x.get("id")) if isinstance(x, dict) else x) for x in s.get("partitions") or []]
+            if "system" not in parts:
+                out.append("P4 [%s] Business flow '%s' phai la swimlane: \"partitions\" = actor tham gia + \"System\"."
+                           % (s["_src"], s.get("title")))
+
+        # P5 - code designs: cap class + sequence thiet ke
+        uc_names = {norm(e.get("name", e.get("id"))) for s in g["usecase"] for e in s.get("elements", [])
+                    if e.get("type") == "usecase"}
+        seq_ucs = {norm(s.get("useCase")) for s in d_seq if s.get("useCase")}
+        pairs = set()
+        for s in d_class:
+            uc = norm(s.get("useCase"))
+            if not uc:
+                out.append("P5 [%s] Class diagram thiet ke thieu \"useCase\" (SDS II: moi bo code design gan 1 use case)."
+                           % s["_src"])
+                continue
+            if uc_names and uc not in uc_names:
+                out.append("P5 [%s] \"useCase\": '%s' khong co trong use case model cung bundle."
+                           % (s["_src"], s.get("useCase")))
+            if uc in seq_ucs:
+                pairs.add(uc)
+            else:
+                out.append("P5 [%s] Class diagram thiet ke cua '%s' chua co sequence \"level\": \"design\" cung useCase."
+                           % (s["_src"], s.get("useCase")))
+        if (d_class or d_seq) and len(pairs) < 2:
+            out.append("P5 [%s] SDS II Code Designs can >= 2 use case co du cap class + sequence muc thiet ke (hien co %d)."
+                       % (tag, len(pairs)))
+
+        # P6 - luong xac thuc
+        if not any(AUTH_RE.search(" ".join(str(s.get(k) or "") for k in ("useCase", "title"))) for s in d_seq):
+            out.append("P6 [%s] Thieu sequence muc thiet ke cho luong xac thuc (SDS III.1.1 Authentication Flow, "
+                       "\"useCase\": \"Login\")." % tag)
+
+        # P7 - moi entity khai niem co bang vat ly
+        if concept_erd and physical_erd:
+            ents = {}
+            for s in concept_erd:
+                for e in s.get("elements", []):
+                    if norm(e.get("type")) == "entity":
+                        ents.setdefault(norm(e.get("name", e.get("id"))), e.get("name", e.get("id")))
+            mapped = set()
+            for s in physical_erd:
+                for e in s.get("elements", []):
+                    if norm(e.get("type")) == "table" and e.get("entity"):
+                        mapped |= {norm(x) for x in (e["entity"] if isinstance(e["entity"], list) else [e["entity"]])}
+            rest = [ents[k] for k in sorted(ents) if k not in mapped]
+            if rest:
+                out.append("P7 [%s] Entity ERD khai niem chua co bang trong Database Design (dat \"entity\" cho bang): %s."
+                           % (tag, ", ".join("'%s'" % x for x in rest)))
+
+
+def check(specs, partial=False, profile=None):
     E, W, I = [], [], []
     for s in specs:
         check_lang(s, W)
@@ -748,6 +856,12 @@ def check(specs, partial=False):
     E.extend(xE)
     W.extend(xW)
     I.extend(xI)
+    if profile == "sep490":
+        # P7 thay cho ghi chu X7 "entity chua co bang" (tranh bao 2 lan).
+        I[:] = [x for x in I if not x.startswith("X7 [bundle")]
+        check_profile_sep490(specs, by, MISS)
+    elif profile:
+        raise ValueError("profile khong ho tro: %s (co: %s)" % (profile, ", ".join(PROFILES)))
     return E, W, I
 
 
@@ -1106,6 +1220,8 @@ def main():
     ap.add_argument("specs", nargs="+")
     ap.add_argument("--partial", action="store_true",
                     help="chi kiem mot phan bo so do: R1/R7 (thieu so do doi ung) chi la INFO")
+    ap.add_argument("--profile", choices=PROFILES,
+                    help="kiem bo so do du theo template (sep490: Report 3 SRS + Report 4 SDS, luat P1-P7)")
     ap.add_argument("--strict", action="store_true",
                     help="co WARN thi tra ma thoat 1 (dung cho CI/kiem tra cuoi)")
     ap.add_argument("--json", action="store_true",
@@ -1116,7 +1232,7 @@ def main():
                     help="alias cua --model-schema-version 1")
     a = ap.parse_args()
     specs = load(a.specs)
-    E, W, I = check(specs, partial=a.partial)
+    E, W, I = check(specs, partial=a.partial, profile=a.profile)
     if a.json:
         # Import lazily de tranh circular import khi comet_model tai cac helper tu module nay.
         from comet_model import build_model
@@ -1127,6 +1243,7 @@ def main():
             "warnings": W,
             "infos": I,
             "partial": bool(a.partial),
+            "profile": a.profile,
             "strict": bool(a.strict),
             "model": build_model(specs, schema_version=version),
         }, ensure_ascii=False, indent=2))

@@ -413,9 +413,10 @@ Goal: `/uml-comet` produces every diagram the SEP490 Report 3 (SRS) and Report 4
 - `comet_check.py`: E1–E3 cover crow's foot, new E4 (table needs a PK), X7 (table `entity` ↔ conceptual ERD entity, same bundle), X8 (design sequence lifelines/messages ↔ design class diagram of the same useCase; WARN only when that useCase has its own class spec). `"level": "design"` skips R3/R4/R10, C2 → INFO, R1/X2 → INFO when the bundle has no analysis interaction for the use case.
 - `comet_model.py`: design lifelines without stereotype become `class` nodes (not application-logic); `external: true` lifelines (Client/Browser) stay external.
 - Examples `talenthub_erd_conceptual.json` / `talenthub_erd_physical.json` (no `bundle`: canonical tests bootstrap all examples as one bundle).
-- Verified end to end: 13 specs (SRS 7 + SDS 6) → 0 ERROR / 0 WARN, canonical bootstrap exact, compile --check clean.
+- `comet_check.py --profile sep490`: completeness rules P1–P7 per bundle (required SRS/SDS pages, one use case diagram per actor, BF swimlane with System lane, ≥ 2 design class+sequence pairs, auth flow sequence, every conceptual entity has a table; replaces the X7 unmapped INFO). `--partial` → INFO.
+- Verified end to end: 15 specs (SRS 7 + SDS 8) → 0 ERROR / 0 WARN with `--profile sep490`, canonical bootstrap exact, compile --check clean.
 
-Status: **129 tests** OK.
+Status: **130 tests** OK.
 
 Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram. Spec loaders skip generated `comet-*` artifacts, so `"./uml/*.json"` globs stay safe.
 

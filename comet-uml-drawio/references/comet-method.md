@@ -91,6 +91,13 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | X6 | Cùng một tên structural không được đổi vai trò entity ↔ boundary/control/application logic | WARN |
 | X7 | Bảng vật lý (`"entity": "..."`) phải trỏ tới entity của ERD khái niệm cùng `bundle`; entity khái niệm chưa có bảng nào trỏ tới → INFO | WARN/INFO |
 | X8 | Sequence/communication mức thiết kế (`"level": "design"`): lifeline là lớp có trong class diagram mức thiết kế cùng `bundle` + `useCase` (use case không có class diagram riêng → so với mọi lớp thiết kế của bundle, chỉ INFO; `"external": true` bỏ qua); message không trùng operation của lớp → INFO | WARN/INFO |
+| P1 | `--profile sep490`: SRS đủ sơ đồ – context (bizcontext), business flow (activity), ERD khái niệm (có `entity`), use case, screen flow | WARN (`--partial`: INFO) |
+| P2 | `--profile sep490`: SDS đủ sơ đồ – architecture (component), package, database design (ERD có `table`), class + sequence `"level": "design"` | WARN (`--partial`: INFO) |
+| P3 | `--profile sep490`: mỗi actor có sơ đồ use case riêng ("UCs for <Actor>": actor duy nhất hoặc tên actor trong `title`) | WARN (`--partial`: INFO) |
+| P4 | `--profile sep490`: business flow là swimlane – `partitions` có làn `"System"` | WARN (`--partial`: INFO) |
+| P5 | `--profile sep490`: SDS II ≥ 2 use case có đủ cặp class + sequence thiết kế cùng `useCase`; class thiết kế có sequence cùng `useCase`; `useCase` của class thiết kế có trong use case model | WARN (`--partial`: INFO) |
+| P6 | `--profile sep490`: có sequence thiết kế cho luồng xác thực (`useCase`/`title` chứa Login / Sign in / Auth…) | WARN (`--partial`: INFO) |
+| P7 | `--profile sep490`: mọi entity của ERD khái niệm có bảng vật lý trỏ tới (`"entity"`); thay ghi chú X7 tương ứng | WARN (`--partial`: INFO) |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 

@@ -131,5 +131,6 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 - ERD có 2 ký pháp: Chen (mặc định) và `"notation": "crowfoot"` (entity/table + cột PK/FK, luật E1–E4).
 - Spec `"level": "design"` (class/sequence mức SDS: Servlet/Service/DAO, `activations`) bỏ qua luật phân tích
   R3/R4/R10; hồ sơ SEP490 (Report 3 SRS + Report 4 SDS) xem mục 2b của `commands/uml-comet/SKILL.md`.
+  Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P7).
 - [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
 - [ ] Semantic model v2 đã được sinh; khi làm full COMET nên có thêm bộ manifest `model + consistency + repair` dùng cùng fingerprint.

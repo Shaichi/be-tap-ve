@@ -92,8 +92,11 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
   hoặc file `.md`, không vẽ.
 
 Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o ./uml/<Sys>_SRS.drawio` và
-`"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict "./uml/*.json"` chạy **trên cả hai** để
-kiểm liên kết SRS ↔ SDS; canonical (2a) cũng trên `"./uml/*.json"`.
+`"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict --profile sep490 "./uml/*.json"` chạy
+**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P7: thiếu mục nào, actor nào chưa có
+"UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng). **Không giao khi còn WARN P**:
+vẽ bổ sung đúng mục bị báo rồi chạy lại. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
+này. Canonical (2a) cũng trên `"./uml/*.json"`.
 
 ## 3. Chạy – sửa đến sạch
 Sau mỗi bước: chạy 3 lệnh của lệnh con (có `--partial`) cho spec vừa viết. Xong tất cả:
