@@ -121,6 +121,12 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
 - Sequence thiết kế: mỗi lời gọi `sync` có `reply` (R15, cả `void` → reply `"ok"`); việc không chờ kết quả (gửi
   email, push notification) → `"type": "async"`. Luồng nghiệp vụ trong sequence phải khớp BF (SRS I.2) và
   statechart: trạng thái đặt trong sequence = state trên statechart của entity đó.
+- Trạng thái xuyên BF ↔ statechart ↔ sequence (P12): bước BF đổi trạng thái ghi đúng tên state; trước bước đó có
+  bước ứng với event của transition vào state (nhánh lỗi/hết hạn → event riêng `paymentFailed`); event = tên use
+  case camelCase; **mỗi use case đổi trạng thái xuất hiện trong ít nhất một BF** (thêm BF-03… nếu cần – số BF không
+  cố định); sequence đổi trạng thái kiểm trạng thái nguồn trước. Danh từ trong BF (Time Slot…) phải có trên ERD.
+- Sequence thiết kế đủ (P13): use case «include» có bước/lifeline; entity cha có con 1..N bắt buộc → tạo con
+  (`loop`), DTO có danh sách. Hệ thống ngoài có lớp tích hợp; mọi entity ERD có lớp trong package `entity` (P14).
 - Có Flutter: Screen Flow (SRS I.5.1a) tách hai trang `srs_05_screenflow_web.json` / `srs_05_screenflow_mobile.json`
   (`<Sys> - Web Screen Flow` / `<Sys> - Mobile Screen Flow`); lifeline Client của sequence = client thật sự gọi use
   case đó (`React Web App` hoặc `Flutter Mobile App`).
@@ -135,11 +141,14 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
 
 Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o ./uml/<Sys>_SRS.drawio` và
 `"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict --profile sep490 "./uml/*.json"` chạy
-**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P11: thiếu mục nào, actor nào chưa có
+**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P14: thiếu mục nào, actor nào chưa có
 "UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng, entity có `status` chưa có
 statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login, state ≠ giá trị status) + X9–X12/R15
-(thuộc tính ↔ cột, lớp ↔ package, message ↔ operation, cột FK ↔ thuộc tính, sync ↔ reply); cuối cùng sinh data dictionary bằng `comet_datadict.py`. **Không giao khi còn WARN P**:
-vẽ bổ sung đúng mục bị báo rồi chạy lại. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
+(thuộc tính ↔ cột, lớp ↔ package, message ↔ operation, cột FK ↔ thuộc tính, sync ↔ reply) + P12–P14 (trạng thái BF /
+sequence ↔ statechart, «include» và entity con 1..N trong sequence, hệ thống ngoài / entity có lớp); cuối cùng sinh data dictionary bằng `comet_datadict.py`. **Không giao khi còn WARN P**:
+vẽ bổ sung đúng mục bị báo rồi chạy lại. **INFO không phải "quy ước"**: INFO P12/P14 (và X8/X11) phải được sửa, hoặc
+ghi vào NOTES một dòng lý do cụ thể cho từng mục; chỉ INFO R1 (use case ngoài SDS II chưa có sequence) được bỏ qua
+không cần giải thích. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
 này. Canonical (2a) cũng trên `"./uml/*.json"`.
 
 **Chia phiên SRS / SDS (mặc định cho bộ SEP490 đầy đủ; hệ nhỏ < ~12 spec làm một phiên cũng được).** Tính nhất quán
@@ -152,7 +161,7 @@ nằm ở **spec JSON + checker**, không ở trí nhớ hội thoại → phiê
 2. **Phiên 2 – SDS (phiên mới):** đọc `./uml/NOTES.md` rồi lấy tên từ spec SRS cần dùng (`srs_03_erd.json`,
    `srs_03_*_state.json`, `srs_04_uc_*.json`, `srs_02_*.json` khi viết luồng) – **không** mở `.drawio`/PNG của SRS.
    Viết `sds_*.json`; kiểm trên **cả bộ, không `--partial`**: `comet_check.py --strict --profile sep490 "./uml/*.json"`
-   (X1/X7/X9–X12/P5–P11 đối chiếu SDS với SRS). Lệch do SRS thiếu (entity/cột/use case) → sửa spec SRS, build lại
+   (X1/X7/X9–X12/P5–P14 đối chiếu SDS với SRS). Lệch do SRS thiếu (entity/cột/use case) → sửa spec SRS, build lại
    `<Sys>_SRS.drawio`, ghi một dòng vào NOTES. Xong: build `<Sys>_SDS.drawio` + PNG, sinh data dictionary, canonical (2a).
 3. **Phiên sau – thêm/sửa tính năng:** đọc NOTES, sửa đúng spec SRS + SDS liên quan, chạy lại lệnh kiểm cả bộ.
 Người dùng muốn làm liền một phiên → vẫn theo đúng thứ tự trên (SRS sạch với `--partial` rồi mới sang SDS).

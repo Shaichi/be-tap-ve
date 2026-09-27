@@ -1749,6 +1749,139 @@ class TestCometCheck(unittest.TestCase):
         self.assertNotIn("job_id", w[0])
         self.assertFalse(codes(check(phy, dict(cls, bundle="x"))[1], "X12"))  # khac bundle
 
+    @staticmethod
+    def order_bundle():
+        """Bundle SEP490 nho cho P12-P14: Order (status) 1..N Order Item, statechart Order, BF, 2 sequence thiet ke."""
+        act = lambda i, n, p="System": {"id": i, "type": "action", "name": n, "partition": p}
+        specs = {
+            "ctx": {"diagram": "bizcontext", "title": "Ctx", "elements": [
+                {"id": "s", "type": "system", "name": "Shop"}, {"id": "c", "type": "external", "name": "Customer"},
+                {"id": "p", "type": "external", "name": "Stripe Gateway"}],
+                "relations": [{"from": "c", "to": "s", "label": "Order"}, {"from": "s", "to": "p", "label": "Charge"}]},
+            "uc": {"diagram": "usecase", "title": "UCs for Customer", "elements": [
+                {"id": "a", "type": "actor", "name": "Customer"}, {"id": "po", "type": "usecase", "name": "Place Order"},
+                {"id": "pay", "type": "usecase", "name": "Pay Order"}, {"id": "cc", "type": "usecase", "name": "Cancel Order"},
+                {"id": "sh", "type": "usecase", "name": "Ship Order"}],
+                "relations": [{"from": "a", "to": "po"}, {"from": "a", "to": "cc"}, {"from": "a", "to": "sh"},
+                              {"type": "include", "from": "po", "to": "pay"}]},
+            "erd": {"diagram": "erd", "notation": "crowfoot", "title": "ERD", "elements": [
+                {"id": "o", "type": "entity", "name": "Order", "attributes": ["+ Order Code", "+ Status"]},
+                {"id": "i", "type": "entity", "name": "Order Item", "attributes": ["+ Quantity"]}],
+                "relations": [{"from": "o", "to": "i", "name": "containing", "fromCard": "1", "toCard": "1..N"}]},
+            "st": {"diagram": "state", "stateMachineOf": "Order", "title": "Order - State Diagram", "elements": [
+                {"id": "i", "type": "initial"}, {"id": "n", "type": "state", "name": "NEW"},
+                {"id": "p", "type": "state", "name": "PAID"}, {"id": "s", "type": "state", "name": "SHIPPED"},
+                {"id": "c", "type": "state", "name": "CANCELLED"}, {"id": "f", "type": "final"}],
+                "relations": [{"from": "i", "to": "n"}, {"from": "n", "to": "p", "event": "payOrder"},
+                              {"from": "n", "to": "c", "event": "cancelOrder"},
+                              {"from": "p", "to": "s", "event": "shipOrder"}, {"from": "s", "to": "f"}]},
+            "bf": {"diagram": "activity", "title": "BF-01 Order", "partitions": ["Customer", "System"], "elements": [
+                {"id": "i", "type": "initial", "partition": "Customer"}, act("a", "Place Order", "Customer"),
+                act("b", "Create Order in NEW Status"), act("c", "Pay Order", "Customer"),
+                act("d", "Update Status to PAID"), act("e", "Cancel Order", "Customer"),
+                act("g", "Update Status to CANCELLED"), {"id": "f", "type": "final", "partition": "System"}],
+                "relations": [{"from": "i", "to": "a"}, {"from": "a", "to": "b"}, {"from": "b", "to": "c"},
+                              {"from": "c", "to": "d"}, {"from": "b", "to": "e"}, {"from": "e", "to": "g"},
+                              {"from": "d", "to": "f"}, {"from": "g", "to": "f"}]},
+            "place": {"diagram": "sequence", "level": "design", "useCase": "Place Order", "title": "Place - Seq",
+                      "elements": [{"id": "cl", "type": "object", "name": "Web App", "external": True},
+                                   {"id": "s", "type": "object", "class": "OrderServiceImpl"},
+                                   {"id": "o", "type": "object", "class": "Order"},
+                                   {"id": "r", "type": "object", "class": "OrderRepository"},
+                                   {"id": "pg", "type": "object", "class": "StripePaymentClient"}],
+                      "messages": [{"from": "cl", "to": "s", "name": "placeOrder(req)"},
+                                   {"from": "s", "to": "o", "name": "addItem(item)"},
+                                   {"from": "o", "to": "s", "name": "ok", "type": "reply"},
+                                   {"from": "s", "to": "o", "name": "setStatus(\"NEW\")"},
+                                   {"from": "o", "to": "s", "name": "ok", "type": "reply"},
+                                   {"from": "s", "to": "r", "name": "save(order)"},
+                                   {"from": "r", "to": "s", "name": "order", "type": "reply"},
+                                   {"from": "s", "to": "pg", "name": "createPayment(order)"},
+                                   {"from": "pg", "to": "s", "name": "url", "type": "reply"},
+                                   {"from": "s", "to": "cl", "name": "url", "type": "reply"}]},
+            "ship": {"diagram": "sequence", "level": "design", "useCase": "Ship Order", "title": "Ship - Seq",
+                     "elements": [{"id": "cl", "type": "object", "name": "Web App", "external": True},
+                                  {"id": "s", "type": "object", "class": "OrderServiceImpl"},
+                                  {"id": "o", "type": "object", "class": "Order"}],
+                     "messages": [{"id": "m1", "from": "cl", "to": "s", "name": "shipOrder(id)"},
+                                  {"id": "m2", "from": "s", "to": "o", "name": "setStatus(\"SHIPPED\")"},
+                                  {"id": "m3", "from": "o", "to": "s", "name": "ok", "type": "reply"},
+                                  {"id": "m4", "from": "s", "to": "cl", "name": "ok", "type": "reply"}],
+                     "fragments": [{"type": "alt", "operands": [{"guard": "status == PAID", "from": "m2", "to": "m3"}]}]},
+        }
+        for s in specs.values():
+            s["bundle"] = "shop"
+        return specs
+
+    def test_P12_P13_P14_state_and_design_logic(self):
+        base = self.order_bundle()
+
+        def run_(change=None, drop=(), partial=False):
+            sp = copy.deepcopy(base)
+            for k in drop:
+                del sp[k]
+            if change:
+                change(sp)
+            return check(*sp.values(), partial=partial, profile="sep490")
+        E, W, I = run_()
+        self.assertEqual(codes(W, "P12") + codes(W, "P13"), [], W)
+        i = codes(I, "P12")                                                  # Ship Order chua co trong BF
+        self.assertTrue(len(i) == 1 and "'shipOrder'" in i[0] and "payOrder" not in i[0], i)
+        self.assertEqual(codes(I, "P14"), [], I)
+        self.assertFalse([x for x in I if x.startswith("R8 [")], I)          # statechart vong doi entity: khong R8
+
+        def bf_name(i, n):
+            return lambda sp: next(e for e in sp["bf"]["elements"] if e["id"] == i).update(name=n)
+        # P12a: state khong co tren statechart
+        w = codes(run_(bf_name("d", "Update Status to REFUNDED"))[1], "P12")
+        self.assertTrue(w and "'REFUNDED'" in w[0], w)
+        # P12b: nhanh vao CANCELLED khong co buoc ung voi event cancelOrder (vd thanh toan that bai)
+        w = codes(run_(bf_name("e", "Payment Failed"))[1], "P12")
+        self.assertTrue(w and "'CANCELLED'" in w[0] and "cancelOrder" in w[0], w)
+        # buoc dung ten nhung chi co tan ngu 1 tu -> khong tinh la use case ('Verify Confirmed Order')
+        w = codes(run_(bf_name("e", "Verify Cancelled Order"))[1], "P12")
+        self.assertTrue(w, w)
+        self.assertFalse(codes(run_(bf_name("e", "Customer Cancels Order"))[1], "P12"))
+        # P12c: sequence dat state cua use case khac; dat state khong co; khong kiem trang thai nguon
+        def ship_uc(sp):
+            sp["ship"].update(useCase="Cancel Order", title="Cancel Order")
+            sp["ship"]["messages"][0]["name"] = "cancelOrder(id)"
+        w = codes(run_(ship_uc)[1], "P12")
+        self.assertTrue(any("'SHIPPED'" in x and "shipOrder" in x for x in w), w)
+        def ship_msg(n):
+            return lambda sp: sp["ship"]["messages"][1].update(name=n)
+        w = codes(run_(ship_msg("setStatus(\"LOST\")"))[1], "P12")
+        self.assertTrue(w and "'LOST'" in w[0], w)
+        w = codes(run_(lambda sp: sp["ship"].pop("fragments"))[1], "P12")
+        self.assertTrue(w and "trang thai nguon (PAID)" in w[0], w)
+        def get_first(sp):
+            sp["ship"].pop("fragments")
+            sp["ship"]["messages"][1:1] = [{"from": "s", "to": "o", "name": "getStatus()"},
+                                           {"from": "o", "to": "s", "name": "PAID", "type": "reply"}]
+        self.assertFalse(codes(run_(get_first)[1], "P12"))
+        # P12 van WARN khi --partial (mau thuan, khong phai thieu so do)
+        self.assertTrue(codes(run_(bf_name("d", "Update Status to REFUNDED"), partial=True)[1], "P12"))
+        # P12 INFO: event khong la use case; use case doi trang thai khong co trong BF
+        def expire(sp):
+            sp["st"]["relations"].append({"from": "n", "to": "c", "event": "expireOrder"})
+        self.assertTrue(any("'expireOrder'" in x for x in codes(run_(expire)[2], "P12")))
+        # P13: use case include khong co buoc; entity con 1..N khong duoc tao
+        def no_pay(sp):
+            sp["place"]["elements"][4]["class"] = "AuditLogger"
+            sp["place"]["messages"][7]["name"] = "log(order)"
+        w = codes(run_(no_pay)[1], "P13")
+        self.assertTrue(w and "'Pay Order'" in w[0], w)
+        w = codes(run_(lambda sp: sp["place"]["messages"][1].update(name="validate(req)"))[1], "P13")
+        self.assertTrue(w and "'Order Item'" in w[0], w)
+        # P14 (INFO): he thong ngoai khong co lop tich hop; package thieu lop entity
+        i = codes(run_(no_pay)[2], "P14")
+        self.assertTrue(i and "'Stripe Gateway'" in i[0] and "Customer" not in i[0], i)
+        def pkg(sp):
+            sp["pkg"] = {"diagram": "package", "title": "Pkg", "bundle": "shop", "elements": [
+                {"id": "e", "type": "package", "name": "entity"}, {"id": "o", "type": "class", "name": "Order", "in": "e"}]}
+        i = codes(run_(pkg)[2], "P14")
+        self.assertTrue(i and "'Order Item'" in i[0], i)
+
     def test_P11_statechart_matches_status_values(self):
         def run_(values=None, enum=None, states=("Pending", "Under Review", "Accepted")):
             phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
@@ -1893,8 +2026,12 @@ class TestCometCheck(unittest.TestCase):
                             {"from": "srv", "to": "cl", "name": "page", "type": "reply"}]}
         E, W, I = check(uc, cls, seq)
         self.assertEqual((E, W), ([], []))                                   # khong R3/R4/C2/R1/X2 WARN
-        self.assertTrue(codes(I, "R1") and codes(I, "C2") and codes(I, "X2"), I)
+        self.assertTrue(codes(I, "R1") and codes(I, "C2"), I)
+        self.assertEqual(codes(I, "X2"), [])                                  # client "external" dai dien actor
         self.assertEqual(codes(I, "X8"), [])
+        noclient = copy.deepcopy(seq)
+        del noclient["elements"][0]["external"]
+        self.assertTrue(codes(check(uc, cls, noclient)[2], "X2"))
         analysis = copy.deepcopy(seq)
         del analysis["level"]
         W2 = check(uc, cls, analysis)[1]

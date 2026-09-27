@@ -35,7 +35,14 @@ bằng ngôn ngữ của họ.
   **y hệt** thuộc tính `"class"` của đối tượng đó trong sơ đồ tương tác, `"title"`.
 - Hồ sơ SEP490: statechart **vòng đời entity** (entity có cột `status`: Appointment, Order…) – `"stateMachineOf"` =
   tên entity y hệt ERD; state = giá trị cột `status` (khai báo `"values"` cho cột, P11 so khớp); event = use case/operation đổi trạng thái (P8, không cần
-  «state dependent control» – X3 bỏ qua).
+  «state dependent control» – X3 bỏ qua). Liên kết với business flow và SDS (P12):
+  - event đặt theo **tên use case** dạng camelCase (`Confirm Appointment` → `confirmAppointment`); sự kiện hệ thống
+    không phải use case (`paymentFailed`, `paymentTimeout`) được phép – ghi rõ trong NOTES.
+  - Mỗi nhánh BF dẫn tới một state phải có transition + event tương ứng (thanh toán thất bại → CANCELLED cần
+    `paymentFailed`, không dùng `cancelAppointment`). Event vào state kết thúc (COMPLETED) phải là bước **cuối cùng**
+    thực sự kết thúc nghiệp vụ trong BF (vd `completeConsultation` sau kê đơn), không phải bước giữa chừng.
+  - Sequence thiết kế đổi trạng thái: use case/operation = event vào state đó, và kiểm trạng thái nguồn trước khi
+    đổi (fragment `alt [status == PENDING_CONFIRM]` hoặc message `getStatus()`/`validateTransition()`).
 - Phần tử: `initial` (đúng 1 ở cấp ngoài cùng; 1 trong mỗi composite state có state con), `state` (tên = trạng
   thái chờ có ý nghĩa: "Idle", "Waiting for PIN", "Processing Payment"; `"activities": ["entry / X", "do / Y",
   "exit / Z"]`), composite state = state con khai báo `"in": "<id cha>"`, `final`, `choice`, `junction`,

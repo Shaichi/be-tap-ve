@@ -65,7 +65,19 @@ bằng ngôn ngữ của họ.
   Nhánh lỗi (409 email trùng, 401 sai mật khẩu…) dùng fragment `alt`.
 - Mỗi lời gọi `sync` có `reply` về đúng bên gọi (R15; hàm `void` → reply `"ok"`); việc không chờ kết quả (gửi
   email, notification) → `"type": "async"`. Đọc dữ liệu trước khi dùng (load entity rồi mới gửi email/cập nhật).
-- Mức thiết kế bỏ R3/R4; R1/X2 chỉ INFO khi bundle không có sơ đồ tương tác mức phân tích.
+- Mức thiết kế bỏ R3/R4; R1/X2 chỉ INFO khi bundle không có sơ đồ tương tác mức phân tích (client `"external"`
+  đại diện actor → không báo X2).
+- Đủ nghiệp vụ so với SRS (`--profile sep490`, P12/P13):
+  - Đổi trạng thái entity (`setStatus("CONFIRMED")`): use case/operation = event vào state đó trên statechart, và
+    **kiểm trạng thái nguồn trước** – fragment `alt [status == PENDING_CONFIRM]` (nhánh else → 409) hoặc message
+    `getStatus()`/`validateTransition()` trước khi đổi.
+  - Use case «include» (Book Appointment → Make Deposit Payment) phải có bước/lifeline trong sequence
+    (`PaymentService`, `VnPayClient.createPaymentUrl(...)`) hoặc sequence riêng.
+  - Tạo entity cha có quan hệ ERD **1..N bắt buộc** (Prescription → Prescription Item) → tạo cả entity con: DTO
+    request có danh sách (`items: List<PrescriptionItemRequest>`), fragment `loop [each item]` quanh bước tạo con;
+    tham số message phải lấy được từ DTO (không dùng `medicineId` khi request không có).
+  - Hệ thống ngoài trong context (VNPay, Email) có lớp tích hợp (`VnPayClient`, `EmailService`) trong package +
+    được gọi trong sequence của use case dùng nó (P14 INFO).
 
 ## 3. Chạy – sửa đến sạch
 ```bash

@@ -92,6 +92,15 @@ Ho so SEP490 (--profile sep490: Report 3 SRS + Report 4 SDS, moi bundle; --parti
   P9  Software Architecture (component) khong dung stereotype doi tuong COMET (control, entity, database wrapper,
       proxy, user interaction...) - kien truc phan tang chi dat "subsystem" cho tang.
   P10 Screen flow: man hinh quan tri/dashboard (Dashboard, Admin, Management...) chi toi duoc qua man Login.
+  P12 Trang thai nhat quan voi statechart entity: buoc BF / message sequence thiet ke nhac status (CHU_HOA hoac
+      ten state) phai la state co that; buoc BF dua entity sang X phai co buoc truoc ung voi event cua transition
+      vao X (tru state tao tu initial); sequence thiet ke dat X phai la use case/operation = event vao X va phai
+      kiem trang thai nguon truoc (alt/opt, getStatus, validate...). INFO: event khong trung use case; use case
+      doi trang thai chua co trong business flow nao.
+  P13 Sequence thiet ke du: use case «include» phai co buoc/lifeline (hoac sequence rieng); tao entity cha co
+      quan he ERD 1..N bat buoc thi phai tao entity con (loop).
+  P14 (INFO) He thong ngoai trong context co lop/lifeline tich hop trong SDS; entity ERD co lop trong package.
+  P12/P13 la mau thuan (khong phai thieu so do) -> van la WARN khi --partial.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
 """
@@ -648,8 +657,8 @@ def reach(adj, starts, blocked=()):
     return seen
 
 
-def check_profile_sep490(specs, by, out):
-    """P1-P11: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
+def check_profile_sep490(specs, by, out, info=None, warn=None):
+    """P1-P14: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
     scopes = defaultdict(lambda: defaultdict(list))   # bundle -> diagram -> specs
     for d, ss in by.items():
         for s in ss:
@@ -836,6 +845,298 @@ def check_profile_sep490(specs, by, out):
                 out.append("P10 [%s] Man hinh %s toi duoc tu goc ma khong qua Login - noi Login -> <Role> Dashboard, "
                            "khong noi thang tu Home/man cong khai." % (s["_src"], ", ".join(
                                "'%s'" % screens[i] for i in leak)))
+
+        # P12-P14 - logic cheo BF / statechart / sequence thiet ke / ERD / context
+        ent_keys = set(stateful) | {compact(e.get("name", e.get("id"))) for s in concept_erd
+                                    for e in s.get("elements", []) if norm(e.get("type")) == "entity"}
+        check_sep490_logic(g, tag, ent_keys, uc_names, out if warn is None else warn, out if info is None else info)
+
+
+STOPW = {"the", "a", "an", "to", "in", "of", "and", "for", "with", "by", "into", "from", "on", "at"}
+STATE_WORD = re.compile(r"status|state|trạng thái", re.I)
+CAPS_TOK = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\b[A-Z]{3,}\b")
+ACRONYMS = {"URL", "API", "OTP", "JWT", "PDF", "HTTP", "HTTPS", "SMS", "DTO", "CRUD", "CSV", "JSON", "XML",
+            "REST", "SQL", "UUID", "VNPAY", "MOMO", "QR", "ID", "OK", "GET", "POST", "PUT", "PATCH", "DELETE"}
+CHECK_MSG = re.compile(r"(?i:valid|check|assert|ensure|guard|getstatus|getstate)|^(can|is)[A-Z]")
+VERB_NODES = {"initial", "decision", "merge", "fork", "join"} | FINALS
+
+
+def words(s):
+    """makeDepositPayment / Make Deposit Payment / check-in patient -> ['make', 'deposit', 'payment']."""
+    return re.findall(r"[a-z0-9]+", snake(re.sub(r"\(.*?\)", " ", str(s or ""))).replace("_", " "))
+
+
+def uc_match(uc, text):
+    """Buoc/message 'text' ung voi use case/event 'uc': chua nguyen ten (compact), hoac du cac tu sau dong tu
+    (tan ngu 1 tu thi can ca dong tu: 'Verify Confirmed Appointment' khong phai confirmAppointment)."""
+    u, t = words(uc), words(text)
+    if not u:
+        return False
+    if "".join(u) in "".join(t):
+        return True
+    obj = [w for w in u[1:] if w not in STOPW]
+    verb = {u[0], u[0] + "s", u[0] + "es"}
+    return bool(obj) and set(obj) <= set(t) and (len(obj) > 1 or bool(verb & set(t)))
+
+
+def raw_event(r):
+    ev = r.get("event")
+    if not ev and not r.get("guard") and not r.get("action"):
+        ev = re.sub(r"\[.*?\]", "", str(r.get("label") or r.get("name") or "").partition("/")[0])
+    return re.sub(r"\(.*?\)", "", str(ev or "")).strip()
+
+
+def state_machines(g, entity_keys):
+    """Statechart vong doi entity -> {key, name, src, states {compact: ten}, into {compact: [(tu initial?, event, nguon)]}}."""
+    out = []
+    for s in g["state"]:
+        key = compact(s.get("stateMachineOf"))
+        if key not in entity_keys:
+            key = max((k for k in entity_keys if k in compact(s.get("title"))), key=len, default=None)
+        if not key:
+            continue
+        els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+        states = {compact(e.get("name") or i): e.get("name") or i for i, e in els.items()
+                  if norm(e.get("type")) == "state"}
+        into = defaultdict(list)
+        for r in s.get("relations", []):
+            if str(r.get("type", "transition")).lower() not in ("transition", "flow"):
+                continue
+            a, b = els.get(str(r.get("from"))), els.get(str(r.get("to")))
+            if not a or not b or norm(b.get("type")) != "state":
+                continue
+            into[compact(b.get("name") or r.get("to"))].append(
+                (norm(a.get("type")) == "initial", raw_event(r), a.get("name") or r.get("from")))
+        out.append({"key": key, "name": s.get("stateMachineOf") or s.get("title"), "src": s["_src"],
+                    "states": states, "into": into})
+    return out
+
+
+def state_mentions(text, sms):
+    """Ten state (CHU_HOA hoac ten state da biet) trong text, theo thu tu xuat hien."""
+    text = str(text or "")
+    found = [(m.start(), m.group()) for m in CAPS_TOK.finditer(text) if m.group() not in ACRONYMS]
+    for sm in sms:
+        for n in sm["states"].values():
+            pat = r"(?<![A-Za-z0-9])" + r"[\s_\-]*".join(map(re.escape, words(n))) + r"(?![A-Za-z0-9])"
+            found += [(m.start(), m.group()) for m in re.finditer(pat, text, re.I)]
+    seen, out = set(), []
+    for _, t in sorted(found):
+        if compact(t) not in seen:
+            seen.add(compact(t))
+            out.append(t)
+    return out
+
+
+def pick_sm(sms, text, cls=None):
+    """Statechart duoc nhac: lop nhan / ten entity trong text; chi co 1 statechart -> statechart do."""
+    for sm in sms:
+        if cls and compact(cls) == sm["key"]:
+            return sm
+    hit = [sm for sm in sms if sm["key"] in compact(text)]
+    if hit:
+        return max(hit, key=lambda sm: len(sm["key"]))
+    return sms[0] if len(sms) == 1 else None
+
+
+def check_sep490_logic(g, tag, entity_keys, uc_names, out, info):
+    """P12 trang thai BF / sequence thiet ke <-> statechart; P13 sequence thiet ke du use case include + entity con
+    bat buoc; P14 (INFO) he thong ngoai co lop tich hop, entity ERD co lop trong package."""
+    sms = state_machines(g, entity_keys)
+    d_seq = [s for s in g["sequence"] if is_design(s)]
+    includes = defaultdict(set)
+    for s in g["usecase"]:
+        els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+        for r in s.get("relations", []):
+            a, b = els.get(str(r.get("from"))), els.get(str(r.get("to")))
+            if a and b and norm(r.get("type")) == "include":
+                includes[norm(a.get("name", a.get("id")))].add(b.get("name", b.get("id")))
+    inter_ucs = {_spec_ref_name(s) for s in g["sequence"] + g["communication"]}
+
+    # P12a/b - buoc BF doi trang thai
+    for s in g["activity"]:
+        els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+        preds = defaultdict(set)
+        for r in s.get("relations", []):
+            if str(r.get("type", "flow")).lower() in ACT_FLOW:
+                preds[str(r.get("to"))].add(str(r.get("from")))
+        marks = {}
+        for i, e in els.items():
+            n = e.get("name")
+            if not n or not STATE_WORD.search(str(n)) or norm(e.get("type")) in VERB_NODES:
+                continue
+            toks = state_mentions(n, sms)
+            sm = pick_sm(sms, n) or next((x for x in sms if toks and compact(toks[-1]) in x["states"]), None)
+            if toks and sm:
+                marks[i] = (sm, toks)
+        for i in sorted(marks):
+            sm, toks = marks[i]
+            n = els[i].get("name")
+            bad = [t for t in toks if compact(t) not in sm["states"]]
+            if bad:
+                out.append("P12 [%s] Buoc BF '%s' nhac trang thai %s khong co tren statechart '%s' (%s) - dung dung "
+                           "ten state (= gia tri cot status) hoac them state." % (
+                               s["_src"], n, ", ".join("'%s'" % t for t in bad), sm["name"], sm["src"]))
+                continue
+            tr = sm["into"].get(compact(toks[-1]), [])
+            evs = [ev for _, ev, _ in tr]
+            if not tr or any(ini for ini, _, _ in tr) or not all(evs):
+                continue
+            seen, todo, names = set(preds[i]), list(preds[i]), []
+            while todo:
+                j = todo.pop()
+                e = els.get(j) or {}
+                if j in marks or norm(e.get("type")) == "initial":
+                    continue
+                if e.get("name") and norm(e.get("type")) not in VERB_NODES:
+                    names.append(e.get("name"))
+                for k in preds[j] - seen:
+                    seen.add(k)
+                    todo.append(k)
+            if not any(uc_match(ev, x) for ev in evs for x in names):
+                out.append("P12 [%s] Buoc BF '%s' dua %s sang '%s' nhung khong buoc nao truoc do ung voi event cua "
+                           "transition vao '%s' tren statechart (%s) - them transition/event dung cho nhanh nay "
+                           "(vd paymentFailed, paymentTimeout) hoac buoc kich hoat use case." % (
+                               s["_src"], n, sm["name"], toks[-1], toks[-1], ", ".join(sorted(set(evs)))))
+
+    # P12c - sequence thiet ke doi trang thai
+    for s in d_seq:
+        uc = s.get("useCase") or s.get("title")
+        lls = lifelines(s)
+        msgs = s.get("messages", [])
+        frag_txt = json.dumps(s.get("fragments") or [], ensure_ascii=False)
+        allowed = [uc] + sorted(includes.get(norm(uc), ()))
+        for idx, m in enumerate(msgs):
+            n = str(m.get("name") or "")
+            if is_reply(m) or not STATE_WORD.search(n):
+                continue
+            cls = obj_class(lls.get(str(m.get("to")), {}))
+            toks = state_mentions(n, sms)
+            sm = pick_sm(sms, n, cls)
+            if not toks or not sm:
+                continue
+            bad = [t for t in toks if compact(t) not in sm["states"]]
+            if bad:
+                out.append("P12 [%s] Message '%s' dat trang thai %s khong co tren statechart '%s' (%s)." % (
+                    s["_src"], n, ", ".join("'%s'" % t for t in bad), sm["name"], sm["src"]))
+                continue
+            x = toks[-1]
+            tr = sm["into"].get(compact(x), [])
+            if not tr or any(ini for ini, _, _ in tr):
+                continue
+            evs = sorted({ev for _, ev, _ in tr if ev})
+            names = allowed + [str(y.get("name")) for y in msgs if not is_reply(y)]
+            if evs and not any(compact("".join(words(ev))) in {compact("".join(words(a))) for a in names}
+                               for ev in evs):
+                out.append("P12 [%s] Sequence '%s' dua %s sang '%s' nhung statechart chi vao '%s' qua event %s - "
+                           "dat useCase/operation trung event, hoac sua transition." % (
+                               s["_src"], uc, sm["name"], x, x, ", ".join(evs)))
+            srcs = sorted({str(a) for ini, _, a in tr if not ini})
+            before = " ".join(str(y.get("name") or "") for y in msgs[:idx] if not is_reply(y))
+            checked = any(CHECK_MSG.search(str(y.get("name") or "")) or STATE_WORD.search(str(y.get("name") or ""))
+                          for y in msgs[:idx] if not is_reply(y)) \
+                or any(compact(a) in compact(before + frag_txt) for a in srcs) \
+                or STATE_WORD.search(frag_txt)
+            if not checked:
+                out.append("P12 [%s] Sequence '%s' dat %s = '%s' ma khong kiem trang thai nguon (%s) truoc do - them "
+                           "fragment alt/opt [status == %s] hoac message kiem tra (validateTransition/getStatus) de "
+                           "thiet ke khong vi pham statechart." % (
+                               s["_src"], uc, sm["name"], x, ", ".join(srcs), srcs[0] if srcs else "..."))
+
+    # P12d/e - event <-> use case; use case doi trang thai co trong BF
+    acts = [e.get("name") for s in g["activity"] for e in s.get("elements", [])
+            if e.get("name") and norm(e.get("type")) not in VERB_NODES]
+    ucs = sorted(uc_names)
+    for sm in sms:
+        evs = sorted({ev for tr in sm["into"].values() for _, ev, _ in tr if ev})
+        if ucs:
+            orphan = [ev for ev in evs if not any(compact("".join(words(ev))) == compact("".join(words(u)))
+                                                  for u in ucs)]
+            if orphan:
+                info.append("P12 [%s] Event %s cua statechart '%s' khong trung use case nao - event la use case/"
+                            "operation doi trang thai; su kien he thong (timeout, callback that bai) thi ghi ro trong "
+                            "NOTES." % (sm["src"], ", ".join("'%s'" % e for e in orphan), sm["name"]))
+        if g["activity"]:
+            miss = [ev for ev in evs if not any(uc_match(ev, a) for a in acts)]
+            if miss:
+                info.append("P12 [%s] Statechart '%s': use case doi trang thai chua xuat hien trong business flow "
+                            "nao: %s - them buoc (hoac BF moi) cho luong nay." % (
+                                sm["src"], sm["name"], ", ".join("'%s'" % e for e in miss)))
+
+    # P13 - sequence thiet ke: use case include + entity con bat buoc (1..N)
+    kids = defaultdict(set)
+    ent_name = {}
+    for s in g["erd"]:
+        els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+        for e in els.values():
+            if norm(e.get("type")) == "entity":
+                ent_name[compact(e.get("name", e.get("id")))] = e.get("name", e.get("id"))
+        for r in s.get("relations", []):
+            a, b = els.get(str(r.get("from"))), els.get(str(r.get("to")))
+            if not a or not b or norm(a.get("type")) != "entity" or norm(b.get("type")) != "entity":
+                continue
+            for p, c, card in ((a, b, r.get("toCard")), (b, a, r.get("fromCard"))):
+                lo, _, hi = str(card or "").replace(" ", "").partition("..")
+                if lo == "1" and hi in ("n", "N", "*", "m", "M"):
+                    kids[compact(p.get("name", p.get("id")))].add(c.get("name", c.get("id")))
+    for s in d_seq:
+        uc = s.get("useCase") or s.get("title")
+        lls = lifelines(s)
+        txt = " ".join([str(obj_class(e)) for e in lls.values()] +
+                       [str(m.get("name") or "") for m in s.get("messages", [])] +
+                       [json.dumps(s.get("fragments") or [], ensure_ascii=False)])
+        tw = set(words(txt))
+        for v in sorted(includes.get(norm(uc), ())):
+            # tu rieng cua use case include (bo dong tu, bo tu trung use case goc): Pay Order ~ PaymentClient
+            own = [w for w in words(v)[1:] if w not in STOPW and w not in words(uc)] or words(v)[:1]
+            if norm(v) in inter_ucs or compact("".join(words(v))) in compact("".join(words(txt))) or \
+                    any(len(w) >= 3 and t.startswith(w) for w in own for t in tw):
+                continue
+            out.append("P13 [%s] Sequence '%s' «include» '%s' nhung khong co buoc/lifeline nao cho use case nay va "
+                       "'%s' chua co sequence rieng - them buoc (vd PaymentService/VnPayClient) hoac fragment ref."
+                       % (s["_src"], uc, v, v))
+        saved = set()
+        for m in s.get("messages", []):
+            n = str(m.get("name") or "")
+            cls = compact(obj_class(lls.get(str(m.get("to")), {})))
+            if norm(m.get("type")) == "create":
+                saved.add(cls)
+            elif re.match(r"(save|insert|create|persist|add)", mname(n)):
+                saved |= {k for k in kids if cls == k + "repository" or cls == k}
+        for p in sorted(saved & set(kids)):
+            for c in sorted(kids[p]):
+                head = [w for w in words(c) if w not in words(ent_name.get(p, p))][-1:] or words(c)[-1:]
+                if compact(c) in compact(txt) or (head and head[0] in tw):
+                    continue
+                out.append("P13 [%s] Sequence '%s' tao %s nhung ERD bat buoc 1..N '%s' - them buoc tao %s (loop "
+                           "tren danh sach trong request) va truong danh sach trong DTO." % (
+                               s["_src"], uc, ent_name.get(p, p), c, c))
+
+    # P14 (INFO) - he thong ngoai co lop/lifeline tich hop; entity ERD co lop trong package
+    design = [s for s in g["class"] + g["sequence"] if is_design(s)] + g["package"]
+    if design:
+        human = {norm(e.get("name", e.get("id"))) for s in g["usecase"] for e in s.get("elements", [])
+                 if e.get("type") == "actor"}
+        names = " ".join(compact(obj_class(e)) for s in design for e in lifelines(s).values())
+        for s in g["bizcontext"]:
+            for e in s.get("elements", []):
+                n = e.get("name", e.get("id"))
+                if norm(e.get("type")) != "external" or norm(n) in human:
+                    continue
+                key = compact((words(n) or [""])[0])
+                if len(key) >= 3 and key not in names:
+                    base = "".join(w for w in str(n).split() if norm(w) not in ("service", "gateway", "system",
+                                                                                "api", "server")) or str(n)
+                    info.append("P14 [%s] He thong ngoai '%s' (context) chua co lop/lifeline tich hop trong SDS "
+                                "(vd %sClient/%sService trong package + sequence goi toi)." % (
+                                    s["_src"], n, base, base))
+    pk = [s for s in g["package"] if any(e.get("in") for e in s.get("elements", []))]
+    if pk and ent_name:
+        have = {compact(e.get("name", e.get("id"))) for s in pk for e in s.get("elements", [])}
+        miss = [ent_name[k] for k in sorted(ent_name) if k not in have]
+        if miss:
+            info.append("P14 [%s] Package diagram chua co lop entity cho: %s (Database Design co bang tuong ung)."
+                        % (tag, ", ".join("'%s'" % x for x in miss)))
 
 
 def check(specs, partial=False, profile=None):
@@ -1075,7 +1376,14 @@ def check(specs, partial=False, profile=None):
     if profile == "sep490":
         # P7 thay cho ghi chu X7 "entity chua co bang" (tranh bao 2 lan).
         I[:] = [x for x in I if not x.startswith("X7 [bundle")]
-        check_profile_sep490(specs, by, MISS)
+        # Statechart vong doi entity la chuan SEP490 (P8/P11/P12 kiem) - bo ghi chu R8 "khong khop SDC".
+        ents = {compact(e.get("name", e.get("id"))) for s in by["erd"] for e in s.get("elements", [])
+                if norm(e.get("type")) in ("entity", "table")} | \
+            {compact(table_entity(e)) for s in by["erd"] for e in s.get("elements", []) if norm(e.get("type")) == "table"}
+        lifecycle = {s["_src"] for s in by["state"] if compact(s.get("stateMachineOf") or s.get("title")) in ents}
+        I[:] = [x for x in I if not (x.startswith("R8 [") and "state dependent control" in x
+                                     and x[4:].split("]")[0] in lifecycle)]
+        check_profile_sep490(specs, by, MISS, I, W)
     elif profile:
         raise ValueError("profile khong ho tro: %s (co: %s)" % (profile, ", ".join(PROFILES)))
     return E, W, I
@@ -1174,17 +1482,22 @@ def check_cross_diagrams(by, partial=False):
                 actor_display[(uc_key, actor_key)] = b.get("name", b.get("id"))
     actors_in_inter = defaultdict(set)
     analysis_inter = set()
+    client_inter = set()   # sequence thiet ke co lifeline "external" (Client/Browser/App) dai dien actor
     for s in by["communication"] + by["sequence"]:
         ref = _spec_ref_name(s)
         if not ref:
             continue
         if not is_design(s):
             analysis_inter.add((_scope_key(s), ref))
+        elif any(e.get("external") for e in s.get("elements", [])):
+            client_inter.add((_scope_key(s), ref))
         actors_in_inter[(_scope_key(s), ref)].update(
             norm(e.get("name", e.get("id"))) for e in s.get("elements", []) if e.get("type") == "actor")
     for (scope, uc), actors in actor_by_uc.items():
         if (scope, uc) not in actors_in_inter:
             continue  # R1 xu ly thieu interaction; interaction co nhung khong co actor van phai bao X2
+        if (scope, uc) in client_inter and (scope, uc) not in analysis_inter:
+            continue
         actual = actors_in_inter[(scope, uc)]
         missing = sorted(actors - actual)
         if missing:
