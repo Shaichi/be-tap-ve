@@ -75,6 +75,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | R12 | Communication và sequence của cùng use case có cùng tập message (tên, bên gửi/nhận); khác `seq` → INFO | WARN/INFO |
 | R13 | Mỗi đối tượng boundary trao đổi message với ≥ 1 actor (proxy ↔ hệ thống ngoài nó đại diện) | WARN |
 | R14 | Actor của use case model có lớp ngoài cùng tên trong context diagram | INFO |
+| R15 | Sequence mức thiết kế: mỗi lời gọi đồng bộ (sync, mặc định) A → B có reply B → A phía sau; không chờ kết quả → `"type": "async"` | WARN |
 | S1–S5 | Statechart hợp lệ: initial không event/guard; final không có transition ra; guard của choice; tới được / có đường ra; tất định | ERROR/WARN |
 | A1–A6 | Activity hợp lệ: guard của decision; fork/join; initial/final; merge; ngõ cụt; không join/fork ngầm trên action | ERROR/WARN |
 | C1–C2 | Class diagram: thuộc tính có kiểu; multiplicity ở hai đầu association/aggregation/composition (WARN), association có tên/role (INFO) | WARN/INFO |
@@ -85,12 +86,14 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | L1 | Mọi sơ đồ: chữ trên sơ đồ mặc định tiếng Anh – có chữ có dấu (tiếng Việt…) mà spec chưa đặt `"lang"` khác `"en"` | WARN |
 | X1 | Interaction/activity tham chiếu `useCase` không tồn tại trong use case model cùng `bundle` | WARN (bundle chưa có use case model + `--partial`: INFO) |
 | X2 | Actor được gán cho use case phải xuất hiện trong interaction của use case đó, cùng `bundle` | WARN (`--partial`: INFO) |
-| X3 | Statechart phải truy vết được về `state dependent control` cùng tên trong interaction, cùng `bundle` | WARN (`--partial`: INFO) |
+| X3 | Statechart phải truy vết được về `state dependent control` cùng tên trong interaction, cùng `bundle` (statechart vòng đời entity – `stateMachineOf` là entity/bảng của ERD hoặc lớp «entity» cùng bundle – bỏ qua) | WARN (`--partial`: INFO) |
 | X4 | ERD và entity class model phải khớp thực thể khi có cùng bundle (không có bundle: cùng tiền tố title hoặc ≥2 tên chung; cặp duy nhất không ghép được → INFO) | WARN/INFO |
 | X5 | Component và deployment phải khớp tên khi có cùng bundle (cùng quy tắc ghép như X4) | WARN/INFO |
 | X6 | Cùng một tên structural không được đổi vai trò entity ↔ boundary/control/application logic | WARN |
 | X7 | Bảng vật lý (`"entity": "..."`) phải trỏ tới entity của ERD khái niệm cùng `bundle`; entity khái niệm chưa có bảng nào trỏ tới → INFO | WARN/INFO |
 | X8 | Sequence/communication mức thiết kế (`"level": "design"`): lifeline là lớp có trong class diagram mức thiết kế cùng `bundle` + `useCase` (use case không có class diagram riêng → so với mọi lớp thiết kế của bundle, chỉ INFO; `"external": true` bỏ qua); message không trùng operation của lớp → INFO | WARN/INFO |
+| X9 | Lớp entity trong class diagram mức thiết kế (tên = `"entity"` của bảng vật lý cùng `bundle`): mỗi thuộc tính có cột tương ứng (camelCase ↔ snake_case, `doctor: Doctor` ~ `doctor_id`; bỏ qua `List<…>`/`Set<…>`/`[]`) | WARN |
+| X10 | Package diagram cùng `bundle` có đặt lớp vào package (`"in"`) → mọi lớp của class diagram mức thiết kế phải có trong package diagram (bỏ qua kiểu framework `JpaRepository<User, Long>`) | WARN |
 | P1 | `--profile sep490`: SRS đủ sơ đồ – context (bizcontext), business flow (activity), ERD khái niệm (có `entity`), use case, screen flow | WARN (`--partial`: INFO) |
 | P2 | `--profile sep490`: SDS đủ sơ đồ – architecture (component), package, database design (ERD có `table`), class + sequence `"level": "design"` | WARN (`--partial`: INFO) |
 | P3 | `--profile sep490`: mỗi actor có sơ đồ use case riêng ("UCs for <Actor>": actor duy nhất hoặc tên actor trong `title`) | WARN (`--partial`: INFO) |
@@ -98,6 +101,9 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | P5 | `--profile sep490`: SDS II ≥ 2 use case có đủ cặp class + sequence thiết kế cùng `useCase`; class thiết kế có sequence cùng `useCase`; `useCase` của class thiết kế có trong use case model | WARN (`--partial`: INFO) |
 | P6 | `--profile sep490`: có sequence thiết kế cho luồng xác thực (`useCase`/`title` chứa Login / Sign in / Auth…) | WARN (`--partial`: INFO) |
 | P7 | `--profile sep490`: mọi entity của ERD khái niệm có bảng vật lý trỏ tới (`"entity"`); thay ghi chú X7 tương ứng | WARN (`--partial`: INFO) |
+| P8 | `--profile sep490`: bảng/entity có cột trạng thái (`status`, `*_status`, `state`) → có ít nhất 1 statechart cho entity đó (`"stateMachineOf": "<Entity>"`) | WARN (`--partial`: INFO) |
+| P9 | `--profile sep490`: Software Architecture (component) không dùng stereotype đối tượng COMET (`control`, `entity`, `database wrapper`, `proxy`, `user interaction`…) – kiến trúc phân tầng chỉ đặt `subsystem` cho tầng | WARN (`--partial`: INFO) |
+| P10 | `--profile sep490`: screen flow – màn hình quản trị (Dashboard / Admin / Management) chỉ tới được qua màn Login | WARN (`--partial`: INFO) |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 

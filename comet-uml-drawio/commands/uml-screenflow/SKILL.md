@@ -48,6 +48,8 @@ bằng ngôn ngữ của họ.
 - `"branch": "side"` trên element cha → các con toả ra từ **cạnh phải** (up/same/down) thay vì từ đáy
   (vd. Subject Details → Dimension / Price / Lessons).
 - Mọi màn hình phải tới được từ gốc (F1).
+- Hệ thống có đăng nhập: dashboard / màn quản trị theo vai trò chỉ nối **từ Login** (`Home → Login → Admin
+  Dashboard`), không nối thẳng từ Home hay màn công khai – `--profile sep490` báo P10.
 
 ## 3. Chạy – sửa đến sạch
 ```bash

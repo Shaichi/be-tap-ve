@@ -44,6 +44,9 @@ bằng ngôn ngữ của họ.
   Mỗi interface được `requires` phải có một component `provides`.
 - Phụ thuộc trực tiếp component → component: `usage`. Tránh phụ thuộc vòng.
 - Tên interface: `I` + danh từ dịch vụ; tên component/subsystem khớp package/deployment diagram.
+- **Kiến trúc phân tầng** (SDS I.1 SEP490, Spring Boot/React…): tầng = component `"stereotype": "subsystem"`,
+  component con **không** stereotype COMET (`control`, `database wrapper`, `proxy`, `user interaction`… chỉ dùng cho
+  kiến trúc COMET) – `--profile sep490` báo P9. View render phía server (JSP/Thymeleaf) nằm trong Application Tier.
 
 ## 3. Chạy – sửa đến sạch
 ```bash

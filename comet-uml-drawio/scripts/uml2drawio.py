@@ -1352,24 +1352,40 @@ def build_sequence(spec, warns, origin):
     # goi long nhau lech phai 5px/tang; self-call = thanh ngan long ben trong. Actor khong co thanh.
     bars = defaultdict(list)          # pid -> [(y0, y1, depth)]
     if spec.get("activations"):
-        stack = defaultdict(list)
+        stack = defaultdict(list)     # pid -> [(y bat dau, lifeline goi)]
+        last = defaultdict(int)       # pid -> y message cuoi cham lifeline
         is_actor = lambda pid: heads[pid]["kind"] == "actor"
+
+        def ret(caller, y, since):
+            """Tra ve ngam: loi goi dong bo `caller` gui tu y `since` ma khong co reply -> dong thanh truoc y
+            (caller da gui message tiep = loi goi truoc da xong), thay vi keo thanh toi day so do."""
+            for pid in order:
+                st_ = stack[pid]
+                k = next((i for i, (y0, c) in enumerate(st_) if c == caller and y0 >= since), None)
+                while pid != caller and k is not None and len(st_) > k:
+                    y0, _ = st_.pop()
+                    ret(pid, y, y0)
+                    bars[pid].append((y0, max(last[pid], y0) + 12, len(st_)))
+
         for m in msgs:
             t = str(m.get("type", "sync")).lower()
             a, b, yy = m["from"], m["to"], m["_y"]
+            ret(a, yy, stack[a][-1][0] if stack[a] else -1)
             if t in ("sync", "call") and not is_actor(a) and not stack[a]:
-                stack[a].append(yy - 6)
+                stack[a].append((yy - 6, None))
             if m["_self"]:
                 if t in ("sync", "call") and not is_actor(a):
                     bars[a].append((yy + SEQ["self_h"] - 6, yy + SEQ["self_h"] + 14, len(stack[a])))
+                last[a] = yy + SEQ["self_h"] + 2
                 continue
             if t in ("sync", "call") and not is_actor(b):
-                stack[b].append(yy)
+                stack[b].append((yy, a))
             elif t in ("reply", "return") and stack[a]:
-                bars[a].append((stack[a].pop(), yy, len(stack[a])))
+                bars[a].append((stack[a].pop()[0], yy, len(stack[a])))
+            last[a] = last[b] = yy
         for pid, st_ in stack.items():
             while st_:
-                bars[pid].append((st_.pop(), bottom - 20, len(st_)))
+                bars[pid].append((st_.pop()[0], bottom - 20, len(st_)))
         for pid in order:
             for y0, y1, d in sorted(bars[pid], key=lambda r: r[2]):
                 out.vertex(out.uid(pid + "_act"), "", "html=1;points=[];perimeter=orthogonalPerimeter;"

@@ -1599,6 +1599,11 @@ class TestCometCheck(unittest.TestCase):
         specs["c1"], specs["s1"] = design("Submit Application", "ApplicationController")
         specs["c2"], specs["s2"] = design("Create Job", "JobController")
         specs["auth"] = design("Login", "AuthController")[1]
+        specs["st"] = {"diagram": "state", "stateMachineOf": "Application", "title": "Application - State Diagram",
+                       "elements": [{"id": "i", "type": "initial"}, {"id": "p", "type": "state", "name": "Pending"},
+                                    {"id": "d", "type": "state", "name": "Reviewed"}, {"id": "f", "type": "final"}],
+                       "relations": [{"from": "i", "to": "p"}, {"from": "p", "to": "d", "event": "review"},
+                                     {"from": "d", "to": "f", "event": "close"}]}
         for s in specs.values():
             s["bundle"] = "th"
         return specs
@@ -1644,6 +1649,120 @@ class TestCometCheck(unittest.TestCase):
         E, W, I = check(*[v for k, v in base.items() if k != "ctx"], partial=True, profile="sep490")
         self.assertEqual(codes(W, "P1"), [])
         self.assertTrue(codes(I, "P1"))
+        # P8: bang co cot status ma khong co statechart nao
+        w = codes(warns(["st"]), "P8")
+        self.assertTrue(w and "'Application'" in w[0], w)
+        self.assertFalse(codes(warns(change=lambda sp: sp["st"].update(stateMachineOf="JobPosting")), "P8"))
+        # P9: stereotype COMET trong kien truc phan tang
+        def comet_arch(sp):
+            sp["arch"]["elements"][1]["stereotype"] = "database wrapper"
+        w = codes(warns(change=comet_arch), "P9")
+        self.assertTrue(w and "'DB' «database wrapper»" in w[0], w)
+        # P10: dashboard toi duoc tu Home khong qua Login; qua Login thi sach
+        def dash(frm):
+            def f(sp):
+                sp["sf"]["elements"].append({"id": "d", "type": "screen", "name": "Admin Dashboard"})
+                sp["sf"]["relations"].append({"from": frm, "to": "d"})
+            return f
+        w = codes(warns(change=dash("h")), "P10")
+        self.assertTrue(w and "'Admin Dashboard'" in w[0], w)
+        self.assertFalse(codes(warns(change=dash("l")), "P10"))
+        def no_login(sp):
+            dash("h")(sp)
+            sp["sf"]["elements"][1]["name"] = "About"
+        self.assertTrue(any("khong co man Login" in x for x in codes(warns(change=no_login), "P10")))
+
+    def test_X9_X10_entity_columns_and_packages(self):
+        phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+        cls = {"diagram": "class", "level": "design", "useCase": "Login", "title": "C", "elements": [
+            {"id": "u", "type": "class", "name": "User", "attributes": [
+                "-id: Long", "-passwordHash: String", "-createdAt: LocalDateTime", "-patientEmail: String",
+                "-applications: List<Application>"]},
+            {"id": "a", "type": "class", "name": "Application", "attributes": ["-job: JobPosting", "-cvFilePath: String"]},
+            {"id": "s", "type": "interface", "name": "UserService"},
+            {"id": "j", "type": "interface", "name": "JpaRepository<User, Long>"}]}
+        pkg = {"diagram": "package", "title": "P", "elements": [
+            {"id": "e", "type": "package", "name": "entity"},
+            {"id": "u", "type": "class", "name": "User", "in": "e"},
+            {"id": "a", "type": "class", "name": "Application", "in": "e"}]}
+        w = codes(check(phy, cls, pkg)[1], "X9")
+        self.assertEqual(len(w), 1, w)                                   # Application: job ~ job_id, cv_file_path
+        self.assertIn("'patientEmail'", w[0])
+        self.assertNotIn("passwordHash", w[0])
+        self.assertNotIn("applications", w[0])                           # collection bo qua
+        w = codes(check(phy, cls, pkg)[1], "X10")
+        self.assertTrue(w and "'UserService'" in w[0] and "JpaRepository" not in w[0], w)
+        pkg_only = dict(pkg, elements=pkg["elements"][:1])               # package diagram chi co package
+        self.assertFalse(codes(check(phy, cls, pkg_only)[1], "X10"))
+        self.assertFalse(codes(check(phy, dict(cls, level="analysis"), pkg)[1], "X9"))
+        other = dict(cls, bundle="other")                                # khac bundle -> khong so
+        self.assertFalse(codes(check(phy, other, pkg)[1], "X9"))
+
+    def test_R15_sync_without_reply(self):
+        seq = {"diagram": "sequence", "level": "design", "useCase": "Book", "title": "S", "elements": [
+            {"id": "cl", "type": "object", "name": "Client", "external": True},
+            {"id": "c", "type": "object", "class": "Ctl"}, {"id": "s", "type": "object", "class": "Svc"},
+            {"id": "r", "type": "object", "class": "Repo"}, {"id": "m", "type": "object", "class": "Mail"}],
+            "messages": [{"from": "cl", "to": "c", "name": "book(Req)"},
+                         {"from": "c", "to": "s", "name": "book(Req)"},
+                         {"from": "s", "to": "r", "name": "lockSlot(Long)"},
+                         {"from": "s", "to": "m", "name": "send(Mail)", "type": "async"},
+                         {"from": "s", "to": "r", "name": "save(Appt)"},
+                         {"from": "r", "to": "s", "name": "Appt", "type": "reply"},
+                         {"from": "s", "to": "c", "name": "Resp", "type": "reply"},
+                         {"from": "c", "to": "cl", "name": "201", "type": "reply"},
+                         {"from": "c", "to": "cl", "name": "409", "type": "reply"}]}
+        w = codes(check(seq)[1], "R15")
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("'lockSlot(Long)' (Svc -> Repo)", w[0])
+        self.assertFalse(codes(check(dict(seq, level="analysis"))[1], "R15"))
+
+    def test_datadict_from_physical_erd(self):
+        src = EXAMPLES / "talenthub_erd_physical.json"
+        r = run("comet_datadict.py", src)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        md = r.stdout
+        self.assertIn("# TalentHub - Data Dictionary", md)
+        self.assertIn("## 1. `users` - Entity: User", md)
+        self.assertIn("| 1 | `id` | bigserial | x |  | x |  |", md)
+        self.assertIn("| 2 | `job_id` | int8 |  | jobs | x |  |", md)            # ten cot -> bang
+        self.assertIn("| 3 | `candidate_id` | int8 |  | users | x |  |", md)      # bang cha con lai
+        self.assertIn("| 6 | `created_by` | int8 |  | users | x |  |", md)
+        self.assertIn("| `users` | 1 | `jobs` | 0..N |", md)
+        self.assertNotIn("| ? |", md)
+        self.assertEqual(md, run("comet_datadict.py", src).stdout)                 # tat dinh
+        self.assertNotEqual(run("comet_datadict.py", EXAMPLES / "atm_entity.json").returncode, 0)
+
+    def test_activation_closes_on_unreplied_call(self):
+        sp = {"diagram": "sequence", "title": "Act", "activations": True, "elements": [
+            {"id": "c", "type": "object", "class": "Ctl"}, {"id": "s", "type": "object", "class": "Svc"},
+            {"id": "r", "type": "object", "class": "Repo"}],
+            "messages": [{"from": "c", "to": "s", "name": "book"},
+                         {"from": "s", "to": "r", "name": "lock"},
+                         {"from": "s", "to": "r", "name": "save"},
+                         {"from": "r", "to": "s", "name": "ok", "type": "reply"},
+                         {"from": "s", "to": "c", "name": "done", "type": "reply"},
+                         {"from": "c", "to": "c", "name": "render"},
+                         {"from": "c", "to": "c", "name": "log"}]}
+        xml, _ = gen(sp)
+        G = geo(xml)
+        cs = cells(xml)
+        bars = sorted((r for k, r in rects(G).items() if style(cs[k]).get("perimeter") == "orthogonalPerimeter"
+                       and k.startswith("r_")), key=lambda r: r[1])
+        self.assertEqual(len(bars), 2, bars)                           # lock (tra ve ngam) + save
+        self.assertLess(bars[0][3], bars[1][1])            # thanh lock dong truoc message save
+        self.assertEqual(report(xml)[0], [])
+        # callback: B goi lai A roi A reply -> thanh cua B khong bi dong som
+        cb = {"diagram": "sequence", "title": "Cb", "activations": True, "elements": [
+            {"id": "a", "type": "object", "class": "A"}, {"id": "b", "type": "object", "class": "B"}],
+            "messages": [{"from": "a", "to": "b", "name": "go"}, {"from": "b", "to": "a", "name": "ask"},
+                         {"from": "a", "to": "b", "name": "answer", "type": "reply"},
+                         {"from": "b", "to": "a", "name": "done", "type": "reply"}]}
+        xml, _ = gen(cb)
+        G, cs = geo(xml), cells(xml)
+        bb = [r for k, r in rects(G).items() if style(cs[k]).get("perimeter") == "orthogonalPerimeter" and k.startswith("b_")]
+        self.assertEqual(len(bb), 1, bb)
+        self.assertGreater(bb[0][3] - bb[0][1], 60)                               # keo tu "go" toi "done"
 
     def test_crowfoot_erd_rules_and_x7(self):
         con = json.loads((EXAMPLES / "talenthub_erd_conceptual.json").read_text(encoding="utf-8"))

@@ -63,6 +63,12 @@ Muc thiet ke ("level": "design" - class/sequence kieu SDS: Controller/Service/Re
       "useCase" (WARN; use case khong co class diagram rieng -> so voi moi lop thiet ke cua bundle, INFO);
       lifeline "external": true (Client/Browser) bo qua; message khong trung operation cua lop -> INFO.
   X7  Bang vat ly ("type": "table", "entity": ...) tro toi entity cua ERD khai niem cung bundle.
+  X9  Lop entity trong class diagram muc thiet ke (ten = "entity" cua bang vat ly cung bundle): moi thuoc tinh
+      phai co cot tuong ung (camelCase <-> snake_case, "doctor: Doctor" ~ doctor_id); bo qua List/Set/[].
+  X10 Package diagram cung bundle co dat lop vao package -> moi lop cua class diagram muc thiet ke phai co mat
+      trong package diagram (bo qua kieu framework co "<...>", vd JpaRepository<User, Long>).
+  R15 Sequence muc thiet ke: loi goi dong bo (sync, mac dinh) A -> B phai co reply B -> A phia sau (hoac dat
+      "type": "async" neu khong cho ket qua).
 Ho so SEP490 (--profile sep490: Report 3 SRS + Report 4 SDS, moi bundle; --partial -> INFO):
   P1  SRS du so do: context (bizcontext), business flow (activity), ERD khai niem, use case, screen flow.
   P2  SDS du so do: architecture (component), package, database design (ERD co "table"), class + sequence
@@ -73,6 +79,11 @@ Ho so SEP490 (--profile sep490: Report 3 SRS + Report 4 SDS, moi bundle; --parti
       phai co sequence cung useCase; "useCase" cua class thiet ke co trong use case model.
   P6  Co sequence muc thiet ke cho luong xac thuc (Login / Sign in / Authentication).
   P7  Moi entity cua ERD khai niem co bang vat ly tro toi ("entity") trong database design.
+  P8  Bang/entity co cot trang thai (status, *_status, state) -> co it nhat 1 statechart cho entity do
+      ("stateMachineOf": "<Entity>").
+  P9  Software Architecture (component) khong dung stereotype doi tuong COMET (control, entity, database wrapper,
+      proxy, user interaction...) - kien truc phan tang chi dat "subsystem" cho tang.
+  P10 Screen flow: man hinh quan tri/dashboard (Dashboard, Admin, Management...) chi toi duoc qua man Login.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
 """
@@ -429,10 +440,8 @@ def check_erd_crowfoot(s, E, W, I):
 def check_screenflow(s, E, W, I):
     """F1-F2: screen flow (site map) - moi man hinh toi duoc tu goc; chi co man hinh/popup va mui ten khong nhan."""
     src = s["_src"]
-    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    els, adj, starts = screen_graph(s)
     name = lambda i: (els[i].get("name") or i) if i in els else i
-    adj = defaultdict(set)
-    ins = defaultdict(int)
     for i, e in els.items():
         if norm(e.get("type")) in FLOW_NODES:
             W.append("F2 [%s] Site map khong co nut %s ('%s') - noi thang man hinh -> man hinh, goc dat bang "
@@ -441,18 +450,10 @@ def check_screenflow(s, E, W, I):
             W.append("F2 [%s] Man hinh '%s' co 'items' - site map chi ghi ten man hinh, bo 'items'." % (src, name(i)))
     for r in s.get("relations", []):
         a, b = str(r.get("from")), str(r.get("to"))
-        adj[a].add(b)
-        ins[b] += 1
         if any(r.get(k) for k in NAV_LABELS):
             W.append("F2 [%s] Dieu huong '%s' -> '%s' co nhan - site map ve mui ten khong nhan, bo %s."
                      % (src, name(a), name(b), "/".join(k for k in NAV_LABELS if r.get(k))))
-    starts = [s["root"]] if s.get("root") in els else         [i for i, e in els.items() if norm(e.get("type")) == "initial"] or         [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]
-    seen, todo = set(starts), list(starts)
-    while todo:
-        for n in adj[todo.pop()]:
-            if n not in seen:
-                seen.add(n)
-                todo.append(n)
+    seen = reach(adj, starts)
     for i, e in els.items():
         if norm(e.get("type")) in ("screen", "page", "dialog", "popup") and i not in seen:
             W.append("F1 [%s] Man hinh '%s' khong toi duoc tu man hinh goc." % (src, name(i)))
@@ -529,10 +530,65 @@ def _scoped_name(s, value):
 
 PROFILES = ("sep490",)
 AUTH_RE = re.compile(r"\b(log ?in|sign ?in|auth\w*)\b", re.I)
+LOGIN_RE = re.compile(r"\b(log ?in|sign ?in)\b", re.I)
+ADMIN_RE = re.compile(r"dashboard|\badmin|management|\bmanage\b", re.I)
+STATUS_RE = re.compile(r"(^|_)(status|state)$")
+COLLECTION_RE = re.compile(r"\b(list|set|collection|map|iterable|page)\s*<|\[\]", re.I)
+
+
+def snake(s):
+    """createdAt / Created At / created-at -> created_at."""
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(s or "").strip())
+    return re.sub(r"[\s\-]+", "_", s).lower()
+
+
+def compact(s):
+    """So khop ten lop <-> entity: 'Schedule Slot' ~ 'ScheduleSlot' ~ 'schedule_slot'."""
+    return re.sub(r"[\s_\-]+", "", norm(s))
+
+
+def parse_attr(a):
+    """'-createdAt: LocalDateTime' / '+ Full Name' / {"name", "type"} -> (ten, kieu)."""
+    if isinstance(a, dict):
+        return str(a.get("name") or "").strip(), str(a.get("type") or "").strip()
+    n, _, typ = str(a).lstrip("+-#~/ ").partition(":")
+    return n.split("[")[0].strip(), typ.strip()
+
+
+def table_entity(e):
+    ent = e.get("entity")
+    if isinstance(ent, list):
+        ent = ent[0] if ent else None
+    return ent or e.get("name") or e.get("id")
+
+
+def screen_graph(s):
+    """Screen flow -> (els, adj, starts): goc = "root", hoac initial, hoac man hinh dau tien khong co mui ten vao."""
+    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    adj, ins = defaultdict(set), defaultdict(int)
+    for r in s.get("relations", []):
+        a, b = str(r.get("from")), str(r.get("to"))
+        adj[a].add(b)
+        ins[b] += 1
+    starts = [s["root"]] if s.get("root") in els else \
+        [i for i, e in els.items() if norm(e.get("type")) == "initial"] or \
+        [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]
+    return els, adj, starts
+
+
+def reach(adj, starts, blocked=()):
+    seen = {x for x in starts if x not in blocked}
+    todo = list(seen)
+    while todo:
+        for n in sorted(adj[todo.pop()]):
+            if n not in seen and n not in blocked:
+                seen.add(n)
+                todo.append(n)
+    return seen
 
 
 def check_profile_sep490(specs, by, out):
-    """P1-P7: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
+    """P1-P10: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
     scopes = defaultdict(lambda: defaultdict(list))   # bundle -> diagram -> specs
     for d, ss in by.items():
         for s in ss:
@@ -623,6 +679,56 @@ def check_profile_sep490(specs, by, out):
             if rest:
                 out.append("P7 [%s] Entity ERD khai niem chua co bang trong Database Design (dat \"entity\" cho bang): %s."
                            % (tag, ", ".join("'%s'" % x for x in rest)))
+
+        # P8 - entity co cot trang thai can statechart
+        stateful = {}
+        for s in physical_erd:
+            for e in s.get("elements", []):
+                if norm(e.get("type")) == "table" and any(
+                        isinstance(c, dict) and STATUS_RE.search(snake(c.get("name"))) for c in e.get("columns") or []):
+                    stateful.setdefault(compact(table_entity(e)), table_entity(e))
+        for s in concept_erd:
+            for e in s.get("elements", []):
+                if norm(e.get("type")) == "entity" and any(
+                        STATUS_RE.search(snake(parse_attr(a)[0])) for a in e.get("attributes") or []):
+                    stateful.setdefault(compact(e.get("name", e.get("id"))), e.get("name", e.get("id")))
+        if stateful:
+            sm = {compact(s.get("stateMachineOf")) for s in g["state"]}
+            titles = [compact(s.get("title")) for s in g["state"]]
+            if not any(k in sm or any(k in x for x in titles) for k in stateful):
+                out.append("P8 [%s] Chua co statechart cho entity co trang thai (cot status): %s - ve it nhat 1 so do "
+                           "trang thai cho entity chinh (\"diagram\": \"state\", \"stateMachineOf\": \"<Entity>\"; "
+                           "state = gia tri cot status, event = use case/operation doi trang thai)."
+                           % (tag, ", ".join("'%s'" % stateful[k] for k in sorted(stateful))))
+
+        # P9 - kien truc phan tang khong dung stereotype doi tuong COMET
+        for s in g["component"]:
+            bad = sorted({"'%s' «%s»" % (e.get("name", e.get("id")), st_of(e))
+                          for e in s.get("elements", []) if st_of(e) in COMET_OBJ})
+            if bad:
+                out.append("P9 [%s] Software Architecture dung stereotype doi tuong COMET: %s - kien truc phan tang "
+                           "(SDS I.1) chi dat \"stereotype\": \"subsystem\" cho tang, component con de trong; "
+                           "stereotype COMET danh cho so do phan tich." % (s["_src"], ", ".join(bad)))
+
+        # P10 - man hinh quan tri chi toi duoc qua Login
+        for s in g["screenflow"]:
+            els, adj, starts = screen_graph(s)
+            screens = {i: e.get("name") or i for i, e in els.items()
+                       if norm(e.get("type")) in ("screen", "page", "dialog", "popup")}
+            admin = {i for i, n in screens.items() if ADMIN_RE.search(str(n))}
+            login = {i for i, n in screens.items() if LOGIN_RE.search(str(n))}
+            if not admin:
+                continue
+            if not login:
+                out.append("P10 [%s] Screen flow co man hinh quan tri (%s) nhung khong co man Login - them Login "
+                           "truoc cac dashboard theo vai tro." % (s["_src"], ", ".join(
+                               "'%s'" % screens[i] for i in sorted(admin))))
+                continue
+            leak = sorted(admin & reach(adj, starts, login))
+            if leak:
+                out.append("P10 [%s] Man hinh %s toi duoc tu goc ma khong qua Login - noi Login -> <Role> Dashboard, "
+                           "khong noi thang tu Home/man cong khai." % (s["_src"], ", ".join(
+                               "'%s'" % screens[i] for i in leak)))
 
 
 def check(specs, partial=False, profile=None):
@@ -843,6 +949,9 @@ def check(specs, partial=False, profile=None):
         check_class(s, E, W, I)
     # X8 - sequence muc thiet ke <-> class diagram muc thiet ke cung bundle
     check_design_trace(by, W, I)
+    # X9/X10 - lop entity thiet ke <-> bang; lop thiet ke <-> package diagram; R15 - sync co reply
+    check_design_structure(by, W)
+    check_sync_replies(by, W)
     # E1-E3, F1-F2, B1-B3
     for s in by["erd"]:
         check_erd(s, E, W, I)
@@ -987,8 +1096,16 @@ def check_cross_diagrams(by, partial=False):
                 continue
             if st_of(e) in SDC:
                 controls[(scope, norm(obj_class(e)))].append(s["_src"])
+    lifecycle = defaultdict(set)   # scope -> entity/bang: statechart vong doi entity (SEP490) khong can SDC control
+    for s in by["erd"] + by["class"]:
+        for e in s.get("elements", []):
+            if norm(e.get("type")) in ("entity", "table") or (s in by["class"] and st_of(e) == "entity"):
+                lifecycle[_scope_key(s)].add(compact(table_entity(e) if norm(e.get("type")) == "table"
+                                                     else e.get("name", e.get("id"))))
     for s in by["state"]:
         cls = norm(s.get("stateMachineOf") or s.get("title"))
+        if s.get("stateMachineOf") and compact(cls) in lifecycle[_scope_key(s)]:
+            continue
         if not cls:
             W.append("X3 [%s] Statechart khong co 'stateMachineOf'/'title' de truy vet ve control object." % s["_src"])
             continue
@@ -1164,6 +1281,78 @@ def check_design_trace(by, W, I):
                          % (s["_src"], name, obj_class(b)))
 
 
+def check_design_structure(by, W):
+    """X9: thuoc tinh lop entity (muc thiet ke) <-> cot bang vat ly cung bundle.
+    X10: lop thiet ke <-> lop dat trong package diagram cung bundle (chi khi package diagram co lop)."""
+    tables = defaultdict(dict)   # scope -> compact(entity) -> (ten bang, tap cot)
+    for s in by["erd"]:
+        for e in s.get("elements", []):
+            if norm(e.get("type")) != "table" or not e.get("entity"):
+                continue
+            cols = {norm(c.get("name")) for c in e.get("columns") or [] if isinstance(c, dict) and c.get("name")}
+            for ent in e["entity"] if isinstance(e["entity"], list) else [e["entity"]]:
+                tables[_scope_key(s)].setdefault(compact(ent), (e.get("name", e.get("id")), cols))
+    placed = defaultdict(set)   # scope -> lop co trong package diagram
+    for s in by["package"]:
+        for e in s.get("elements", []):
+            if norm(e.get("type")) in ("class", "interface", "enumeration", "enum"):
+                placed[_scope_key(s)].add(compact(e.get("name", e.get("id"))))
+    for s in by["class"]:
+        if not is_design(s):
+            continue
+        scope = _scope_key(s)
+        missing = []
+        for e in s.get("elements", []):
+            typ = norm(e.get("type") or "class")
+            cname = e.get("name", e.get("id"))
+            if typ in ("class", "interface", "enumeration", "enum") and placed[scope] and \
+                    "<" not in str(cname) and compact(cname) not in placed[scope]:
+                missing.append(cname)
+            tb = tables[scope].get(compact(cname)) if typ == "class" else None
+            if not tb or not tb[1]:
+                continue
+            bad = []
+            for a in e.get("attributes") or []:
+                n, at = parse_attr(a)
+                if not n or COLLECTION_RE.search(at):
+                    continue
+                sn = snake(n)
+                if sn not in tb[1] and sn + "_id" not in tb[1]:
+                    bad.append(n)
+            if bad:
+                W.append("X9 [%s] Lop entity '%s' co thuoc tinh khong co cot tuong ung trong bang '%s' (SDS I.3): %s - "
+                         "them cot vao bang hoac sua ten cho khop (camelCase <-> snake_case)."
+                         % (s["_src"], cname, tb[0], ", ".join("'%s'" % x for x in bad)))
+        if missing:
+            W.append("X10 [%s] Lop thiet ke chua co trong package diagram (SDS I.2) cung bundle: %s - dat lop vao "
+                     "package dung tang (\"in\": <id package>)." % (s["_src"], ", ".join("'%s'" % x for x in missing)))
+
+
+def check_sync_replies(by, W):
+    """R15: sequence muc thiet ke - moi loi goi dong bo A -> B co reply B -> A phia sau."""
+    for s in by["sequence"]:
+        if not is_design(s):
+            continue
+        els = lifelines(s)
+        pending = []
+        for m in s.get("messages", []):
+            a, b = str(m.get("from")), str(m.get("to"))
+            if a not in els or b not in els or a == b:
+                continue
+            if norm(m.get("type") or "sync") in ("sync", "call"):
+                if els[b].get("type") != "actor":
+                    pending.append((a, b, m.get("name", m.get("label"))))
+            elif is_reply(m):
+                for k in range(len(pending) - 1, -1, -1):
+                    if pending[k][:2] == (b, a):
+                        del pending[k]
+                        break
+        for a, b, name in pending:
+            W.append("R15 [%s] Loi goi dong bo '%s' (%s -> %s) chua co reply - them message \"type\": \"reply\" "
+                     "tu %s ve %s (ket qua / void), hoac dat \"type\": \"async\" neu khong cho ket qua."
+                     % (s["_src"], name, obj_class(els[a]), obj_class(els[b]), obj_class(els[b]), obj_class(els[a])))
+
+
 def check_comm_vs_seq(inter, W, I):
     """R12: communication va sequence diagram cua cung use case phai the hien cung mot tap message."""
     groups = defaultdict(lambda: defaultdict(list))
@@ -1221,7 +1410,7 @@ def main():
     ap.add_argument("--partial", action="store_true",
                     help="chi kiem mot phan bo so do: R1/R7 (thieu so do doi ung) chi la INFO")
     ap.add_argument("--profile", choices=PROFILES,
-                    help="kiem bo so do du theo template (sep490: Report 3 SRS + Report 4 SDS, luat P1-P7)")
+                    help="kiem bo so do du theo template (sep490: Report 3 SRS + Report 4 SDS, luat P1-P10)")
     ap.add_argument("--strict", action="store_true",
                     help="co WARN thi tra ma thoat 1 (dung cho CI/kiem tra cuoi)")
     ap.add_argument("--json", action="store_true",

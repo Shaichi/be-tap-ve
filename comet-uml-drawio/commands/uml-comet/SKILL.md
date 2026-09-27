@@ -86,10 +86,11 @@ stack khác – khi đó ánh xạ tầng theo bảng cuối mục này và ghi 
 | SRS I.1 Context Diagram | Hệ thống (hình tròn) + actor/dịch vụ ngoài, luồng có tên | [/uml-bizcontext](../uml-bizcontext/SKILL.md) | `srs_01_context.json` | `<Sys> - Context Diagram` |
 | SRS I.2 Main Business Flows | Activity swimlane **ngang** mỗi BF: `"direction": "LR"`, `partitions` = actor tham gia + `"System"` | [/uml-activity](../uml-activity/SKILL.md) | `srs_02_bf01_<flow>.json`… | `BF-01 <Flow Name>` |
 | SRS I.3.1 Entity Relationship Diagram | ERD khái niệm crow's foot: `"notation": "crowfoot"`, `entity` + `attributes` `"+ Full Name"`, quan hệ động từ -ing | [/uml-erd](../uml-erd/SKILL.md) | `srs_03_erd.json` | `<Sys> - Entity Relationship Diagram` |
+| SRS I.3 (kèm ERD) State Diagram | Statechart vòng đời **entity chính có cột `status`** (Appointment, Order, Application…): `"stateMachineOf": "<Entity>"` y hệt tên entity ERD, state = giá trị cột `status`, event = use case/operation đổi trạng thái (P8) | [/uml-statechart](../uml-statechart/SKILL.md) | `srs_03_<entity>_state.json` | `<Entity> - State Diagram` |
 | SRS I.4.3 Use Case Diagrams | **Mỗi actor 1 sơ đồ** (actor + use case của họ, include/extend) | [/uml-usecase](../uml-usecase/SKILL.md) | `srs_04_uc_<actor>.json` | `UCs for <Actor>` |
-| SRS I.5.1a Screen Flow | Site map màn hình | [/uml-screenflow](../uml-screenflow/SKILL.md) | `srs_05_screenflow.json` | `<Sys> - Screen Flow` |
-| SDS I.1 Software Architecture | Component lồng tầng (component cha `"stereotype": "subsystem"`, con qua `"in"`): `Client Tier` (`React Web App`, + `Flutter Mobile App`) / `Application Tier` – Spring Boot (`Security Filter (JWT)`, `REST Controllers`, `Service Layer`, `Repository Layer (Spring Data JPA)`) / `Data Tier` (`PostgreSQL Database`) / `External Services`; quan hệ nối **component tầng**, nhãn giao thức (`REST/JSON over HTTPS`, `JDBC`, `SMTP`…) | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
-| SDS I.2 Package Diagram | Package backend theo tầng: `controller`, `service`, `service.impl`, `repository`, `entity`, `dto`, `mapper`, `security`, `config`, `exception` + dependency (controller → service/dto; service.impl → service/repository/mapper/entity; repository → entity; mapper → entity/dto; security → repository) | [/uml-package](../uml-package/SKILL.md) | `sds_02_package.json` | `<Sys> - Package Diagram` |
+| SRS I.5.1a Screen Flow | Site map màn hình; dashboard/màn quản trị theo vai trò **chỉ** đi qua Login: `Home → Login → <Role> Dashboard → …` (P10) | [/uml-screenflow](../uml-screenflow/SKILL.md) | `srs_05_screenflow.json` | `<Sys> - Screen Flow` |
+| SDS I.1 Software Architecture | Component lồng tầng (component cha `"stereotype": "subsystem"`, con qua `"in"`): `Client Tier` (`React Web App`, + `Flutter Mobile App`) / `Application Tier` – Spring Boot (`Security Filter (JWT)`, `REST Controllers`, `Service Layer`, `Repository Layer (Spring Data JPA)`) / `Data Tier` (`PostgreSQL Database`) / `External Services`; quan hệ nối **component tầng**, nhãn giao thức (`REST/JSON over HTTPS`, `JDBC`, `SMTP`…). **Không** stereotype COMET (`control`, `database wrapper`, `proxy`…) – P9; view render phía server (JSP/Thymeleaf) thuộc Application Tier, không phải Client Tier | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
+| SDS I.2 Package Diagram | Package backend theo tầng: `controller`, `service`, `service.impl`, `repository`, `entity`, `dto`, `mapper`, `security`, `config`, `exception` + dependency (controller → service/dto; service.impl → service/repository/mapper/entity; repository → entity; mapper → entity/dto; security → repository); **mỗi lớp của SDS II** đặt vào package đúng tầng bằng `{"type": "class", "in": "<id package>"}` (X10) | [/uml-package](../uml-package/SKILL.md) | `sds_02_package.json` | `<Sys> - Package Diagram` |
 | SDS I.3 Database Design | ERD vật lý crow's foot: `table` + `columns` (kiểu, `pk`/`fk`/`nullable`) + `"entity"` trỏ ERD SRS | [/uml-erd](../uml-erd/SKILL.md) | `sds_03_database.json` | `<Sys> - Database Design` |
 | SDS II.x Code Designs (2–3 bộ) | Class diagram `"level": "design"`: Controller → Service (interface) ◁┄ ServiceImpl → Repository («interface» → `JpaRepository<Xxx, Long>`), Entity, Request/Response DTO, Mapper | [/uml-class](../uml-class/SKILL.md) mục 4 | `sds_04_<feature>_class.json` | `<Feature> - Class Diagram` |
 | | Sequence `"level": "design"`, `"activations": true`, `"autonumber": true`: `React Web App` (`"external": true`) → Controller → ServiceImpl → Repository (+ Mapper); reply `ResponseEntity`/DTO; nhánh lỗi (`alt`: 400/404/409) | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_04_<feature>_seq.json` | `<Feature> - Sequence Diagram` |
@@ -102,20 +103,31 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
   case cốt lõi cho SDS II; các use case còn lại không có sequence là **INFO R1**, không phải lỗi.
 - Entity ERD SRS = `"entity"` của bảng SDS I.3 (X7); bảng PostgreSQL snake_case số nhiều (`job_postings`), kiểu
   PostgreSQL: `bigserial`/`bigint`, `varchar(n)`, `text`, `boolean`, `numeric(12,2)`, `timestamptz`, `uuid`.
-  Lớp `@Entity` (SDS II) = bảng tương ứng (camelCase ↔ snake_case: `createdAt` ↔ `created_at`).
+  Lớp `@Entity` (SDS II) = bảng tương ứng: mỗi thuộc tính có cột (camelCase ↔ snake_case: `createdAt` ↔
+  `created_at`, `doctor: Doctor` ↔ `doctor_id`) – X9; thiếu cột thì thêm vào bảng SDS I.3, đừng bịa thuộc tính.
 - Lớp trong class diagram SDS II = lifeline của sequence cùng bộ (X8); message sequence = operation của lớp
-  (`createJob(JobRequest)`). Lớp thuộc đúng package theo bảng tầng (SDS I.2) – chưa có luật tự kiểm, tự soát.
+  (`createJob(JobRequest)`). Lớp có mặt trong package diagram SDS I.2, đúng package theo bảng tầng (X10).
+- Sequence thiết kế: mỗi lời gọi `sync` có `reply` (R15, cả `void` → reply `"ok"`); việc không chờ kết quả (gửi
+  email, push notification) → `"type": "async"`. Luồng nghiệp vụ trong sequence phải khớp BF (SRS I.2) và
+  statechart: trạng thái đặt trong sequence = state trên statechart của entity đó.
 - Có Flutter: Screen Flow (SRS I.5.1a) tách hai trang `srs_05_screenflow_web.json` / `srs_05_screenflow_mobile.json`
   (`<Sys> - Web Screen Flow` / `<Sys> - Mobile Screen Flow`); lifeline Client của sequence = client thật sự gọi use
   case đó (`React Web App` hoặc `Flutter Mobile App`).
 - Framework bean không tự viết (`AuthenticationManager`, `PasswordEncoder`) → `"external": true` trong sequence.
-- Mục SRS/SDS không có sơ đồ (bảng use case, đặc tả UC, data dictionary, bảng method…) → viết trong câu trả lời
-  hoặc file `.md`, không vẽ.
+- **Data dictionary** (SDS I.3): **sinh**, không viết tay –
+  `python "<ENGINE>/scripts/comet_datadict.py" ./uml/sds_03_database.json -o ./uml/<Sys>_DataDictionary.md`
+  (bảng, entity, cột, kiểu, PK/FK → bảng đích, NOT NULL; mô tả cột lấy từ `"description"` của cột). Sửa bảng →
+  sửa spec rồi chạy lại. **Không** viết tay một tài liệu đặc tả song song (SPECIFICATION.md…) chứa bảng/cột/luồng
+  – nó sẽ lệch sơ đồ; mọi bảng/cột/tên lớp chỉ có một nguồn là spec JSON.
+- Mục SRS/SDS không có sơ đồ (bảng use case, đặc tả UC, bảng method…) → viết trong câu trả lời hoặc file `.md`,
+  dùng **y hệt** tên trong spec, không vẽ.
 
 Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o ./uml/<Sys>_SRS.drawio` và
 `"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict --profile sep490 "./uml/*.json"` chạy
-**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P7: thiếu mục nào, actor nào chưa có
-"UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng). **Không giao khi còn WARN P**:
+**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P10: thiếu mục nào, actor nào chưa có
+"UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng, entity có `status` chưa có
+statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login) + X9/X10/R15 (thuộc tính ↔ cột,
+lớp ↔ package, sync ↔ reply); cuối cùng sinh data dictionary bằng `comet_datadict.py`. **Không giao khi còn WARN P**:
 vẽ bổ sung đúng mục bị báo rồi chạy lại. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
 này. Canonical (2a) cũng trên `"./uml/*.json"`.
 

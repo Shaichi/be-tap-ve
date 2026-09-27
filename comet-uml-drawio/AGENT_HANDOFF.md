@@ -416,8 +416,9 @@ Goal: `/uml-comet` produces every diagram the SEP490 Report 3 (SRS) and Report 4
 - `comet_check.py --profile sep490`: completeness rules P1–P7 per bundle (required SRS/SDS pages, one use case diagram per actor, BF swimlane with System lane, ≥ 2 design class+sequence pairs, auth flow sequence, every conceptual entity has a table; replaces the X7 unmapped INFO). `--partial` → INFO.
 - Default design stack (section 2b): Spring Boot layered (Controller → Service/ServiceImpl → Repository extends JpaRepository, Entity, DTO, Spring Security + JWT), React web, PostgreSQL, Flutter when there is a mobile UI (separate Mobile Screen Flow page); other stacks via the mapping table at the end of 2b.
 - Verified end to end: 15 specs (SRS 7 + SDS 8) → 0 ERROR / 0 WARN with `--profile sep490`, canonical bootstrap exact, compile --check clean.
+- Consistency pass after evaluating a Servlet demo (ClinicCare): X9 (design entity attributes ↔ physical table columns), X10 (design classes ↔ classes placed in the package diagram, only when the package diagram lists classes), R15 (design sequence sync call without reply), P8 (entity with a status column needs a statechart), P9 (no COMET object stereotypes in the layered architecture), P10 (dashboards reachable only through Login). X3 skips entity lifecycle statecharts. `uml2drawio.py`: an unreplied sync call's activation ends when the caller sends its next message (implicit return) instead of running to the bottom. New `scripts/comet_datadict.py`: physical ERD → Markdown data dictionary (FK targets from `ref`, column name or the only remaining parent table); guidance forbids hand-written parallel spec docs.
 
-Status: **130 tests** OK.
+Status: **134 tests** OK.
 
 Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram. Spec loaders skip generated `comet-*` artifacts, so `"./uml/*.json"` globs stay safe.
 

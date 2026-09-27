@@ -154,11 +154,13 @@ trong kiến trúc, trang Mobile Screen Flow riêng). Nêu stack khác trong pro
 
 Kết quả gom thành `<Hệ thống>_SRS.drawio` và `<Hệ thống>_SDS.drawio` (mỗi mục một trang); `comet_check.py` chạy
 trên cả hai bộ cùng lúc để bắt lệch tên giữa SRS và SDS (X7, X8, R1…). Thêm `--profile sep490` để kiểm **độ đủ**
-theo template (P1–P7): thiếu mục nào, actor nào chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa
-có bảng… đều thành WARN:
+theo template (P1–P10): thiếu mục nào, actor nào chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa
+có bảng, entity có `status` chưa có statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login…
+đều thành WARN. Data dictionary **sinh** từ ERD vật lý, không viết tay (sửa spec → chạy lại):
 
 ```bash
 python comet-uml-drawio/scripts/comet_check.py --strict --profile sep490 "./uml/*.json"
+python comet-uml-drawio/scripts/comet_datadict.py ./uml/sds_03_database.json -o ./uml/<He_thong>_DataDictionary.md
 ```
 
 Nói tự nhiên cũng được, ví dụ "vẽ class diagram cho hệ thống quản lý khách sạn". Skill gốc `comet-uml-drawio` sẽ
@@ -360,11 +362,12 @@ Nhóm luật của `comet_check.py`:
 
 | Mã | Phạm vi |
 |---|---|
-| R1–R14 | Nhất quán COMET giữa các sơ đồ (use case ↔ tương tác ↔ statechart ↔ context ↔ class) |
+| R1–R15 | Nhất quán COMET giữa các sơ đồ (use case ↔ tương tác ↔ statechart ↔ context ↔ class) |
 | X1–X6 | Traceability mở rộng giữa use case ↔ interaction/activity ↔ statechart ↔ ERD/entity ↔ component/deployment |
 | X7 | Bảng ERD vật lý (`table`.`entity`) ↔ entity của ERD khái niệm cùng bundle |
 | X8 | Lifeline/message của sequence mức thiết kế ↔ lớp/operation của class diagram thiết kế cùng use case |
-| P1–P7 | Chỉ khi `--profile sep490`: bộ sơ đồ đủ theo template Report 3 SRS + Report 4 SDS |
+| X9–X10 | Thuộc tính lớp entity thiết kế ↔ cột bảng vật lý; lớp thiết kế ↔ lớp đặt trong package diagram |
+| P1–P10 | Chỉ khi `--profile sep490`: bộ sơ đồ đủ và đúng kiểu theo template Report 3 SRS + Report 4 SDS |
 | S1–S5 | Statechart hợp lệ |
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
@@ -405,6 +408,7 @@ be-tap-ve/
     │   ├── uml2drawio.py      ← spec JSON → .drawio (bố cục + sinh XML + tự kiểm tra)
     │   ├── validate_drawio.py ← kiểm tra hình học: chồng hình, đường cắt hình, nhãn đè
     │   ├── comet_check.py     ← kiểm tra luật UML/COMET trên spec
+    │   ├── comet_datadict.py  ← ERD vật lý → Data Dictionary (Markdown)
     │   ├── preview_svg.py     ← .drawio → HTML/SVG/PNG để xem nhanh
     │   ├── install.py         ← cài vào Claude Code / Antigravity
     │   └── mcp_smoke.py       ← thử draw.io MCP server
