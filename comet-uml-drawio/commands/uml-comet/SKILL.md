@@ -17,6 +17,14 @@ thông tin cốt lõi (hệ thống làm gì, ai dùng) thì hỏi lại một c
 **spec JSON**, script tự bố cục (không chồng/dính hình) và kiểm tra. Lưu spec + kết quả vào `./uml/` của thư mục
 làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ khác.
 
+**Kỷ luật đọc file (bắt buộc, áp dụng từ đầu phiên):**
+- **Cấm mở toàn bộ** file do script sinh ra: `*.model.json` (vài MB ≈ hàng trăm nghìn token), `*.canonical.json`,
+  `*.repair.json`, `*.drawio`, `*.html`, `*_DataDictionary.md`. Cần tra một mục → `grep` đúng tên, đọc vài dòng.
+- Chỉ đọc: output của lệnh (checker đã in đủ mã luật, file, gợi ý sửa), spec `srs_*/sds_*.json` đang viết/sửa, và
+  tài liệu ở mục 1. Spec lớn (ERD vật lý) → đọc phần cần sửa, không đọc lại cả file sau mỗi lần sửa nhỏ.
+- Ảnh PNG: mỗi trang xem **một lần** sau khi build; sửa trang nào thì chỉ xem lại trang đó.
+- Không dán lại nội dung spec/ảnh vào câu trả lời; báo cáo bằng tên file + output checker.
+
 **Ngôn ngữ trên sơ đồ: mặc định tiếng Anh.** Mọi chữ hiện trên sơ đồ (`title`, tên phần tử, thuộc tính, thao
 tác, nhãn quan hệ, message, guard, câu hỏi decision…) viết bằng tiếng Anh, kể cả khi người dùng mô tả bằng tiếng
 Việt – tự dịch sang thuật ngữ tiếng Anh chuẩn. Chỉ dùng ngôn ngữ khác khi người dùng yêu cầu rõ (vd "vẽ bằng
@@ -134,6 +142,21 @@ statechart, kiến trúc dùng stereotype COMET, dashboard vào được không 
 vẽ bổ sung đúng mục bị báo rồi chạy lại. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
 này. Canonical (2a) cũng trên `"./uml/*.json"`.
 
+**Chia phiên SRS / SDS (mặc định cho bộ SEP490 đầy đủ; hệ nhỏ < ~12 spec làm một phiên cũng được).** Tính nhất quán
+nằm ở **spec JSON + checker**, không ở trí nhớ hội thoại → phiên ngắn, mỗi phiên một báo cáo, ít quên ràng buộc hơn:
+1. **Phiên 1 – SRS:** viết `srs_*.json`; kiểm bằng
+   `comet_check.py --strict --profile sep490 --partial "./uml/srs_*.json"` (mục SDS chưa có chỉ là INFO P2/P6) → 0
+   ERROR, 0 WARN; build `<Sys>_SRS.drawio` + PNG, soát ảnh. Cuối phiên ghi `./uml/NOTES.md` **chỉ gồm quyết định
+   không suy ra được từ spec**: stack, 2–3 use case chọn cho SDS II, giả định nghiệp vụ, WARN còn giữ (mã + lý do).
+   **Không** chép danh sách actor/use case/entity/cột vào NOTES – spec là nguồn duy nhất. Dừng, báo người dùng mở phiên mới.
+2. **Phiên 2 – SDS (phiên mới):** đọc `./uml/NOTES.md` rồi lấy tên từ spec SRS cần dùng (`srs_03_erd.json`,
+   `srs_03_*_state.json`, `srs_04_uc_*.json`, `srs_02_*.json` khi viết luồng) – **không** mở `.drawio`/PNG của SRS.
+   Viết `sds_*.json`; kiểm trên **cả bộ, không `--partial`**: `comet_check.py --strict --profile sep490 "./uml/*.json"`
+   (X1/X7/X9–X12/P5–P11 đối chiếu SDS với SRS). Lệch do SRS thiếu (entity/cột/use case) → sửa spec SRS, build lại
+   `<Sys>_SRS.drawio`, ghi một dòng vào NOTES. Xong: build `<Sys>_SDS.drawio` + PNG, sinh data dictionary, canonical (2a).
+3. **Phiên sau – thêm/sửa tính năng:** đọc NOTES, sửa đúng spec SRS + SDS liên quan, chạy lại lệnh kiểm cả bộ.
+Người dùng muốn làm liền một phiên → vẫn theo đúng thứ tự trên (SRS sạch với `--partial` rồi mới sang SDS).
+
 Stack khác (chỉ khi người dùng nêu) – đổi tên tầng, giữ nguyên cấu trúc:
 
 | Stack | Controller | Service | Truy cập dữ liệu | Client / khác |
@@ -153,9 +176,8 @@ python "<ENGINE>/scripts/comet_plan.py" "./uml/*.json" -o ./uml/<He_thong>.repai
 python "<ENGINE>/scripts/preview_svg.py" ./uml/<He_thong>.drawio -o ./uml/<He_thong>.html --png
 ```
 (Glob trong ngoặc kép được script tự mở rộng — chạy được cả trên PowerShell/cmd.)
-**Tiết kiệm token:** chỉ đọc output của lệnh (checker in ra đủ luật, file, gợi ý sửa) và spec `srs_*/sds_*.json`
-cần sửa. **Không** mở toàn bộ file sinh ra: `*.model.json` (có thể vài MB), `*.repair.json`, `*.canonical.json`,
-`*.drawio`, `*.html` – cần tra thì `grep` đúng mục. Xem ảnh PNG từng trang thay vì đọc XML draw.io.
+**Tiết kiệm token:** theo "Kỷ luật đọc file" ở đầu – chỉ đọc output lệnh và spec cần sửa; **không** mở
+`*.model.json`/`*.repair.json`/`*.canonical.json`/`*.drawio`/`*.html` (cần tra thì `grep`); xem PNG thay vì XML.
 0. `comet_model.py` gom semantic model thành một index ổn định (`<He_thong>.model.json`) gồm canonical ID, nodes, links, coverage, impact map và provenance; file này là output trung gian cho tooling/repair loop, không chứa tọa độ.
 0a. `comet_plan.py` tạo repair plan (`<He_thong>.repair.json`) gồm rule, severity, source và hành động sửa/regenerate; plan là advisory, không tự sửa semantics.
 1. `uml2drawio.py` gộp mọi spec thành **một** file nhiều trang, tự chạy validator → phải **0 ERROR** (mã thoát 2 =

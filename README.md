@@ -163,6 +163,11 @@ python comet-uml-drawio/scripts/comet_check.py --strict --profile sep490 "./uml/
 python comet-uml-drawio/scripts/comet_datadict.py ./uml/sds_03_database.json -o ./uml/<He_thong>_DataDictionary.md
 ```
 
+Bộ SEP490 đầy đủ nên làm **hai phiên**: phiên 1 vẽ SRS (kiểm `--partial` trên `srs_*.json`, ghi quyết định vào
+`./uml/NOTES.md`), phiên mới vẽ SDS và kiểm cả bộ không `--partial`. Tính nhất quán nằm ở spec JSON + checker nên phiên
+ngắn không mất gì mà AI ít quên ràng buộc hơn. AI chỉ đọc output lệnh và spec đang sửa, **không** mở các file sinh ra
+(`*.model.json` vài MB, `*.drawio`, `*.html`…) để khỏi đốt token.
+
 Nói tự nhiên cũng được, ví dụ "vẽ class diagram cho hệ thống quản lý khách sạn". Skill gốc `comet-uml-drawio` sẽ
 tự chọn đúng lệnh.
 

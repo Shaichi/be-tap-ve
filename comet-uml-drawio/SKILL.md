@@ -98,6 +98,9 @@ python <skill>/scripts/preview_svg.py diagram.drawio -o preview.html --png   # �
 - `--png`: chụp mỗi trang thành `preview.png` / `preview_p<N>.png` bằng Chrome/Edge headless → **mở ảnh xem**
   trước khi giao (không có trình duyệt thì script báo và bỏ qua; xem `preview.html`).
 - Kiểm thử hồi quy của chính skill: `python <skill>/tests/run_tests.py` (chạy sau khi sửa script).
+- **Kỷ luật đọc file:** chỉ đọc output lệnh + spec JSON đang sửa; **cấm mở toàn bộ** file sinh ra (`*.model.json`
+  – vài MB, `*.canonical.json`, `*.repair.json`, `*.drawio`, `*.html`) – cần tra thì `grep`. PNG: mỗi trang xem một
+  lần, sửa trang nào xem lại trang đó.
 
 ### Bước 4 – Giao cho người dùng qua draw.io MCP
 Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
@@ -133,6 +136,8 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 - Spec `"level": "design"` (class/sequence mức SDS: mặc định Spring Boot Controller/Service/Repository + React/Flutter + PostgreSQL, `activations`) bỏ qua luật phân tích
   R3/R4/R10; hồ sơ SEP490 (Report 3 SRS + Report 4 SDS) xem mục 2b của `commands/uml-comet/SKILL.md`.
   Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P11, P11: state của statechart entity = `values` của cột status). Data dictionary: sinh bằng
-  `scripts/comet_datadict.py` từ ERD vật lý, không viết tay tài liệu song song với spec.
+  `scripts/comet_datadict.py` từ ERD vật lý, không viết tay tài liệu song song với spec. Bộ SEP490 đầy đủ làm
+  **hai phiên**: SRS (`--partial` trên `srs_*.json`, ghi `./uml/NOTES.md`) → phiên mới làm SDS, kiểm cả bộ không
+  `--partial` (mục "Chia phiên" trong 2b).
 - [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
 - [ ] Semantic model v2 đã được sinh; khi làm full COMET nên có thêm bộ manifest `model + consistency + repair` dùng cùng fingerprint.
