@@ -1604,6 +1604,11 @@ class TestCometCheck(unittest.TestCase):
                                     {"id": "d", "type": "state", "name": "Reviewed"}, {"id": "f", "type": "final"}],
                        "relations": [{"from": "i", "to": "p"}, {"from": "p", "to": "d", "event": "review"},
                                      {"from": "d", "to": "f", "event": "close"}]}
+        for tb in specs["db"]["elements"]:
+            if tb.get("name") == "applications":
+                for c in tb["columns"]:
+                    if c["name"] == "status":
+                        c["values"] = ["PENDING", "REVIEWED"]
         for s in specs.values():
             s["bundle"] = "th"
         return specs
@@ -1697,6 +1702,86 @@ class TestCometCheck(unittest.TestCase):
         self.assertFalse(codes(check(phy, dict(cls, level="analysis"), pkg)[1], "X9"))
         other = dict(cls, bundle="other")                                # khac bundle -> khong so
         self.assertFalse(codes(check(phy, other, pkg)[1], "X9"))
+
+    def test_X11_message_is_operation(self):
+        cls = {"diagram": "class", "level": "design", "useCase": "Book", "title": "C", "elements": [
+            {"id": "c", "type": "class", "name": "BookController", "operations": ["+book(req: BookRequest): Response"]},
+            {"id": "s", "type": "interface", "name": "BookService", "operations": ["+book(req: BookRequest): Long"]},
+            {"id": "si", "type": "class", "name": "BookServiceImpl", "operations": ["-buildUrl(id: Long): String"]},
+            {"id": "r", "type": "interface", "name": "SlotRepository", "operations": ["+findFreeSlot(id: Long): Slot"]},
+            {"id": "j", "type": "interface", "name": "JpaRepository<Slot, Long>"},
+            {"id": "e", "type": "class", "name": "Slot", "attributes": ["-status: SlotStatus"]}],
+            "relations": [{"type": "realization", "from": "si", "to": "s"},
+                          {"type": "generalization", "from": "r", "to": "j"}]}
+        msgs = [("cl", "c", "book(BookRequest)"), ("c", "si", "book(BookRequest)"),       # op ke thua tu interface
+                ("si", "r", "findFreeSlot(Long)"), ("si", "r", "save(Slot)"),              # save tu JpaRepository
+                ("si", "e", "setStatus(LOCKED)"), ("si", "si", "buildUrl(id)"),            # setter; self private
+                ("si", "r", "lockSlot(Long)"), ("si", "r", "lockSlot(Long)"),              # khong co -> 1 lan
+                ("si", "c", "notify()")]
+        seq = {"diagram": "sequence", "level": "design", "useCase": "Book", "title": "S", "elements": [
+            {"id": "cl", "type": "object", "name": "Client", "external": True},
+            {"id": "c", "type": "object", "class": "BookController"}, {"id": "si", "type": "object", "class": "BookServiceImpl"},
+            {"id": "r", "type": "object", "class": "SlotRepository"}, {"id": "e", "type": "object", "class": "Slot"}],
+            "messages": [{"from": a, "to": b, "name": n, "type": "async"} for a, b, n in msgs] +
+                        [{"from": "si", "to": "e", "name": "«create»", "type": "create"}]}
+        w = codes(check(cls, seq)[1], "X11")
+        self.assertEqual(len(w), 2, w)
+        self.assertTrue(any("'SlotRepository'" in x and x.count("lockSlot") == 1 for x in w), w)
+        self.assertTrue(any("'BookController'" in x and "'notify()'" in x for x in w), w)
+        self.assertFalse(any("findFreeSlot" in x or "save(" in x or "setStatus" in x or "buildUrl" in x for x in w), w)
+        other = dict(seq, useCase="Other")                                   # khong co class rieng -> INFO
+        E, W, I = check(cls, other)
+        self.assertEqual(codes(W, "X11"), [])
+        self.assertEqual(len(codes(I, "X11")), 2)
+
+    def test_X12_fk_has_attribute(self):
+        phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+        cls = {"diagram": "class", "level": "design", "useCase": "Apply", "title": "C", "elements": [
+            {"id": "a", "type": "class", "name": "Application", "attributes": [
+                "-id: Long", "-job: JobPosting", "-status: String"]},
+            {"id": "n", "type": "class", "name": "Internal Note", "attributes": ["-applicationId: Long", "-author: User"]},
+            {"id": "i", "type": "class", "name": "Interview"}]}                 # khong ve thuoc tinh -> bo qua
+        w = codes(check(phy, cls)[1], "X12")
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("'applications'", w[0])
+        self.assertIn("'candidate_id'", w[0])
+        self.assertIn("candidate: <Entity>", w[0])
+        self.assertNotIn("job_id", w[0])
+        self.assertFalse(codes(check(phy, dict(cls, bundle="x"))[1], "X12"))  # khac bundle
+
+    def test_P11_statechart_matches_status_values(self):
+        def run_(values=None, enum=None, states=("Pending", "Under Review", "Accepted")):
+            phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+            for tb in phy["elements"]:
+                for c in tb.get("columns", []):
+                    if tb["name"] == "applications" and c["name"] == "status" and values:
+                        c["values"] = values
+            els = [{"id": "i", "type": "initial"}] + [{"id": "s%d" % k, "type": "state", "name": n}
+                                                     for k, n in enumerate(states)]
+            st = {"diagram": "state", "stateMachineOf": "Application", "title": "Application - State", "elements": els,
+                  "relations": [{"from": "i", "to": "s0"}] + [{"from": "s%d" % k, "to": "s%d" % (k + 1), "event": "e%d" % k}
+                                                              for k in range(len(states) - 1)]}
+            specs = [phy, st]
+            if enum:
+                specs.append({"diagram": "class", "level": "design", "title": "C", "elements": [
+                    {"id": "a", "type": "class", "name": "Application", "attributes": ["-status: ApplicationStatus"]},
+                    {"id": "e", "type": "enumeration", "name": "ApplicationStatus", "literals": enum}]})
+            out = []
+            M_ = __import__("comet_check")
+            by = __import__("collections").defaultdict(list)
+            for k, s in enumerate(specs):
+                s = dict(s, _src="%s#%d" % (s["diagram"], k))
+                by[s["diagram"]].append(s)
+            M_.check_profile_sep490([], by, out)
+            return [x for x in out if x.startswith("P11")]
+        self.assertIn("chua khai bao tap gia tri", run_()[0])
+        self.assertEqual(run_(["PENDING", "UNDER_REVIEW", "ACCEPTED"]), [])
+        p = run_(["PENDING", "UNDER_REVIEW", "REJECTED"])
+        self.assertTrue(p and "'Accepted'" in p[0] and "'REJECTED'" in p[0], p)
+        self.assertEqual(run_(enum=["PENDING", "UNDER_REVIEW", "ACCEPTED"]), [])           # enumeration cua lop
+        sv = __import__("comet_check").status_values                                    # literal trong kieu cot
+        self.assertEqual(sv({"type": "varchar(20) check (status in ('A','B'))"}), ["A", "B"])
+        self.assertEqual(sv({"type": "varchar(20)"}), [])
 
     def test_R15_sync_without_reply(self):
         seq = {"diagram": "sequence", "level": "design", "useCase": "Book", "title": "S", "elements": [
@@ -1819,7 +1904,7 @@ class TestCometCheck(unittest.TestCase):
         bad["messages"][0]["name"] = "deleteUser(Long)"
         E, W, I = check(uc, cls, bad)
         self.assertTrue(any("AccountService" in w for w in codes(W, "X8")), W)
-        self.assertTrue(any("deleteUser(Long)" in i for i in codes(I, "X8")), I)
+        self.assertTrue(any("deleteUser(Long)" in w for w in codes(W, "X11")), W)   # use case co class rieng -> WARN
         nocls = dict(copy.deepcopy(bad), useCase="View Jobs")                 # use case khong co class rieng -> INFO
         E, W, I = check(uc, cls, nocls)
         self.assertEqual(codes(W, "X8"), [])

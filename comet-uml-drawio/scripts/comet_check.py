@@ -61,10 +61,15 @@ Muc thiet ke ("level": "design" - class/sequence kieu SDS: Controller/Service/Re
   tac muc phan tich cho use case do.
   X8  Lifeline cua sequence muc thiet ke phai la lop trong class diagram muc thiet ke cung bundle va cung
       "useCase" (WARN; use case khong co class diagram rieng -> so voi moi lop thiet ke cua bundle, INFO);
-      lifeline "external": true (Client/Browser) bo qua; message khong trung operation cua lop -> INFO.
+      lifeline "external": true (Client/Browser) bo qua.
+  X11 Message trong sequence muc thiet ke toi lop X phai la operation cua X trong class diagram (tinh ca lop cha /
+      interface qua generalization/realization; JpaRepository<..> -> save/findById/findAll/deleteById...; getter/
+      setter cua thuoc tinh; "type": "create" bo qua). WARN khi use case co class diagram rieng, con lai INFO.
   X7  Bang vat ly ("type": "table", "entity": ...) tro toi entity cua ERD khai niem cung bundle.
   X9  Lop entity trong class diagram muc thiet ke (ten = "entity" cua bang vat ly cung bundle): moi thuoc tinh
       phai co cot tuong ung (camelCase <-> snake_case, "doctor: Doctor" ~ doctor_id); bo qua List/Set/[].
+  X12 Nguoc voi X9: moi cot FK ("fk": true) cua bang phai co thuoc tinh quan he trong lop entity thiet ke
+      tuong ung (job_id ~ "job: JobPosting" / "jobId: Long"); bo qua lop entity khong ve thuoc tinh nao.
   X10 Package diagram cung bundle co dat lop vao package -> moi lop cua class diagram muc thiet ke phai co mat
       trong package diagram (bo qua kieu framework co "<...>", vd JpaRepository<User, Long>).
   R15 Sequence muc thiet ke: loi goi dong bo (sync, mac dinh) A -> B phai co reply B -> A phia sau (hoac dat
@@ -81,6 +86,9 @@ Ho so SEP490 (--profile sep490: Report 3 SRS + Report 4 SDS, moi bundle; --parti
   P7  Moi entity cua ERD khai niem co bang vat ly tro toi ("entity") trong database design.
   P8  Bang/entity co cot trang thai (status, *_status, state) -> co it nhat 1 statechart cho entity do
       ("stateMachineOf": "<Entity>").
+  P11 Statechart cua entity (P8) khop tap gia tri cot status: khai bao "values" cho cot (hoac enumeration
+      trong class diagram ma thuoc tinh status tro toi); moi state la (khong phai composite) phai la 1 gia tri,
+      moi gia tri phai la 1 state (so khop bo hoa/thuong, dau cach, '_': PENDING_PAYMENT ~ Pending Payment).
   P9  Software Architecture (component) khong dung stereotype doi tuong COMET (control, entity, database wrapper,
       proxy, user interaction...) - kien truc phan tang chi dat "subsystem" cho tang.
   P10 Screen flow: man hinh quan tri/dashboard (Dashboard, Admin, Management...) chi toi duoc qua man Login.
@@ -555,6 +563,59 @@ def parse_attr(a):
     return n.split("[")[0].strip(), typ.strip()
 
 
+JPA_OPS = {"save", "saveall", "saveandflush", "findbyid", "findall", "findallbyid", "existsbyid", "count", "delete",
+           "deletebyid", "deleteall", "deleteallbyid", "flush", "getreferencebyid", "getbyid", "getone"}
+FRAMEWORK_REPO_RE = re.compile(r"^(jpa|crud|pagingandsorting|listcrud|listpagingandsorting|mongo|r2dbc)?repository\s*<"
+                               r"|^jpaspecificationexecutor", re.I)
+
+
+def op_key(s):
+    """'+findByEmail(email: String): User' / 'findByEmail(String)' -> 'findbyemail'."""
+    return compact(mname(str(s or "").lstrip("+-#~ ").split("(")[0].split(":")[0]))
+
+
+def class_members(s):
+    """Class diagram -> ten lop chuan hoa -> tap op_key hop le: operation cua lop + lop cha/interface (generalization/
+    realization, bac cau), JpaRepository<..> -> JPA_OPS, getter/setter cua thuoc tinh, ten lop (constructor)."""
+    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    parents = defaultdict(set)
+    for r in s.get("relations", []):
+        if norm(r.get("type")) in ("generalization", "realization", "inheritance", "implements", "extends"):
+            parents[str(r.get("from"))].add(str(r.get("to")))
+    out = {}
+    for i, e in els.items():
+        if norm(e.get("type")) in ("note", "enumeration", "package"):
+            continue
+        ops, seen, todo = set(), set(), [i]
+        while todo:
+            k = todo.pop()
+            if k in seen or k not in els:
+                continue
+            seen.add(k)
+            x = els[k]
+            ops |= {op_key(o) for o in x.get("operations") or []}
+            for a in x.get("attributes") or []:
+                n = compact(parse_attr(a)[0])
+                ops |= {"get" + n, "set" + n, "is" + n}
+            if FRAMEWORK_REPO_RE.search(str(x.get("name") or "").strip()):
+                ops |= JPA_OPS
+            todo += sorted(parents[k])
+        ops.add(compact(e.get("name", e.get("id"))))
+        out.setdefault(norm(e.get("name", e.get("id"))), set()).update(ops)
+    return out
+
+
+def status_values(e, typ=None):
+    """Cot status {"values"/"enum": [...]} hoac kieu co literal ("varchar(20) check (status in ('A','B'))",
+    "enum('A','B')"); enumeration: "literals"/"values"/"attributes"."""
+    vals = e.get("values") or e.get("enum") or e.get("literals")
+    if isinstance(vals, (list, tuple)):
+        return [str(v) for v in vals]
+    if typ == "enumeration":
+        return [parse_attr(a)[0].split("=")[0].strip() for a in e.get("attributes") or []]
+    return re.findall(r"'([^']+)'", str(e.get("type") or "")) if "(" in str(e.get("type") or "") else []
+
+
 def table_entity(e):
     ent = e.get("entity")
     if isinstance(ent, list):
@@ -588,7 +649,7 @@ def reach(adj, starts, blocked=()):
 
 
 def check_profile_sep490(specs, by, out):
-    """P1-P10: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
+    """P1-P11: bo so do du theo template SEP490 Report 3 (SRS) + Report 4 (SDS), kiem theo tung bundle."""
     scopes = defaultdict(lambda: defaultdict(list))   # bundle -> diagram -> specs
     for d, ss in by.items():
         for s in ss:
@@ -700,6 +761,52 @@ def check_profile_sep490(specs, by, out):
                            "trang thai cho entity chinh (\"diagram\": \"state\", \"stateMachineOf\": \"<Entity>\"; "
                            "state = gia tri cot status, event = use case/operation doi trang thai)."
                            % (tag, ", ".join("'%s'" % stateful[k] for k in sorted(stateful))))
+
+        # P11 - state cua statechart entity <-> gia tri cot status
+        enums = {}
+        for s in g["class"]:
+            for e in s.get("elements", []):
+                if norm(e.get("type")) in ("enumeration", "enum"):
+                    enums.setdefault(compact(e.get("name", e.get("id"))), status_values(e, "enumeration"))
+        for s in g["state"]:
+            key = compact(s.get("stateMachineOf"))
+            if key not in stateful:
+                key = max((k for k in stateful if k in compact(s.get("title"))), key=len, default=None)
+            if not key:
+                continue
+            cols = [c for x in physical_erd for e in x.get("elements", []) if norm(e.get("type")) == "table" and
+                    key in {compact(y) for y in (e.get("entity") if isinstance(e.get("entity"), list)
+                                                 else [table_entity(e)])}
+                    for c in e.get("columns") or [] if isinstance(c, dict) and STATUS_RE.search(snake(c.get("name")))]
+            cols = [c for c in cols if norm(c.get("name")) in ("status", "state")] or cols
+            vals = [v for c in cols for v in status_values(c)]
+            for x in g["class"]:
+                for e in x.get("elements", []):
+                    if compact(e.get("name", e.get("id"))) != key:
+                        continue
+                    for a in e.get("attributes") or []:
+                        n, at = parse_attr(a)
+                        if STATUS_RE.search(snake(n)):
+                            vals += enums.get(compact(at), [])
+            if not vals:
+                out.append("P11 [%s] Statechart '%s': cot status cua bang chua khai bao tap gia tri - dat \"values\": "
+                           "[\"PENDING\", ...] cho cot status (hoac enumeration trong class diagram cho thuoc tinh "
+                           "status) de doi chieu voi cac state." % (s["_src"], stateful[key]))
+                continue
+            els = s.get("elements", [])
+            parents = {str(e.get("in")) for e in els if e.get("in") is not None}
+            states = [e for e in els if norm(e.get("type")) == "state"]
+            V = {compact(v) for v in vals}
+            extra = [e.get("name") or e.get("id") for e in states if str(e.get("id")) not in parents
+                     and compact(e.get("name") or e.get("id")) not in V]
+            names = {compact(e.get("name") or e.get("id")) for e in states}
+            lost = sorted({v for v in vals if compact(v) not in names}, key=vals.index)
+            if extra or lost:
+                out.append("P11 [%s] Statechart '%s' khong khop gia tri cot status%s%s - moi state la = 1 gia tri "
+                           "status, moi gia tri status = 1 state." % (
+                               s["_src"], stateful[key],
+                               "; state khong co trong values: %s" % ", ".join("'%s'" % x for x in extra) if extra else "",
+                               "; gia tri chua co state: %s" % ", ".join("'%s'" % x for x in lost) if lost else ""))
 
         # P9 - kien truc phan tang khong dung stereotype doi tuong COMET
         for s in g["component"]:
@@ -1241,16 +1348,13 @@ def check_cross_diagrams(by, partial=False):
 def check_design_trace(by, W, I):
     """X8: lifeline cua sequence muc thiet ke phai la lop trong class diagram muc thiet ke cung bundle;
     message goi toi lop co khai bao operations nen trung ten mot operation (INFO)."""
-    classes = defaultdict(dict)   # (scope, useCase|"") -> ten lop chuan hoa -> tap ten operation
+    classes = defaultdict(dict)   # (scope, useCase|"") -> ten lop chuan hoa -> tap op_key hop le (X11)
     for s in by["class"]:
         if not is_design(s):
             continue
-        for e in s.get("elements", []):
-            if norm(e.get("type")) in ("note", "enumeration"):
-                continue
-            ops = {mname(str(o).lstrip("+-#~ ").split("(")[0].split(":")[0]) for o in e.get("operations") or []}
+        for name, ops in class_members(s).items():
             for k in ((_scope_key(s), ""), (_scope_key(s), norm(s.get("useCase")))):
-                classes[k].setdefault(norm(e.get("name", e.get("id"))), set()).update(ops)
+                classes[k].setdefault(name, set()).update(ops)
     for s in by["sequence"] + by["communication"]:
         if not is_design(s):
             continue
@@ -1270,15 +1374,22 @@ def check_design_trace(by, W, I):
                 MISSING.append("X8 [%s] Lifeline '%s' khong co lop cung ten trong class diagram muc thiet ke cung bundle - "
                          "them lop vao class diagram (hoac dat \"external\": true neu la Client/Browser/he thong ngoai)."
                          % (s["_src"], obj_class(e)))
+        # X11 - message toi lop phai la operation cua lop do
+        unknown = defaultdict(list)
         for m in s.get("messages", []):
             b = els.get(str(m.get("to")))
             name = m.get("name", m.get("label"))
-            if b is None or is_reply(m) or not name or b.get("type") == "actor" or b.get("external"):
+            if b is None or is_reply(m) or not name or b.get("type") == "actor" or b.get("external") or \
+                    norm(m.get("type")) == "create" or re.match(r"\s*(«create»|<<create>>|new\b)", str(name)):
                 continue
             ops = pool.get(norm(obj_class(b)))
-            if ops and mname(name) not in ops:
-                I.append("X8 [%s] Message '%s' toi '%s' khong trung operation nao cua lop trong class diagram."
-                         % (s["_src"], name, obj_class(b)))
+            if ops is not None and op_key(name) not in ops and name not in unknown[obj_class(b)]:
+                unknown[obj_class(b)].append(name)
+        for cls in sorted(unknown):
+            MISSING.append("X11 [%s] Lop '%s' khong co operation cho message: %s - them operation vao lop (hoac lop cha/"
+                           "interface) trong class diagram muc thiet ke%s, hoac sua ten message cho khop."
+                           % (s["_src"], cls, ", ".join("'%s'" % x for x in unknown[cls]),
+                              " cung useCase" if MISSING is W else ""))
 
 
 def check_design_structure(by, W):
@@ -1292,6 +1403,15 @@ def check_design_structure(by, W):
             cols = {norm(c.get("name")) for c in e.get("columns") or [] if isinstance(c, dict) and c.get("name")}
             for ent in e["entity"] if isinstance(e["entity"], list) else [e["entity"]]:
                 tables[_scope_key(s)].setdefault(compact(ent), (e.get("name", e.get("id")), cols))
+    fks = defaultdict(list)   # scope -> [(spec, ten bang, [entity], [cot fk])]
+    for s in by["erd"]:
+        for e in s.get("elements", []):
+            if norm(e.get("type")) == "table" and e.get("entity"):
+                cols = [c.get("name") for c in e.get("columns") or [] if isinstance(c, dict) and c.get("fk")]
+                ents = e["entity"] if isinstance(e["entity"], list) else [e["entity"]]
+                if cols:
+                    fks[_scope_key(s)].append((s, e.get("name", e.get("id")), ents, cols))
+    attrs = defaultdict(lambda: defaultdict(set))   # scope -> compact(lop entity) -> snake(thuoc tinh don)
     placed = defaultdict(set)   # scope -> lop co trong package diagram
     for s in by["package"]:
         for e in s.get("elements", []):
@@ -1308,6 +1428,13 @@ def check_design_structure(by, W):
             if typ in ("class", "interface", "enumeration", "enum") and placed[scope] and \
                     "<" not in str(cname) and compact(cname) not in placed[scope]:
                 missing.append(cname)
+            if typ == "class":
+                for a in e.get("attributes") or []:
+                    n, at = parse_attr(a)
+                    if n and not COLLECTION_RE.search(at):
+                        attrs[scope][compact(cname)].add(snake(n))
+                    elif n:
+                        attrs[scope][compact(cname)]   # lop co ve thuoc tinh (chi collection)
             tb = tables[scope].get(compact(cname)) if typ == "class" else None
             if not tb or not tb[1]:
                 continue
@@ -1326,6 +1453,20 @@ def check_design_structure(by, W):
         if missing:
             W.append("X10 [%s] Lop thiet ke chua co trong package diagram (SDS I.2) cung bundle: %s - dat lop vao "
                      "package dung tang (\"in\": <id package>)." % (s["_src"], ", ".join("'%s'" % x for x in missing)))
+    # X12 - cot FK <-> thuoc tinh quan he cua lop entity
+    for scope, rows in fks.items():
+        for s, tname, ents, cols in rows:
+            have = [compact(x) for x in ents if compact(x) in attrs[scope]]
+            if not have:
+                continue
+            got = set().union(*(attrs[scope][k] for k in have))
+            bad = [c for c in cols if norm(c) not in got and not (norm(c).endswith("_id") and norm(c)[:-3] in got)]
+            if bad:
+                W.append("X12 [%s] Bang '%s' co cot FK khong co thuoc tinh quan he trong lop entity '%s' (class diagram "
+                         "muc thiet ke): %s - them thuoc tinh (vd '%s: <Entity>' cho %s) hoac bo cot."
+                         % (s["_src"], tname, ents[0], ", ".join("'%s'" % c for c in bad),
+                            re.sub(r"_([a-z])", lambda x: x.group(1).upper(), norm(bad[0])[:-3] if norm(bad[0]).endswith(
+                                "_id") else norm(bad[0])), bad[0]))
 
 
 def check_sync_replies(by, W):
@@ -1410,7 +1551,7 @@ def main():
     ap.add_argument("--partial", action="store_true",
                     help="chi kiem mot phan bo so do: R1/R7 (thieu so do doi ung) chi la INFO")
     ap.add_argument("--profile", choices=PROFILES,
-                    help="kiem bo so do du theo template (sep490: Report 3 SRS + Report 4 SDS, luat P1-P10)")
+                    help="kiem bo so do du theo template (sep490: Report 3 SRS + Report 4 SDS, luat P1-P11)")
     ap.add_argument("--strict", action="store_true",
                     help="co WARN thi tra ma thoat 1 (dung cho CI/kiem tra cuoi)")
     ap.add_argument("--json", action="store_true",

@@ -239,7 +239,7 @@ quan hệ giữa hai bảng không cần tên:
 - Mặc định `direction: LR`. Cột hiển thị `PK id: bigserial NOT NULL`, `FK created_by: bigint NOT NULL`.
 - Ví dụ đầy đủ: `examples/talenthub_erd_conceptual.json`, `examples/talenthub_erd_physical.json`. comet_check
   E1–E4, X7, X9.
-- Cột có thể thêm `"description"` (mô tả trong data dictionary) và `"ref": "users.id"` (bảng đích của FK khi không
+- Cột có thể thêm `"values": ["PENDING", "CONFIRMED"]` (tập giá trị cột status/enum – P11 so với state của statechart, data dictionary in ra), `"description"` (mô tả trong data dictionary) và `"ref": "users.id"` (bảng đích của FK khi không
   suy được từ tên cột). Data dictionary: `scripts/comet_datadict.py <spec ERD vật lý> -o <file>.md`.
 
 ### Sequence mức thiết kế (SDS)

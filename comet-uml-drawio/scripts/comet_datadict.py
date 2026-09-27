@@ -46,6 +46,15 @@ def cell(v):
     return str(v if v is not None else "").replace("|", "\\|").replace("\n", " ")
 
 
+def desc(c):
+    """Mo ta cot + tap gia tri ("values", vd cot status)."""
+    d = str(c.get("description") or c.get("note") or "")
+    vals = c.get("values") or c.get("enum")
+    if isinstance(vals, (list, tuple)) and vals:
+        d = (d + " " if d else "") + "Values: " + ", ".join("`%s`" % v for v in vals)
+    return d
+
+
 def fk_targets(tables, relations):
     """(id bang, ten cot) -> ten bang dich cho moi cot "fk": true."""
     names = {tid: str(e.get("name") or tid) for tid, e in tables.items()}
@@ -124,7 +133,7 @@ def render(specs, title=None):
                 lines.append("| %d | `%s` | %s | %s | %s | %s | %s |" % (
                     i, cell(c.get("name")), cell(c.get("type")), "x" if c.get("pk") else "",
                     cell(fks.get((tid, c.get("name")), "")) if c.get("fk") else "", "x" if nn else "",
-                    cell(c.get("description") or c.get("note") or "")))
+                    cell(desc(c))))
             lines.append("")
         rels = [r for r in s.get("relations", []) if str(r.get("from")) in tables and str(r.get("to")) in tables]
         if rels:

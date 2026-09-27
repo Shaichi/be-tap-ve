@@ -126,13 +126,13 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
 - [ ] Đã mở ảnh `--png` từng trang và tự soát (chữ đọc được, không chồng hình/nhãn).
 - [ ] Đã mở qua MCP hoặc đưa đường dẫn file `.drawio`.
 
-- Traceability chéo mở rộng: **X1–X10** (use case, actor, statechart, ERD/entity, component/deployment, role consistency,
+- Traceability chéo mở rộng: **X1–X12** (use case, actor, statechart, ERD/entity, component/deployment, role consistency,
   X7 bảng vật lý ↔ entity ERD khái niệm, X8 lifeline sequence thiết kế ↔ class diagram thiết kế, X9 thuộc tính lớp
-  entity ↔ cột bảng, X10 lớp thiết kế ↔ package diagram); R15 sync mức thiết kế phải có reply.
+  entity ↔ cột bảng, X10 lớp thiết kế ↔ package diagram, X11 message ↔ operation của lớp, X12 cột FK ↔ thuộc tính quan hệ); R15 sync mức thiết kế phải có reply.
 - ERD có 2 ký pháp: Chen (mặc định) và `"notation": "crowfoot"` (entity/table + cột PK/FK, luật E1–E4).
 - Spec `"level": "design"` (class/sequence mức SDS: mặc định Spring Boot Controller/Service/Repository + React/Flutter + PostgreSQL, `activations`) bỏ qua luật phân tích
   R3/R4/R10; hồ sơ SEP490 (Report 3 SRS + Report 4 SDS) xem mục 2b của `commands/uml-comet/SKILL.md`.
-  Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P10). Data dictionary: sinh bằng
+  Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P11, P11: state của statechart entity = `values` của cột status). Data dictionary: sinh bằng
   `scripts/comet_datadict.py` từ ERD vật lý, không viết tay tài liệu song song với spec.
 - [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
 - [ ] Semantic model v2 đã được sinh; khi làm full COMET nên có thêm bộ manifest `model + consistency + repair` dùng cùng fingerprint.

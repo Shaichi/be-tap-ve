@@ -34,7 +34,7 @@ bằng ngôn ngữ của họ.
 - Một statechart cho **mỗi** lớp `state dependent control` (R7): `"diagram": "state"`, `"stateMachineOf"` = tên lớp
   **y hệt** thuộc tính `"class"` của đối tượng đó trong sơ đồ tương tác, `"title"`.
 - Hồ sơ SEP490: statechart **vòng đời entity** (entity có cột `status`: Appointment, Order…) – `"stateMachineOf"` =
-  tên entity y hệt ERD; state = giá trị cột `status`; event = use case/operation đổi trạng thái (P8, không cần
+  tên entity y hệt ERD; state = giá trị cột `status` (khai báo `"values"` cho cột, P11 so khớp); event = use case/operation đổi trạng thái (P8, không cần
   «state dependent control» – X3 bỏ qua).
 - Phần tử: `initial` (đúng 1 ở cấp ngoài cùng; 1 trong mỗi composite state có state con), `state` (tên = trạng
   thái chờ có ý nghĩa: "Idle", "Waiting for PIN", "Processing Payment"; `"activities": ["entry / X", "do / Y",

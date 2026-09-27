@@ -86,7 +86,7 @@ stack khác – khi đó ánh xạ tầng theo bảng cuối mục này và ghi 
 | SRS I.1 Context Diagram | Hệ thống (hình tròn) + actor/dịch vụ ngoài, luồng có tên | [/uml-bizcontext](../uml-bizcontext/SKILL.md) | `srs_01_context.json` | `<Sys> - Context Diagram` |
 | SRS I.2 Main Business Flows | Activity swimlane **ngang** mỗi BF: `"direction": "LR"`, `partitions` = actor tham gia + `"System"` | [/uml-activity](../uml-activity/SKILL.md) | `srs_02_bf01_<flow>.json`… | `BF-01 <Flow Name>` |
 | SRS I.3.1 Entity Relationship Diagram | ERD khái niệm crow's foot: `"notation": "crowfoot"`, `entity` + `attributes` `"+ Full Name"`, quan hệ động từ -ing | [/uml-erd](../uml-erd/SKILL.md) | `srs_03_erd.json` | `<Sys> - Entity Relationship Diagram` |
-| SRS I.3 (kèm ERD) State Diagram | Statechart vòng đời **entity chính có cột `status`** (Appointment, Order, Application…): `"stateMachineOf": "<Entity>"` y hệt tên entity ERD, state = giá trị cột `status`, event = use case/operation đổi trạng thái (P8) | [/uml-statechart](../uml-statechart/SKILL.md) | `srs_03_<entity>_state.json` | `<Entity> - State Diagram` |
+| SRS I.3 (kèm ERD) State Diagram | Statechart vòng đời **entity chính có cột `status`** (Appointment, Order, Application…): `"stateMachineOf": "<Entity>"` y hệt tên entity ERD, state = giá trị cột `status` – khai báo `"values"` cho cột đó trong SDS I.3 (P8, P11) | [/uml-statechart](../uml-statechart/SKILL.md) | `srs_03_<entity>_state.json` | `<Entity> - State Diagram` |
 | SRS I.4.3 Use Case Diagrams | **Mỗi actor 1 sơ đồ** (actor + use case của họ, include/extend) | [/uml-usecase](../uml-usecase/SKILL.md) | `srs_04_uc_<actor>.json` | `UCs for <Actor>` |
 | SRS I.5.1a Screen Flow | Site map màn hình; dashboard/màn quản trị theo vai trò **chỉ** đi qua Login: `Home → Login → <Role> Dashboard → …` (P10) | [/uml-screenflow](../uml-screenflow/SKILL.md) | `srs_05_screenflow.json` | `<Sys> - Screen Flow` |
 | SDS I.1 Software Architecture | Component lồng tầng (component cha `"stereotype": "subsystem"`, con qua `"in"`): `Client Tier` (`React Web App`, + `Flutter Mobile App`) / `Application Tier` – Spring Boot (`Security Filter (JWT)`, `REST Controllers`, `Service Layer`, `Repository Layer (Spring Data JPA)`) / `Data Tier` (`PostgreSQL Database`) / `External Services`; quan hệ nối **component tầng**, nhãn giao thức (`REST/JSON over HTTPS`, `JDBC`, `SMTP`…). **Không** stereotype COMET (`control`, `database wrapper`, `proxy`…) – P9; view render phía server (JSP/Thymeleaf) thuộc Application Tier, không phải Client Tier | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
@@ -105,8 +105,11 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
   PostgreSQL: `bigserial`/`bigint`, `varchar(n)`, `text`, `boolean`, `numeric(12,2)`, `timestamptz`, `uuid`.
   Lớp `@Entity` (SDS II) = bảng tương ứng: mỗi thuộc tính có cột (camelCase ↔ snake_case: `createdAt` ↔
   `created_at`, `doctor: Doctor` ↔ `doctor_id`) – X9; thiếu cột thì thêm vào bảng SDS I.3, đừng bịa thuộc tính.
+  Ngược lại mỗi cột FK có thuộc tính quan hệ trong lớp (`job_id` → `job: JobPosting`) – X12. Cột `status` của
+  entity có statechart: `"values": ["PENDING", "CONFIRMED", …]` = đúng các state (P11).
 - Lớp trong class diagram SDS II = lifeline của sequence cùng bộ (X8); message sequence = operation của lớp
-  (`createJob(JobRequest)`). Lớp có mặt trong package diagram SDS I.2, đúng package theo bảng tầng (X10).
+  (`createJob(JobRequest)`) – X11: gọi method nào thì method đó phải có trong lớp (hoặc interface lớp đó
+  realize / `JpaRepository<…>` lớp đó extends); không có thì thêm operation vào class diagram, không bịa. Lớp có mặt trong package diagram SDS I.2, đúng package theo bảng tầng (X10).
 - Sequence thiết kế: mỗi lời gọi `sync` có `reply` (R15, cả `void` → reply `"ok"`); việc không chờ kết quả (gửi
   email, push notification) → `"type": "async"`. Luồng nghiệp vụ trong sequence phải khớp BF (SRS I.2) và
   statechart: trạng thái đặt trong sequence = state trên statechart của entity đó.
@@ -124,10 +127,10 @@ Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm
 
 Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o ./uml/<Sys>_SRS.drawio` và
 `"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict --profile sep490 "./uml/*.json"` chạy
-**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P10: thiếu mục nào, actor nào chưa có
+**trên cả hai** để kiểm liên kết SRS ↔ SDS **và độ đủ theo template** (P1–P11: thiếu mục nào, actor nào chưa có
 "UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng, entity có `status` chưa có
-statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login) + X9/X10/R15 (thuộc tính ↔ cột,
-lớp ↔ package, sync ↔ reply); cuối cùng sinh data dictionary bằng `comet_datadict.py`. **Không giao khi còn WARN P**:
+statechart, kiến trúc dùng stereotype COMET, dashboard vào được không qua Login, state ≠ giá trị status) + X9–X12/R15
+(thuộc tính ↔ cột, lớp ↔ package, message ↔ operation, cột FK ↔ thuộc tính, sync ↔ reply); cuối cùng sinh data dictionary bằng `comet_datadict.py`. **Không giao khi còn WARN P**:
 vẽ bổ sung đúng mục bị báo rồi chạy lại. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
 này. Canonical (2a) cũng trên `"./uml/*.json"`.
 

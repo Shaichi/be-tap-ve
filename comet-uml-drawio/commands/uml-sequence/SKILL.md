@@ -60,7 +60,9 @@ bằng ngôn ngữ của họ.
   cùng `"bundle"`/`"useCase"` (X8); client: `{"type": "object", "name": "React Web App", "external": true}` (hoặc
   `Flutter Mobile App`); bean framework (`AuthenticationManager`, `PasswordEncoder`) cũng `"external": true`.
   Message = tên operation + kiểu tham số (`register(RegisterRequest)`, `findByEmail(String)`), reply ghi dữ liệu
-  trả về (`UserResponse`, `201 Created`). Nhánh lỗi (409 email trùng, 401 sai mật khẩu…) dùng fragment `alt`.
+  trả về (`UserResponse`, `201 Created`). Mỗi message phải là operation có trong class diagram của lớp đích
+  (X11 – tính cả interface/JpaRepository/getter-setter); thiếu thì thêm operation vào class diagram trước.
+  Nhánh lỗi (409 email trùng, 401 sai mật khẩu…) dùng fragment `alt`.
 - Mỗi lời gọi `sync` có `reply` về đúng bên gọi (R15; hàm `void` → reply `"ok"`); việc không chờ kết quả (gửi
   email, notification) → `"type": "async"`. Đọc dữ liệu trước khi dùng (load entity rồi mới gửi email/cập nhật).
 - Mức thiết kế bỏ R3/R4; R1/X2 chỉ INFO khi bundle không có sơ đồ tương tác mức phân tích.

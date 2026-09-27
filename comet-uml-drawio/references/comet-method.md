@@ -91,9 +91,11 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | X5 | Component và deployment phải khớp tên khi có cùng bundle (cùng quy tắc ghép như X4) | WARN/INFO |
 | X6 | Cùng một tên structural không được đổi vai trò entity ↔ boundary/control/application logic | WARN |
 | X7 | Bảng vật lý (`"entity": "..."`) phải trỏ tới entity của ERD khái niệm cùng `bundle`; entity khái niệm chưa có bảng nào trỏ tới → INFO | WARN/INFO |
-| X8 | Sequence/communication mức thiết kế (`"level": "design"`): lifeline là lớp có trong class diagram mức thiết kế cùng `bundle` + `useCase` (use case không có class diagram riêng → so với mọi lớp thiết kế của bundle, chỉ INFO; `"external": true` bỏ qua); message không trùng operation của lớp → INFO | WARN/INFO |
+| X8 | Sequence/communication mức thiết kế (`"level": "design"`): lifeline là lớp có trong class diagram mức thiết kế cùng `bundle` + `useCase` (use case không có class diagram riêng → so với mọi lớp thiết kế của bundle, chỉ INFO; `"external": true` bỏ qua) | WARN/INFO |
+| X11 | Message trong sequence mức thiết kế tới lớp X phải là operation của X (tính cả lớp cha/interface qua generalization/realization; lớp kế thừa `JpaRepository<…>` có sẵn `save`/`findById`/`findAll`/`deleteById`…; getter/setter của thuộc tính; `"type": "create"` bỏ qua) – chặn bịa method | WARN (use case có class diagram riêng) / INFO |
 | X9 | Lớp entity trong class diagram mức thiết kế (tên = `"entity"` của bảng vật lý cùng `bundle`): mỗi thuộc tính có cột tương ứng (camelCase ↔ snake_case, `doctor: Doctor` ~ `doctor_id`; bỏ qua `List<…>`/`Set<…>`/`[]`) | WARN |
 | X10 | Package diagram cùng `bundle` có đặt lớp vào package (`"in"`) → mọi lớp của class diagram mức thiết kế phải có trong package diagram (bỏ qua kiểu framework `JpaRepository<User, Long>`) | WARN |
+| X12 | Ngược với X9: mỗi cột FK (`"fk": true`) của bảng có thuộc tính quan hệ trong lớp entity thiết kế tương ứng (`job_id` ~ `job: JobPosting` / `jobId: Long`); bỏ qua lớp entity không vẽ thuộc tính nào | WARN |
 | P1 | `--profile sep490`: SRS đủ sơ đồ – context (bizcontext), business flow (activity), ERD khái niệm (có `entity`), use case, screen flow | WARN (`--partial`: INFO) |
 | P2 | `--profile sep490`: SDS đủ sơ đồ – architecture (component), package, database design (ERD có `table`), class + sequence `"level": "design"` | WARN (`--partial`: INFO) |
 | P3 | `--profile sep490`: mỗi actor có sơ đồ use case riêng ("UCs for <Actor>": actor duy nhất hoặc tên actor trong `title`) | WARN (`--partial`: INFO) |
@@ -104,6 +106,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | P8 | `--profile sep490`: bảng/entity có cột trạng thái (`status`, `*_status`, `state`) → có ít nhất 1 statechart cho entity đó (`"stateMachineOf": "<Entity>"`) | WARN (`--partial`: INFO) |
 | P9 | `--profile sep490`: Software Architecture (component) không dùng stereotype đối tượng COMET (`control`, `entity`, `database wrapper`, `proxy`, `user interaction`…) – kiến trúc phân tầng chỉ đặt `subsystem` cho tầng | WARN (`--partial`: INFO) |
 | P10 | `--profile sep490`: screen flow – màn hình quản trị (Dashboard / Admin / Management) chỉ tới được qua màn Login | WARN (`--partial`: INFO) |
+| P11 | `--profile sep490`: statechart của entity (P8) khớp tập giá trị cột status – khai báo `"values"` cho cột (hoặc enumeration trong class diagram mà thuộc tính `status` trỏ tới); mỗi state lá là 1 giá trị, mỗi giá trị là 1 state (`PENDING_PAYMENT` ~ `Pending Payment`) | WARN (`--partial`: INFO) |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 
