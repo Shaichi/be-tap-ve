@@ -48,12 +48,21 @@ Class diagram (ap dung cho moi spec "class"):
   C1  Thuoc tinh phai co kieu: "ten: Kieu".
   C2  Association/aggregation/composition co multiplicity o ca 2 dau (WARN); association co ten/role (INFO).
 ERD / screen flow / context diagram nghiep vu:
-  E1  Relationship noi dung thuc the. E2 Du ban so 2 dau (1/N/M). E3 Quan he (hinh thoi) co ten.
+  E1  Relationship noi dung thuc the. E2 Du ban so 2 dau (Chen: 1/N/M; crow's foot: 1, 0..1, 1..N, 0..N).
+  E3  Quan he co ten (Chen: hinh thoi; crow's foot khai niem: dong tu -ing tren duong noi).
+  E4  Bang vat ly (crow's foot, "type": "table") co cot khoa chinh "pk": true.
   F1  Moi man hinh toi duoc tu man hinh goc. F2 Site map chi gom man hinh/popup + mui ten khong nhan: khong
       initial/final/decision, khong "items", khong trigger/guard/label.
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
 Ngon ngu (moi spec):
   L1  Chu tren so do mac dinh tieng Anh: co chu co dau (tieng Viet...) ma spec khong dat "lang" khac "en" -> WARN.
+Muc thiet ke ("level": "design" - class/sequence kieu SDS: Servlet/Service/DAO/DTO):
+  Khong ap R3/R4/R10; C2 thieu multiplicity chi la INFO; R1/X2 chi la INFO khi bundle khong co so do tuong
+  tac muc phan tich cho use case do.
+  X8  Lifeline cua sequence muc thiet ke phai la lop trong class diagram muc thiet ke cung bundle va cung
+      "useCase" (WARN; use case khong co class diagram rieng -> so voi moi lop thiet ke cua bundle, INFO);
+      lifeline "external": true (Client/Browser) bo qua; message khong trung operation cua lop -> INFO.
+  X7  Bang vat ly ("type": "table", "entity": ...) tro toi entity cua ERD khai niem cung bundle.
 --partial: chi kiem mot phan bo so do -> cac quy tac "thieu so do doi ung" (R1, R7) ha xuong INFO.
 Ma thoat 1 neu co ERROR.
 """
@@ -68,7 +77,7 @@ import unicodedata
 from collections import defaultdict
 
 sys.dont_write_bytecode = True  # khong ghi __pycache__ vao thu muc skill
-from uml2drawio import CHEN_REL, FLOW_NODES, NAV_LABELS, is_artifact  # noqa: E402
+from uml2drawio import CHEN_REL, CROWFOOT_END, FLOW_NODES, NAV_LABELS, crowfoot_mode, is_artifact, norm_key  # noqa: E402
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -110,6 +119,11 @@ def obj_class(e):
 
 def is_reply(m):
     return str(m.get("type", "")).lower() in ("reply", "return")
+
+
+def is_design(s):
+    """Spec muc thiet ke (SDS: Servlet/Service/DAO...): khong ap cac luat phan tich COMET (R3/R4/R10, C2 multiplicity)."""
+    return norm(s.get("level")) == "design"
 
 
 def lifelines(s):
@@ -336,7 +350,7 @@ def check_class(s, E, W, I):
         a, b = str(r.get("from")), str(r.get("to"))
         miss = [name(x) for x, k in ((a, "fromMult"), (b, "toMult")) if not str(r.get(k) or "").strip()]
         if miss:
-            W.append("C2 [%s] %s '%s' - '%s' thieu multiplicity o dau %s (dat \"fromMult\"/\"toMult\", vd \"1\", "
+            (I if is_design(s) else W).append("C2 [%s] %s '%s' - '%s' thieu multiplicity o dau %s (dat \"fromMult\"/\"toMult\", vd \"1\", "
                      "\"0..*\", \"1..*\")." % (src, t.capitalize(), name(a), name(b),
                                                 " va ".join("'%s'" % m for m in miss)))
         if t == "association" and not any(r.get(k) for k in ("label", "name", "fromRole", "toRole")):
@@ -346,6 +360,8 @@ def check_class(s, E, W, I):
 
 def check_erd(s, E, W, I):
     """E1-E3: ERD ky hieu Chen - quan he noi dung phan tu; du ban so 2 dau (1/N/M); quan he (hinh thoi) co ten."""
+    if crowfoot_mode(s):
+        return check_erd_crowfoot(s, E, W, I)
     src = s["_src"]
     els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
     name = lambda i: (els[i].get("name") or i) if i in els else i
@@ -372,6 +388,32 @@ def check_erd(s, E, W, I):
     for d in dia:
         if not els[d].get("name"):
             W.append("E3 [%s] Hinh thoi quan he '%s' chua co ten." % (src, d))
+
+
+def check_erd_crowfoot(s, E, W, I):
+    """E1-E4 cho ERD crow's foot: muc khai niem (entity + attributes) va muc vat ly (table + columns)."""
+    src = s["_src"]
+    els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
+    name = lambda i: (els[i].get("name") or i) if i in els else i
+    for r in s.get("relations", []):
+        a, b = str(r.get("from")), str(r.get("to"))
+        if a not in els or b not in els:
+            E.append("E1 [%s] Relationship tham chieu thuc the khong ton tai (%s -> %s)." % (src, a, b))
+            continue
+        for end, c in ((a, r.get("fromCard", r.get("fromMult"))), (b, r.get("toCard", r.get("toMult")))):
+            if not str(c or "").strip():
+                W.append("E2 [%s] Relationship '%s' - '%s' thieu ban so o dau '%s' (\"1\", \"0..1\", \"1..N\", "
+                         "\"0..N\")." % (src, name(a), name(b), name(end)))
+            elif norm_key(c) not in CROWFOOT_END:
+                W.append("E2 [%s] Relationship '%s' - '%s': ban so '%s' khong phai ky hieu crow's foot "
+                         "(1, 0..1, 1..N, 0..N)." % (src, name(a), name(b), c))
+        physical = norm(els[a].get("type")) == "table" and norm(els[b].get("type")) == "table"
+        if not physical and not (r.get("label") or r.get("name")):
+            W.append("E3 [%s] Relationship '%s' - '%s' chua co nhan dong tu (vd 'creating', 'having')."
+                     % (src, name(a), name(b)))
+    for i, e in els.items():
+        if norm(e.get("type")) == "table" and e.get("columns") and                 not any(isinstance(c, dict) and c.get("pk") for c in e["columns"]):
+            W.append("E4 [%s] Bang '%s' chua co cot khoa chinh (\"pk\": true)." % (src, name(i)))
 
 
 def check_screenflow(s, E, W, I):
@@ -497,7 +539,7 @@ def check(specs, partial=False):
         for e in s.get("elements", []):
             if st_of(e) == "entity":
                 entity_classes[_scoped_name(s, e.get("name", e.get("id")))] = e
-                if e.get("operations"):
+                if e.get("operations") and not is_design(s):
                     W.append("R10 [%s] Lop «entity» '%s' co operations - trong mo hinh phan tich COMET, "
                              "entity class chi nen co thuoc tinh (operations xac dinh o pha thiet ke)."
                              % (s["_src"], e.get("name")))
@@ -511,8 +553,10 @@ def check(specs, partial=False):
     shown = {}   # ten da chuan hoa -> ten goc (de in thong bao)
     sdc_classes = {}
     covered = set()
+    analysis_scopes = {_scope_key(s) for s in inter if not is_design(s)}
     for s in inter:
         src = s["_src"]
+        design = is_design(s)
         covered.add(_scoped_name(s, s.get("useCase") or s.get("title")))
         els = lifelines(s)
         seqs = defaultdict(int)
@@ -523,7 +567,7 @@ def check(specs, partial=False):
                     W.append("R2 [%s] Actor '%s' khong co trong mo hinh use case." % (src, e.get("name")))
                 continue
             st = st_of(e)
-            if st not in COMET_OBJ:
+            if st not in COMET_OBJ and not design:
                 W.append("R4 [%s] Doi tuong '%s' co stereotype «%s» khong phai stereotype cau truc doi tuong COMET "
                          "(boundary/control/application logic/entity)." % (src, obj_class(e), st or "?"))
             if st in ENTITY and _scope_key(s) in entity_scopes and _scoped_name(s, obj_class(e)) not in entity_classes:
@@ -544,10 +588,12 @@ def check(specs, partial=False):
                 seqs[str(m["seq"])] += 1
             ta = "actor" if a.get("type") == "actor" else st_of(a)
             tb = "actor" if b.get("type") == "actor" else st_of(b)
-            if ta == "actor" and tb != "actor" and tb not in BOUNDARY:
+            if design:
+                pass   # thiet ke: actor/Client goi thang Servlet/Controller - khong ap R3
+            elif ta == "actor" and tb != "actor" and tb not in BOUNDARY:
                 W.append("R3 [%s] Actor '%s' gui '%s' truc tiep toi doi tuong «%s» '%s' - COMET yeu cau actor "
                          "giao tiep qua doi tuong boundary." % (src, a.get("name"), name, tb, obj_class(b)))
-            if tb == "actor" and ta != "actor" and ta not in BOUNDARY:
+            if not design and tb == "actor" and ta != "actor" and ta not in BOUNDARY:
                 W.append("R3 [%s] Doi tuong «%s» '%s' gui '%s' truc tiep toi actor '%s' - nen qua doi tuong boundary."
                          % (src, ta, obj_class(a), name, b.get("name")))
             if ta in ENTITY and not is_reply(m) and tb != "entity":
@@ -580,7 +626,8 @@ def check(specs, partial=False):
     # R1
     for uc, ucname in usecases.items():
         if inter and uc not in covered:
-            MISS.append("R1 Use case '%s' chua co so do tuong tac (communication/sequence) - dat \"useCase\": \"%s\"."
+            # Bundle chi co so do tuong tac muc thiet ke (SDS chi can 2-3 bo thiet ke) -> chi ghi chu.
+            (MISS if uc[0] in analysis_scopes else I).append("R1 Use case '%s' chua co so do tuong tac (communication/sequence) - dat \"useCase\": \"%s\"."
                         % (ucname, ucname))
 
     # R7 / R8
@@ -686,6 +733,8 @@ def check(specs, partial=False):
     # C1-C2
     for s in by["class"]:
         check_class(s, E, W, I)
+    # X8 - sequence muc thiet ke <-> class diagram muc thiet ke cung bundle
+    check_design_trace(by, W, I)
     # E1-E3, F1-F2, B1-B3
     for s in by["erd"]:
         check_erd(s, E, W, I)
@@ -794,10 +843,13 @@ def check_cross_diagrams(by, partial=False):
                 actor_by_uc[uc_key].add(actor_key)
                 actor_display[(uc_key, actor_key)] = b.get("name", b.get("id"))
     actors_in_inter = defaultdict(set)
+    analysis_inter = set()
     for s in by["communication"] + by["sequence"]:
         ref = _spec_ref_name(s)
         if not ref:
             continue
+        if not is_design(s):
+            analysis_inter.add((_scope_key(s), ref))
         actors_in_inter[(_scope_key(s), ref)].update(
             norm(e.get("name", e.get("id"))) for e in s.get("elements", []) if e.get("type") == "actor")
     for (scope, uc), actors in actor_by_uc.items():
@@ -806,7 +858,7 @@ def check_cross_diagrams(by, partial=False):
         actual = actors_in_inter[(scope, uc)]
         missing = sorted(actors - actual)
         if missing:
-            MISS.append("X2 [%s] Use case '%s' (bundle '%s') co actor %s trong use case model nhung actor do khong "
+            (MISS if (scope, uc) in analysis_inter else I).append("X2 [%s] Use case '%s' (bundle '%s') co actor %s trong use case model nhung actor do khong "
                         "xuat hien trong communication/sequence cua use case." %
                         (", ".join(sorted(set(s["_src"] for s in by["usecase"] if _scope_key(s) == scope))),
                          uc, "default" if scope == "__default__" else scope,
@@ -861,6 +913,33 @@ def check_cross_diagrams(by, partial=False):
             if only_cls:
                 I.append("X4 [%s <> %s] Entity class model co %s chua xuat hien trong ERD cung bundle." %
                          (es["_src"], cs["_src"], ", ".join("'%s'" % x for x in only_cls)))
+
+    # ------------------------------------------------ X7: bang vat ly ("entity": ...) <-> thuc the ERD khai niem
+    concept = defaultdict(set)   # bundle -> ten entity cua ERD khai niem
+    for s in by["erd"]:
+        for e in s.get("elements", []):
+            if norm(e.get("type")) == "entity" and (e.get("name") or e.get("id")):
+                concept[norm(s.get("bundle"))].add(norm(e.get("name", e.get("id"))))
+    mapped = defaultdict(set)
+    for s in by["erd"]:
+        key = norm(s.get("bundle"))
+        for e in s.get("elements", []):
+            if norm(e.get("type")) != "table" or not e.get("entity"):
+                continue
+            ents = e["entity"] if isinstance(e["entity"], list) else [e["entity"]]
+            for ent in ents:
+                if not concept[key]:
+                    continue
+                if norm(ent) in concept[key]:
+                    mapped[key].add(norm(ent))
+                else:
+                    W.append("X7 [%s] Bang '%s' tro toi entity '%s' khong co trong ERD khai niem cung bundle."
+                             % (s["_src"], e.get("name", e.get("id")), ent))
+    for key, names in mapped.items():
+        rest = sorted(concept[key] - names)
+        if rest:
+            I.append("X7 [bundle %s] Entity khai niem chua co bang vat ly nao tro toi (\"entity\"): %s."
+                     % (key or "-", ", ".join("'%s'" % x for x in rest)))
 
     # ------------------------------------------------ X5: logical component <-> deployment component
     comp_specs = []
@@ -926,6 +1005,49 @@ def check_cross_diagrams(by, partial=False):
                       "default" if scope == "__default__" else scope,
                       ", ".join(sorted(structural))))
     return E, W, I
+
+
+def check_design_trace(by, W, I):
+    """X8: lifeline cua sequence muc thiet ke phai la lop trong class diagram muc thiet ke cung bundle;
+    message goi toi lop co khai bao operations nen trung ten mot operation (INFO)."""
+    classes = defaultdict(dict)   # (scope, useCase|"") -> ten lop chuan hoa -> tap ten operation
+    for s in by["class"]:
+        if not is_design(s):
+            continue
+        for e in s.get("elements", []):
+            if norm(e.get("type")) in ("note", "enumeration"):
+                continue
+            ops = {mname(str(o).lstrip("+-#~ ").split("(")[0].split(":")[0]) for o in e.get("operations") or []}
+            for k in ((_scope_key(s), ""), (_scope_key(s), norm(s.get("useCase")))):
+                classes[k].setdefault(norm(e.get("name", e.get("id"))), set()).update(ops)
+    for s in by["sequence"] + by["communication"]:
+        if not is_design(s):
+            continue
+        scope = _scope_key(s)
+        pool = classes.get((scope, norm(s.get("useCase"))))
+        # Khong co class diagram rieng cho use case nay (vd SDS III Authentication Flow) -> so voi moi lop
+        # thiet ke cua bundle nhung chi ghi chu.
+        MISSING = W if pool else I
+        pool = pool or classes.get((scope, ""))
+        if not pool:
+            continue   # bundle chua co class diagram muc thiet ke -> khong kiem
+        els = lifelines(s)
+        for i, e in els.items():
+            if e.get("type") == "actor" or e.get("external"):
+                continue
+            if norm(obj_class(e)) not in pool:
+                MISSING.append("X8 [%s] Lifeline '%s' khong co lop cung ten trong class diagram muc thiet ke cung bundle - "
+                         "them lop vao class diagram (hoac dat \"external\": true neu la Client/Browser/he thong ngoai)."
+                         % (s["_src"], obj_class(e)))
+        for m in s.get("messages", []):
+            b = els.get(str(m.get("to")))
+            name = m.get("name", m.get("label"))
+            if b is None or is_reply(m) or not name or b.get("type") == "actor" or b.get("external"):
+                continue
+            ops = pool.get(norm(obj_class(b)))
+            if ops and mname(name) not in ops:
+                I.append("X8 [%s] Message '%s' toi '%s' khong trung operation nao cua lop trong class diagram."
+                         % (s["_src"], name, obj_class(b)))
 
 
 def check_comm_vs_seq(inter, W, I):

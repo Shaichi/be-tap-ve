@@ -70,6 +70,10 @@ bằng ngôn ngữ của họ.
   bỏ trống.
 - Lớp trừu tượng (`"abstract": true`) có thể có thao tác trừu tượng; các lớp con khai báo lại thao tác đó.
 - Không gắn stereotype «entity» cho lớp thiết kế nếu lớp đó có operation (R10 chỉ áp dụng cho «entity»).
+- Design class diagram kiểu SDS (Servlet/Controller → Service → DAO, DTO/Entity): đặt `"level": "design"` (bỏ
+  R10; C2 thiếu multiplicity chỉ INFO), `"bundle"` và `"useCase"` của bộ thiết kế. Quan hệ: Servlet ◆ Service
+  (`composition`), Service ◇ DAO (`aggregation`), DAO → BaseDAO (`generalization`), phụ thuộc DTO/Util
+  (`dependency`). Tên lớp phải **y hệt** lifeline của sequence cùng bộ (X8).
 
 ## 5. Tự soát đủ ký hiệu trước khi chạy
 Mỗi dòng dưới đây: mô tả của người dùng có thông tin tương ứng → spec **phải** có trường đó.

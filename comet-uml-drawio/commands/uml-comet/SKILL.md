@@ -1,7 +1,7 @@
 ---
 name: uml-comet
-description: Vẽ trọn bộ sơ đồ UML theo phương pháp COMET (Gomaa) cho một hệ thống ra một file draw.io nhiều trang – use case, context, entity class, communication + sequence cho từng use case, statechart, (tuỳ chọn) activity, package, component, deployment – nhất quán tên giữa các sơ đồ, bố cục tự động không chồng hình. Dùng khi người dùng gọi /uml-comet hoặc cần cả mô hình COMET chứ không chỉ một sơ đồ.
-argument-hint: "<mô tả hệ thống / đề bài; ghi 'đủ 10 bước' nếu cần cả phần thiết kế>"
+description: Vẽ trọn bộ sơ đồ UML theo phương pháp COMET (Gomaa) cho một hệ thống ra một file draw.io nhiều trang – use case, context, entity class, communication + sequence cho từng use case, statechart, (tuỳ chọn) activity, package, component, deployment – nhất quán tên giữa các sơ đồ, bố cục tự động không chồng hình. Có hồ sơ SEP490 (FPT capstone) sinh đủ sơ đồ cho Report 3 SRS và Report 4 SDS. Dùng khi người dùng gọi /uml-comet hoặc cần cả mô hình COMET chứ không chỉ một sơ đồ.
+argument-hint: "<mô tả hệ thống / đề bài; ghi 'đủ 10 bước' nếu cần cả phần thiết kế; 'SEP490' / 'SRS SDS' cho bộ báo cáo capstone>"
 user-invocable: true
 ---
 
@@ -59,6 +59,41 @@ bằng ngôn ngữ của họ.
   **y hệt** (hoa/thường, khoảng trắng).
 - Mỗi spec có `"title"` **khác nhau** (thành tên trang draw.io), vd "Place Order – Communication",
   "Place Order – Sequence".
+
+## 2b. Hồ sơ SEP490 – Report 3 (SRS) + Report 4 (SDS)
+
+Dùng **thay** bảng bước 1–10 khi người dùng nhắc SEP490, capstone FPT, "Report 3/Report 4", "SRS + SDS", hoặc đưa
+template `Software Requirement Specification` / `Software Design Specification`. Mọi spec cùng một `"bundle"`
+(vd `"talenthub"`); tiền tố `srs_`/`sds_` giữ thứ tự trang theo mục của báo cáo.
+
+| Mục báo cáo | Sơ đồ | Lệnh (đọc quy tắc) | File spec trong `./uml/` | `title` |
+|---|---|---|---|---|
+| SRS I.1 Context Diagram | Hệ thống (hình tròn) + actor/dịch vụ ngoài, luồng có tên | [/uml-bizcontext](../uml-bizcontext/SKILL.md) | `srs_01_context.json` | `<Sys> - Context Diagram` |
+| SRS I.2 Main Business Flows | Activity swimlane **ngang** mỗi BF: `"direction": "LR"`, `partitions` = actor tham gia + `"System"` | [/uml-activity](../uml-activity/SKILL.md) | `srs_02_bf01_<flow>.json`… | `BF-01 <Flow Name>` |
+| SRS I.3.1 Entity Relationship Diagram | ERD khái niệm crow's foot: `"notation": "crowfoot"`, `entity` + `attributes` `"+ Full Name"`, quan hệ động từ -ing | [/uml-erd](../uml-erd/SKILL.md) | `srs_03_erd.json` | `<Sys> - Entity Relationship Diagram` |
+| SRS I.4.3 Use Case Diagrams | **Mỗi actor 1 sơ đồ** (actor + use case của họ, include/extend) | [/uml-usecase](../uml-usecase/SKILL.md) | `srs_04_uc_<actor>.json` | `UCs for <Actor>` |
+| SRS I.5.1a Screen Flow | Site map màn hình | [/uml-screenflow](../uml-screenflow/SKILL.md) | `srs_05_screenflow.json` | `<Sys> - Screen Flow` |
+| SDS I.1 Software Architecture | Component lồng tầng: `Client Tier` / `Application Tier` / `Data Tier` / `External Services` (component cha, con qua `"in"`) | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
+| SDS I.2 Package Diagram | Package theo tầng code (controller/servlet, service, dao, dto/model, util) + dependency | [/uml-package](../uml-package/SKILL.md) | `sds_02_package.json` | `<Sys> - Package Diagram` |
+| SDS I.3 Database Design | ERD vật lý crow's foot: `table` + `columns` (kiểu, `pk`/`fk`/`nullable`) + `"entity"` trỏ ERD SRS | [/uml-erd](../uml-erd/SKILL.md) | `sds_03_database.json` | `<Sys> - Database Design` |
+| SDS II.x Code Designs (2–3 bộ) | Class diagram `"level": "design"` (Servlet/Service/DAO/DTO) | [/uml-class](../uml-class/SKILL.md) mục 4 | `sds_04_<feature>_class.json` | `<Feature> - Class Diagram` |
+| | Sequence `"level": "design"`, `"activations": true`, `"autonumber": true`, Client `"external": true` | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_04_<feature>_seq.json` | `<Feature> - Sequence Diagram` |
+| SDS III.1.1 Authentication Flow | Sequence mức thiết kế cho Login (tầng bảo mật: filter/session/hash) | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_05_auth_seq.json` | `Authentication Flow - Sequence Diagram` |
+
+Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm):
+- Actor: context (SRS I.1) = làn BF (I.2) = actor của `UCs for <Actor>` (I.4.3). Ngoài context chỉ có actor
+  người dùng + dịch vụ ngoài; dịch vụ ngoài (Email, Payment…) cũng là component trong `External Services` (SDS I.1).
+- Use case (I.4.3) = `"useCase"` của class/sequence thiết kế (SDS II) và auth flow (`"Login"`) – X1. Chọn 2–3 use
+  case cốt lõi cho SDS II; các use case còn lại không có sequence là **INFO R1**, không phải lỗi.
+- Entity ERD SRS = `"entity"` của bảng SDS I.3 (X7); tên bảng snake_case số nhiều (`job_postings`).
+- Lớp trong class diagram SDS II = lifeline của sequence cùng bộ (X8) = class trong package tương ứng (SDS I.2);
+  message sequence = operation của lớp (`addNewUser(UserFormDTO)`).
+- Mục SRS/SDS không có sơ đồ (bảng use case, đặc tả UC, data dictionary, bảng method…) → viết trong câu trả lời
+  hoặc file `.md`, không vẽ.
+
+Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o ./uml/<Sys>_SRS.drawio` và
+`"./uml/sds_*.json" -o ./uml/<Sys>_SDS.drawio`; `comet_check.py --strict "./uml/*.json"` chạy **trên cả hai** để
+kiểm liên kết SRS ↔ SDS; canonical (2a) cũng trên `"./uml/*.json"`.
 
 ## 3. Chạy – sửa đến sạch
 Sau mỗi bước: chạy 3 lệnh của lệnh con (có `--partial`) cho spec vừa viết. Xong tất cả:

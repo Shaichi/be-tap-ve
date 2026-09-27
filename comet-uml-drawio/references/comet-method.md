@@ -78,7 +78,8 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | S1–S5 | Statechart hợp lệ: initial không event/guard; final không có transition ra; guard của choice; tới được / có đường ra; tất định | ERROR/WARN |
 | A1–A6 | Activity hợp lệ: guard của decision; fork/join; initial/final; merge; ngõ cụt; không join/fork ngầm trên action | ERROR/WARN |
 | C1–C2 | Class diagram: thuộc tính có kiểu; multiplicity ở hai đầu association/aggregation/composition (WARN), association có tên/role (INFO) | WARN/INFO |
-| E1–E3 | ERD (Chen): quan hệ tham chiếu đúng thực thể (ERROR); đủ bản số 2 đầu `1`/`N`/`M` (WARN); quan hệ / hình thoi có tên (WARN) |
+| E1–E3 | ERD: quan hệ tham chiếu đúng thực thể (ERROR); đủ bản số 2 đầu – Chen `1`/`N`/`M`, crow's foot `1`/`0..1`/`1..N`/`0..N` (WARN); quan hệ có tên – Chen: hình thoi, crow's foot khái niệm: động từ -ing trên đường nối (WARN) | ERROR/WARN |
+| E4 | ERD crow's foot vật lý: bảng (`"type": "table"`) có `columns` phải có cột `"pk": true` | WARN |
 | F1–F2 | Screen flow (site map): mọi màn hình tới được từ màn hình gốc; không initial/decision, không `items`, mũi tên không nhãn | WARN |
 | B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 | L1 | Mọi sơ đồ: chữ trên sơ đồ mặc định tiếng Anh – có chữ có dấu (tiếng Việt…) mà spec chưa đặt `"lang"` khác `"en"` | WARN |
@@ -88,10 +89,16 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | X4 | ERD và entity class model phải khớp thực thể khi có cùng bundle (không có bundle: cùng tiền tố title hoặc ≥2 tên chung; cặp duy nhất không ghép được → INFO) | WARN/INFO |
 | X5 | Component và deployment phải khớp tên khi có cùng bundle (cùng quy tắc ghép như X4) | WARN/INFO |
 | X6 | Cùng một tên structural không được đổi vai trò entity ↔ boundary/control/application logic | WARN |
+| X7 | Bảng vật lý (`"entity": "..."`) phải trỏ tới entity của ERD khái niệm cùng `bundle`; entity khái niệm chưa có bảng nào trỏ tới → INFO | WARN/INFO |
+| X8 | Sequence/communication mức thiết kế (`"level": "design"`): lifeline là lớp có trong class diagram mức thiết kế cùng `bundle` + `useCase` (use case không có class diagram riêng → so với mọi lớp thiết kế của bundle, chỉ INFO; `"external": true` bỏ qua); message không trùng operation của lớp → INFO | WARN/INFO |
 
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 
 **Bundle isolation:** nếu spec có `"bundle"`, validator coi đó là namespace consistency. Hai diagram cùng tên nhưng khác bundle không được dùng để thỏa R1/R7/R8/R12 hoặc X1–X6 cho nhau; R2/R5/R14 chỉ áp dụng khi chính bundle đó có use case model / entity class model / context diagram; spec không có bundle vẫn giữ hành vi cũ.
+**Mức thiết kế (`"level": "design"`)** – class/sequence kiểu SDS (Servlet/Controller, Service, DAO, DTO) không
+dùng stereotype COMET: bỏ R3/R4/R10; C2 thiếu multiplicity chỉ INFO; R1/X2 chỉ INFO khi bundle không có sơ đồ
+tương tác mức phân tích cho use case đó (SDS chỉ cần 2–3 bộ thiết kế tiêu biểu). Lifeline thiết kế không
+stereotype được model gộp với lớp cùng tên của class diagram (đổi tên lan sang cả hai).
 `--partial` dùng khi mới vẽ một phần bộ sơ đồ; lần kiểm cuối cho cả bộ chạy **không** `--partial`.
 
 ## 6. Quy ước message trong COMET

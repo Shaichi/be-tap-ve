@@ -37,11 +37,14 @@ def canonical_id(bundle, kind, name):
     return "%s:%s" % (kind, digest)
 
 
-def lifeline_kind(e):
-    """(kind, role) cua mot lifeline trong communication/sequence."""
+def lifeline_kind(e, design=False):
+    """(kind, role) cua mot lifeline trong communication/sequence.
+    Muc thiet ke ("level": "design"): lifeline khong stereotype la mot lop thiet ke -> cung node voi class diagram."""
     if norm(e.get("type")) == "actor":
         return "actor", "actor"
     st = st_of(e)
+    if design and not st and not e.get("external"):
+        return "class", st
     if st in {"boundary", "user interaction", "input", "output", "i/o", "proxy", "gui"}:
         return "boundary", st
     if st in {"control", "coordinator", "state dependent control", "state-dependent control", "timer"}:
@@ -197,16 +200,16 @@ def _build_model_v1(specs):
             els = {str(e.get("id", e.get("name"))): e for e in spec.get("elements", [])}
             for e in spec.get("elements", []):
                 typ = norm(e.get("type"))
-                if typ == "entity":
-                    add_node(nodes, bundle, "entity", e.get("name", e.get("id")), spec)
+                if typ in ("entity", "table"):
+                    add_node(nodes, bundle, typ, e.get("name", e.get("id")), spec)
                 elif typ == "relationship":
                     add_node(nodes, bundle, "erd-relationship", e.get("name", e.get("id")), spec)
             for r in spec.get("relations", []):
                 a, b = els.get(str(r.get("from"))), els.get(str(r.get("to")))
                 if not a or not b:
                     continue
-                ak = "erd-relationship" if norm(a.get("type")) == "relationship" else "entity"
-                bk = "erd-relationship" if norm(b.get("type")) == "relationship" else "entity"
+                kind = lambda x: {"relationship": "erd-relationship", "table": "table"}.get(norm(x.get("type")), "entity")
+                ak, bk = kind(a), kind(b)
                 aid = add_node(nodes, bundle, ak, a.get("name", a.get("id")), spec)
                 bid = add_node(nodes, bundle, bk, b.get("name", b.get("id")), spec)
                 add_link(links, bundle, "erd-relation", aid, bid, spec,
@@ -218,15 +221,16 @@ def _build_model_v1(specs):
             uc = spec.get("useCase") or spec.get("title")
             ucid = add_node(nodes, bundle, "usecase", uc, spec) if uc else None
             els = lifelines(spec)
+            design = norm(spec.get("level")) == "design"
 
             for e in spec.get("elements", []):
                 typ = norm(e.get("type"))
                 name = e.get("name") if typ == "actor" else obj_class(e)
                 if not name:
                     continue
-                kind, role = lifeline_kind(e)
+                kind, role = lifeline_kind(e, design)
                 nid = add_node(nodes, bundle, kind, name, spec, stereotype=role)
-                if ucid and kind in {"actor", "control", "boundary", "entity", "application-logic"}:
+                if ucid and kind in {"actor", "control", "boundary", "entity", "application-logic", "class"}:
                     add_link(links, bundle, "interaction-member", ucid, nid, spec, useCase=uc)
                 if kind == "control" and role in SDCROLES:
                     add_node(nodes, bundle, "state-machine", name, spec, stateMachineOf=name)
@@ -240,7 +244,7 @@ def _build_model_v1(specs):
                     # Cung kind voi lifeline o tren -> message noi vao dung node, khong tao node "object" trung.
                     if e.get("type") == "actor":
                         return add_node(nodes, bundle, "actor", e.get("name", e.get("id")), spec)
-                    kind, role = lifeline_kind(e)
+                    kind, role = lifeline_kind(e, design)
                     return add_node(nodes, bundle, kind, obj_class(e), spec, stereotype=role)
 
                 source, target = endpoint(a), endpoint(b)

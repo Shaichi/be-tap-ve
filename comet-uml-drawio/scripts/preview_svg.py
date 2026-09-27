@@ -99,6 +99,16 @@ def marker(kind, fill, p, q, size=10):
         return '<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="%s" stroke="#000"/>' % (
             p[0], p[1], m[0] + nx * w, m[1] + ny * w, e[0], e[1], m[0] - nx * w, m[1] - ny * w,
             "#000" if fill else "#fff")
+    if kind.startswith("ER"):   # crow's foot: vach (one), vong tron (zero), chan chim (many)
+        at = lambda d: (p[0] - ux * d, p[1] - uy * d)
+        bar = lambda d: '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#000"/>' % (
+            at(d)[0] + nx * 6, at(d)[1] + ny * 6, at(d)[0] - nx * 6, at(d)[1] - ny * 6)
+        circ = lambda d: '<circle cx="%.1f" cy="%.1f" r="4" fill="#fff" stroke="#000"/>' % at(d)
+        c = at(12)
+        crow = '<polyline points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="none" stroke="#000"/>' % (
+            p[0] + nx * 7, p[1] + ny * 7, c[0], c[1], p[0] - nx * 7, p[1] - ny * 7)
+        return {"ERmandOne": bar(5) + bar(10), "ERone": bar(6), "ERzeroToOne": bar(5) + circ(14),
+                "ERoneToMany": crow + bar(16), "ERzeroToMany": crow + circ(18), "ERmany": crow}.get(kind, "")
     return ""
 
 

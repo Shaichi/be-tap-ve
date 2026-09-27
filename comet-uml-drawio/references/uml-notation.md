@@ -37,8 +37,9 @@ Multiplicity/role đặt sát đầu mút: `fromMult`, `toMult`, `fromRole`, `to
 
 - Lifeline: header `name:Class` hoặc `:Class`, **không gạch chân** (UML 2; gạch chân là instance
   specification của object diagram / UML 1.x); actor dùng hình người.
-- Execution specification (thanh kích hoạt) là tuỳ chọn trong UML; script không vẽ để tránh chồng hình
-  (COMET cũng thường bỏ qua ở mức phân tích).
+- Execution specification (thanh kích hoạt) là tuỳ chọn trong UML; mặc định script không vẽ (COMET thường bỏ qua
+  ở mức phân tích). `"activations": true` (sequence mức thiết kế): thanh mở khi lifeline nhận message sync, đóng
+  khi lifeline đó gửi reply; self-call lồng thanh con lệch phải; actor không có thanh.
 - Combined fragment: khung `umlFrame` với toán tử `alt`, `opt`, `loop`, `par`, `break`, `critical`,
   `ref`...; operand phân tách bằng nét đứt, guard `[điều kiện]`.
 - Message luôn **nằm ngang**; không vẽ chéo.
@@ -120,6 +121,16 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
   lần vào cùng thực thể (vd Comment –replies– Comment, `1`/`N`).
 - M–N hợp lệ ở mức khái niệm; khi chuyển sang mức logic mới tách bảng trung gian.
 - Quan hệ nối đúng thực thể (E1); đủ bản số 2 đầu (E2); mỗi hình thoi có tên (E3).
+
+## ERD – ký pháp crow's foot (comet_check E1–E4, X7)
+
+- Thực thể/bảng: ô có tiêu đề + danh sách thuộc tính/cột. Khái niệm: thuộc tính nghiệp vụ `+ Full Name`; vật lý:
+  `PK id: bigserial NOT NULL`, `FK created_by: bigint NOT NULL`, `email: varchar(255) NOT NULL`.
+- Bản số bằng ký hiệu ở hai đầu đường nối (không mũi tên): `1` gạch kép (ERmandOne), `0..1` vòng + gạch, `1..N`
+  gạch + chân chim, `0..N` vòng + chân chim, `N` chân chim.
+- Khái niệm: quan hệ ghi tên động từ -ing trên đường nối, có thể kèm vai trò (`creating (HR Manager)`). Vật lý:
+  quan hệ = khoá ngoại, không bắt buộc tên; M–N tách bảng trung gian.
+- Mỗi bảng có khoá chính (E4); bảng trỏ về entity khái niệm qua `entity` (X7).
 
 ## Screen flow – sơ đồ trang / site map (comet_check F1–F2)
 

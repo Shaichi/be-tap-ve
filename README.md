@@ -129,7 +129,27 @@ Mở phiên mới sau khi cài để Claude nạp skill, rồi gõ lệnh kèm m
 /uml-screenflow Hệ thống học trực tuyến: Home, đăng nhập, khoá học, bài viết, quản trị
 /uml-bizcontext Cửa hàng trực tuyến: khách hàng, nhà cung cấp, ngân hàng, đơn vị vận chuyển, cơ quan thuế
 /uml-comet Hệ thống ATM của ngân hàng (đủ 10 bước)
+/uml-comet SEP490 TalentHub: vẽ đủ sơ đồ cho Report 3 (SRS) và Report 4 (SDS)
 ```
+
+**Hồ sơ SEP490 (Report 3 SRS + Report 4 SDS):** `/uml-comet` có sẵn bảng ánh xạ từng mục của template sang sơ đồ
+(mục 2b trong `commands/uml-comet/SKILL.md`):
+
+| Tài liệu | Mục | Sơ đồ |
+|---|---|---|
+| SRS | I.1 Context | `bizcontext` |
+| SRS | I.2 Business Flows | `activity` swimlane ngang (`"direction": "LR"`, làn actor + System) |
+| SRS | I.3.1 Conceptual ERD | `erd` crow's foot (`"notation": "crowfoot"`, entity) |
+| SRS | I.4.3 Use Case Diagrams | `usecase`, mỗi actor một trang "UCs for <Actor>" |
+| SRS | I.5.1a Screen Flow | `screenflow` |
+| SDS | I.1 Software Architecture | `component` (tier = component `subsystem` chứa component con) |
+| SDS | I.2 Package Diagram | `package` |
+| SDS | I.3 Database Design | `erd` crow's foot vật lý (`table` + `columns` PK/FK, `entity` trỏ về ERD khái niệm) |
+| SDS | II. Code Designs | `class` + `sequence` `"level": "design"` cho từng use case (sequence có `activations`) |
+| SDS | III.1.1 Authentication Flow | `sequence` `"level": "design"` |
+
+Kết quả gom thành `<Hệ thống>_SRS.drawio` và `<Hệ thống>_SDS.drawio` (mỗi mục một trang); `comet_check.py` chạy
+trên cả hai bộ cùng lúc để bắt lệch tên giữa SRS và SDS (X7, X8, R1…).
 
 Nói tự nhiên cũng được, ví dụ "vẽ class diagram cho hệ thống quản lý khách sạn". Skill gốc `comet-uml-drawio` sẽ
 tự chọn đúng lệnh.
@@ -332,10 +352,12 @@ Nhóm luật của `comet_check.py`:
 |---|---|
 | R1–R14 | Nhất quán COMET giữa các sơ đồ (use case ↔ tương tác ↔ statechart ↔ context ↔ class) |
 | X1–X6 | Traceability mở rộng giữa use case ↔ interaction/activity ↔ statechart ↔ ERD/entity ↔ component/deployment |
+| X7 | Bảng ERD vật lý (`table`.`entity`) ↔ entity của ERD khái niệm cùng bundle |
+| X8 | Lifeline/message của sequence mức thiết kế ↔ lớp/operation của class diagram thiết kế cùng use case |
 | S1–S5 | Statechart hợp lệ |
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
-| E1–E3 | ERD (quan hệ nối đúng thực thể, đủ bản số 2 đầu, hình thoi có tên) |
+| E1–E4 | ERD Chen/crow's foot (quan hệ nối đúng thực thể, đủ bản số 2 đầu, quan hệ có tên, bảng có khoá chính) |
 | F1–F2 | Screen flow (mọi màn hình tới được từ gốc; chỉ màn hình/popup + mũi tên không nhãn) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 | L1 | Mọi sơ đồ: chữ mặc định tiếng Anh (có chữ có dấu mà chưa đặt `"lang"`) |
@@ -343,6 +365,9 @@ Nhóm luật của `comet_check.py`:
 `--partial`: dùng khi mới vẽ một phần của bộ sơ đồ. Khi đó các luật "thiếu sơ đồ tương ứng" (R1, R7, X2, X3, và
 X1 khi bundle chưa có use case model) chỉ còn là INFO. Tham chiếu treo thật sự (bundle đã có use case model nhưng
 không có tên đó) vẫn là WARN.
+
+Spec `"level": "design"` (class/sequence mức SDS) không phải mô hình phân tích COMET: bỏ R3/R4/R10, thiếu
+multiplicity (C2) chỉ là INFO, và R1/X2 chỉ là INFO khi use case đó chưa có sơ đồ tương tác mức phân tích.
 
 Ví dụ: bộ `examples/atm_*.json` cố ý chỉ vẽ luồng *Validate PIN*, nên chạy đầy đủ sẽ có 7 WARN R1 (các use case còn
 lại chưa có sơ đồ tương tác) và `--strict` trả mã thoát 1. Muốn kiểm tra bộ ví dụ như một bộ sơ đồ dở dang:

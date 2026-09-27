@@ -870,6 +870,50 @@ class TestGenerator(unittest.TestCase):
         warns = gen(attr)[1]
         self.assertTrue(any("khong ve thuoc tinh" in w for w in warns), warns)         # thuoc tinh bi bo qua
 
+    def test_erd_crowfoot(self):
+        for f in ("talenthub_erd_conceptual", "talenthub_erd_physical"):
+            sp = json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
+            xml, cs, G = self.clean(sp)
+            self.assertFalse(any(style(c).get("_base") == "rhombus" for c in cs.values()), f)   # khong hinh thoi
+            for e in edges(cs):                                                                 # chan chim 2 dau
+                st = style(e)
+                self.assertTrue(st.get("startArrow", "").startswith("ER") and st.get("endArrow", "").startswith("ER"),
+                                (f, st))
+        sp = {"diagram": "erd", "notation": "crowfoot", "title": "DB", "elements": [
+            {"id": "u", "type": "table", "name": "users", "columns": [
+                {"name": "id", "type": "bigserial", "pk": True}, {"name": "email", "type": "varchar", "nullable": False}]},
+            {"id": "j", "type": "table", "name": "jobs", "columns": [
+                {"name": "id", "type": "bigserial", "pk": True}, {"name": "created_by", "type": "bigint", "fk": True}]}],
+            "relations": [{"from": "u", "to": "j", "fromCard": "1", "toCard": "0..N"}]}
+        xml, cs, G = self.clean(sp)
+        st = style(edge_between(cs, "u", "j"))
+        self.assertEqual((st.get("startArrow"), st.get("endArrow")), ("ERmandOne", "ERzeroToMany"))
+        body = " ".join(text(c) for c in cs.values())
+        for s in ("PK id: bigserial NOT NULL", "email: varchar NOT NULL", "FK created_by: bigint"):
+            self.assertIn(s, body)
+        bad = copy.deepcopy(sp)
+        bad["relations"][0]["toCard"] = "lots"
+        self.assertTrue(any("lots" in w for w in gen(bad)[1]))                                # ban so sai -> canh bao
+        for k in ("ERmandOne", "ERzeroToOne", "ERoneToMany", "ERzeroToMany", "ERmany"):      # preview ve chan chim
+            self.assertTrue(P.marker(k, "#fff", (0, 0), (100, 0)), k)
+
+    def test_sequence_activations(self):
+        sp = {"diagram": "sequence", "title": "Act", "activations": True, "autonumber": True, "elements": [
+            {"id": "u", "type": "actor", "name": "User"},
+            {"id": "c", "type": "object", "class": "Web"}, {"id": "s", "type": "object", "class": "Svc"}],
+            "messages": [{"id": "m1", "from": "u", "to": "c", "name": "open"},
+                         {"id": "m2", "from": "c", "to": "s", "name": "load"},
+                         {"id": "m3", "from": "s", "to": "s", "name": "check"},
+                         {"id": "m4", "from": "s", "to": "c", "name": "data", "type": "reply"},
+                         {"id": "m5", "from": "c", "to": "u", "name": "page", "type": "reply"}],
+            "fragments": [{"type": "opt", "guard": "cached", "from": "m3", "to": "m4"}]}
+        xml, cs, G = self.clean(sp)   # thanh kich hoat cat khung fragment / message: khong ERROR
+        bars = {k for k, c in cs.items() if style(c).get("perimeter") == "orthogonalPerimeter"}
+        self.assertTrue(any(k.startswith("c_") for k in bars) and any(k.startswith("s_") for k in bars), bars)
+        self.assertFalse(any(k.startswith("u_") for k in bars))                               # actor khong co thanh
+        self.assertEqual(sum(k.startswith("s_") for k in bars), 2)                             # self-call: thanh long
+        self.assertNotIn("orthogonalPerimeter", gen(dict(sp, activations=False))[0])
+
     def test_screenflow_legacy_flow_spec(self):
         # spec kieu luong chi tiet cu (initial/decision/items/trigger) -> van ve thanh site map, kem canh bao
         sp = {"diagram": "screenflow", "title": "SF", "elements": [
@@ -1510,6 +1554,72 @@ class TestCometCheck(unittest.TestCase):
                                              "messages": [{"from": "a", "to": "b"}]})), ["a", "b"])
 
 
+
+
+    def test_crowfoot_erd_rules_and_x7(self):
+        con = json.loads((EXAMPLES / "talenthub_erd_conceptual.json").read_text(encoding="utf-8"))
+        phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+        self.assertEqual(check(con, phy), ([], [], []))
+        erd = {"diagram": "erd", "notation": "crowfoot", "title": "E", "elements": [
+            {"id": "a", "type": "entity", "name": "A"}, {"id": "b", "type": "entity", "name": "B"},
+            {"id": "t", "type": "table", "name": "t", "columns": [{"name": "x", "type": "int"}]}], "relations": [
+            {"from": "a", "to": "b", "fromCard": "1", "toCard": "0..N"},
+            {"from": "a", "to": "b", "fromCard": "1", "toCard": "many-ish", "name": "having"},
+            {"from": "a", "to": "zz", "fromCard": "1", "toCard": "1", "name": "x"}]}
+        self.expect_one(erd, "E", "E1", "zz")
+        self.expect_one(erd, "W", "E2", "many-ish")
+        self.expect_one(erd, "W", "E3", "'A' - 'B'")
+        self.expect_one(erd, "W", "E4", "'t'")
+        for s in (con, phy):
+            s["bundle"] = "th"
+        phy2 = copy.deepcopy(phy)
+        phy2["elements"][0]["entity"] = "Account"
+        E, W, I = check(con, phy2)
+        self.assertTrue(any("'Account'" in w for w in codes(W, "X7")), W)
+        self.assertTrue(codes(I, "X7"), I)                                        # 'User' chua co bang tro toi
+        other = dict(copy.deepcopy(phy2), bundle="other")                        # bundle khac: khong so
+        self.assertEqual(codes(check(con, other)[1], "X7"), [])
+
+    def test_design_level_and_x8(self):
+        uc = {"diagram": "usecase", "bundle": "d", "title": "UCs", "elements": [
+            {"id": "g", "type": "actor", "name": "Guest"}, {"id": "r", "type": "usecase", "name": "Register"},
+            {"id": "v", "type": "usecase", "name": "View Jobs"}], "relations": [
+            {"from": "g", "to": "r"}, {"from": "g", "to": "v"}]}
+        cls = {"diagram": "class", "level": "design", "bundle": "d", "useCase": "Register", "title": "Register - Class",
+               "elements": [{"id": "srv", "type": "class", "name": "RegisterServlet", "operations": ["+doPost(): void"]},
+                            {"id": "svc", "type": "class", "name": "UserService",
+                             "operations": ["+addUser(f: UserForm): long"]}],
+               "relations": [{"type": "composition", "from": "srv", "to": "svc"}]}
+        seq = {"diagram": "sequence", "level": "design", "bundle": "d", "useCase": "Register", "title": "Register - Seq",
+               "elements": [{"id": "cl", "type": "object", "name": "Client (Browser)", "external": True},
+                            {"id": "srv", "type": "object", "class": "RegisterServlet"},
+                            {"id": "svc", "type": "object", "class": "UserService"}],
+               "messages": [{"from": "cl", "to": "srv", "name": "doPost"},
+                            {"from": "srv", "to": "svc", "name": "addUser(UserForm)"},
+                            {"from": "svc", "to": "srv", "name": "id", "type": "reply"},
+                            {"from": "srv", "to": "cl", "name": "page", "type": "reply"}]}
+        E, W, I = check(uc, cls, seq)
+        self.assertEqual((E, W), ([], []))                                   # khong R3/R4/C2/R1/X2 WARN
+        self.assertTrue(codes(I, "R1") and codes(I, "C2") and codes(I, "X2"), I)
+        self.assertEqual(codes(I, "X8"), [])
+        analysis = copy.deepcopy(seq)
+        del analysis["level"]
+        W2 = check(uc, cls, analysis)[1]
+        self.assertTrue(codes(W2, "R4") and codes(W2, "R1"), W2)             # muc phan tich van kiem nhu cu
+        bad = copy.deepcopy(seq)
+        bad["elements"][2]["class"] = "AccountService"
+        bad["messages"][0]["name"] = "doGet"
+        E, W, I = check(uc, cls, bad)
+        self.assertTrue(any("AccountService" in w for w in codes(W, "X8")), W)
+        self.assertTrue(any("doGet" in i for i in codes(I, "X8")), I)
+        nocls = dict(copy.deepcopy(bad), useCase="View Jobs")                 # use case khong co class rieng -> INFO
+        E, W, I = check(uc, cls, nocls)
+        self.assertEqual(codes(W, "X8"), [])
+        self.assertTrue(any("AccountService" in i for i in codes(I, "X8")), I)
+        m = M.build_model([dict(s, _src=s["title"]) for s in (uc, cls, seq)])
+        kinds = {(n["kind"], n["name"]) for n in m["nodes"].values()}
+        self.assertIn(("class", "UserService"), kinds)                          # lifeline thiet ke = node lop
+        self.assertNotIn(("application-logic", "UserService"), kinds)
 
 
 class TestSemanticModelV2(unittest.TestCase):

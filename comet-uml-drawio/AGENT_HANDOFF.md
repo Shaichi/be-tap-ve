@@ -29,7 +29,7 @@ diagram source specs
         ↓
 draw.io diagrams
         ↓
-R1–R14 + X1–X6 + semantic reconciliation
+R1–R14 + X1–X8 + semantic reconciliation
         ↓
 impact-aware repair
         ↓
@@ -403,6 +403,19 @@ Related fixes:
 - `comet_reconcile` M3: when the canonical model has representations, a projection representation name that is not a canonical one is also drift. This catches a hand-edited compiled spec.
 
 Status: **125 tests** OK locally (new `TestCanonicalProjection`, including a fuzz round-trip). CI compile list includes `comet_project.py`.
+
+### Phase L — SEP490 SRS/SDS profile
+
+Goal: `/uml-comet` produces every diagram the SEP490 Report 3 (SRS) and Report 4 (SDS) templates ask for. Mapping table: section 2b of `commands/uml-comet/SKILL.md`.
+
+- `uml2drawio.py`: ERD `"notation": "crowfoot"` (entity boxes, `table` + `columns` with PK/FK/NOT NULL, draw.io `ER*` arrow ends from the cardinalities); sequence `"activations": true` (execution bars, nested for self calls). `preview_svg.py` draws the ER markers.
+- `validate_drawio.py`: activation bars may overlap their lifeline, fragments and each other.
+- `comet_check.py`: E1–E3 cover crow's foot, new E4 (table needs a PK), X7 (table `entity` ↔ conceptual ERD entity, same bundle), X8 (design sequence lifelines/messages ↔ design class diagram of the same useCase; WARN only when that useCase has its own class spec). `"level": "design"` skips R3/R4/R10, C2 → INFO, R1/X2 → INFO when the bundle has no analysis interaction for the use case.
+- `comet_model.py`: design lifelines without stereotype become `class` nodes (not application-logic); `external: true` lifelines (Client/Browser) stay external.
+- Examples `talenthub_erd_conceptual.json` / `talenthub_erd_physical.json` (no `bundle`: canonical tests bootstrap all examples as one bundle).
+- Verified end to end: 13 specs (SRS 7 + SDS 6) → 0 ERROR / 0 WARN, canonical bootstrap exact, compile --check clean.
+
+Status: **129 tests** OK.
 
 Also on PR #1: X2 reports actors missing from an interaction that has no actor lifeline, and R2/R5/R14 apply only when the spec's own bundle has the use case model, entity class model or context diagram. Spec loaders skip generated `comet-*` artifacts, so `"./uml/*.json"` globs stay safe.
 
@@ -790,9 +803,12 @@ all source specs (round-trip exact on every example)
 all diagrams
 ```
 
+Phase L added the SEP490 SRS/SDS profile (crow's foot ERD, design-level class/sequence, X7/X8).
+
 Next candidates:
 
 - Authoring helpers (add concept, rename) on top of the canonical document.
+- Cosmetic: fragment name tab can cover an activation bar; long loop-back edges in LR swimlanes.
 
 ---
 
