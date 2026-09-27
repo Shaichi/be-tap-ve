@@ -1884,6 +1884,7 @@ class TestCometCheck(unittest.TestCase):
         # P15: lop ngoai context phai la actor use case; actor phu (use case -> actor) khong can "UCs for" rieng (P3)
         w = codes(run_()[1], "P15")
         self.assertTrue(w and "'Stripe Gateway'" in w[0] and "Customer" not in w[0], w)
+        self.assertTrue(codes(run_(partial=True)[1], "P15"))
         def secondary(sp):
             sp["uc"]["elements"].append({"id": "sg", "type": "actor", "name": "Stripe Gateway", "side": "right"})
             sp["uc"]["relations"].append({"from": "pay", "to": "sg"})

@@ -708,8 +708,8 @@ def check_profile_sep490(specs, by, out, info=None, warn=None):
             for s in g["bizcontext"]:
                 lost = [e.get("name", e.get("id")) for e in s.get("elements", [])
                         if norm(e.get("type")) == "external" and norm(e.get("name", e.get("id"))) not in uc_actor]
-                if lost:
-                    out.append("P15 [%s] Lop ngoai cua context chua la actor trong so do use case nao: %s - ve lam "
+                if lost:   # mau thuan trong chinh SRS -> WARN ca khi --partial
+                    (out if warn is None else warn).append("P15 [%s] Lop ngoai cua context chua la actor trong so do use case nao: %s - ve lam "
                                "actor phu trong \"UCs for <Actor>\" cua use case dung no (association use case -> "
                                "actor, \"side\": \"right\"), ten y het context." % (
                                    s["_src"], ", ".join("'%s'" % x for x in lost)))
