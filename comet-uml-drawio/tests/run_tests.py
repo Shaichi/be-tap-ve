@@ -71,7 +71,7 @@ EXPECTED_COMMANDS = {"uml-usecase", "uml-context", "uml-class", "uml-communicati
                      "uml-comet", "uml-erd", "uml-screenflow", "uml-bizcontext"}
 FUZZ_SEEDS = int(os.environ.get("COMET_FUZZ_SEEDS", "80"))
 # bo cuc fuzz da biet con WARN (nhan multiplicity bi canh song song cung cap lop cat qua) - van 0 ERROR
-FUZZ_KNOWN_WARN = {("class", 52), ("class", 63), ("class", 64), ("state", 299)}
+FUZZ_KNOWN_WARN = {("class", 63), ("state", 299)}
 
 
 # ============================================================ helpers
@@ -546,6 +546,36 @@ DEPLOY_SPEC = {"diagram": "deployment", "title": "Deployment", "elements": [
     {"type": "communicationpath", "from": "atm", "to": "srv", "stereotype": "WAN", "fromMult": "1..*", "toMult": "1"}]}
 
 
+UC_INCLUDE_SPEC = {"diagram": "usecase", "title": "UCs for Patient", "system": "ClinicCare System", "elements": [
+    {"id": "patient", "type": "actor", "name": "Patient"}] + [
+    {"id": i, "type": "usecase", "name": n} for i, n in (
+        ("uc_login", "Login"), ("uc_book", "Book Appointment"), ("uc_pay", "Make Deposit Payment"),
+        ("uc_cancel", "Cancel Appointment"), ("uc_hist", "View Medical History"),
+        ("uc_presc", "View Prescriptions"), ("uc_rev", "Review Doctor"))] + [
+    {"id": "vnpay", "type": "actor", "name": "VNPay", "side": "right"},
+    {"id": "email_service", "type": "actor", "name": "Email Service", "side": "right"}], "relations": [
+    {"type": "association", "from": "patient", "to": u}
+    for u in ("uc_login", "uc_book", "uc_pay", "uc_cancel", "uc_hist", "uc_presc", "uc_rev")] + [
+    {"type": "include", "from": "uc_book", "to": "uc_pay"},
+    {"type": "association", "from": "uc_pay", "to": "vnpay"},
+    {"type": "association", "from": "uc_book", "to": "email_service"},
+    {"type": "association", "from": "uc_cancel", "to": "email_service"}]}
+
+
+def edge_crossings(G):
+    """Cac cap canh cat nhau thuc su (giao diem nam trong ca hai doan; cham dau mut/trung nhau khong tinh)."""
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    segs = [(eid, p, q) for eid, (_, pts) in sorted(G.edges.items()) for p, q in zip(pts, pts[1:])]
+    out = set()
+    for i, (e1, p1, q1) in enumerate(segs):
+        for e2, p2, q2 in segs[i + 1:]:
+            if e1 != e2 and cr(p1, q1, p2) * cr(p1, q1, q2) < -1e-6 and cr(p2, q2, p1) * cr(p2, q2, q1) < -1e-6:
+                out.add((e1, e2))
+    return sorted(out)
+
+
 class TestGenerator(unittest.TestCase):
     def clean(self, spec):
         xml, warns = gen(spec)
@@ -572,6 +602,20 @@ class TestGenerator(unittest.TestCase):
         self.assertIn("[receipt requested]", text(ext))
         self.assertEqual(style(edge_between(cs, "cust", "wd")).get("endArrow"), "none")
         self.assertEqual(text(cs["diagram_frame"]), "uc ATM")
+
+    def test_usecase_include_and_right_actors_do_not_cross(self):
+        # SEP490: actor chinh trai, actor phu phai (UC -> actor), «include» day UC duoc include sang cot 2.
+        # Truoc day Book Appointment -> Email Service chui duoi Make Deposit Payment va cat Patient -> Make Deposit Payment.
+        xml, cs, G = self.clean(UC_INCLUDE_SPEC)
+        self.assertEqual(edge_crossings(G), [])
+        self.assertEqual(gen(UC_INCLUDE_SPEC)[0], xml)      # tat dinh
+        R = rects(G)
+        # canh Patient -> Make Deposit Payment vuot cot Book Appointment o phia tren no, khong vong qua duoi
+        _, pts = G.edges[edge_between(cs, "patient", "uc_pay").get("id")]
+        x0, y0, x1, _ = R["uc_book"]
+        over = [p[1] for p, q in zip(pts, pts[1:]) if min(p[0], q[0]) < x0 and max(p[0], q[0]) > x1]
+        self.assertEqual(len(over), 1, pts)
+        self.assertLess(over[0], y0)
 
     def test_class_notation(self):
         xml, cs, G = self.clean(CLASS_SPEC)

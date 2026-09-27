@@ -935,6 +935,9 @@ def build_graph(spec, warns, origin):
                     _widen(el, need)
 
     results = {}
+    # use case: canh actor -> UC duoc «include» va UC goc -> actor phai hay ket o thu tu cat nhau
+    # -> cho phep chen lai ca chuoi canh dai (cac loai so do khac giu thu tu cu)
+    level_cfg = {"chain_reinsert": True} if diagram == "usecase" else None
 
     def do_level(pid):
         for k in kids.get(pid, []):
@@ -953,7 +956,8 @@ def build_graph(spec, warns, origin):
         snap = {el.id: (el.w, el.h, el.sr, list(el.sub)) for el in members}
         for _ in range(3):
             res = layered_layout(members, level_edges.get(pid, []), direction,
-                                 cat_margin if pid is None else None, lanes=lane_w if pid is None else None)
+                                 cat_margin if pid is None else None, cfg=level_cfg,
+                                 lanes=lane_w if pid is None else None)
             grow = {k: w for k, w in res.get("need_w", {}).items()
                     if E[k].kind in CLASSLIKE and not E[k].container and w > snap[k][2][2] + 0.5}
             if not grow:
