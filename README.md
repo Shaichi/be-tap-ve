@@ -16,8 +16,10 @@ phải tự đoán toạ độ**.
 
 ## Mục lục
 1. [Có những sơ đồ nào](#1-có-những-sơ-đồ-nào)
+   - [`/uml-comet` được cải tiến những gì](#uml-comet-được-cải-tiến-những-gì)
 2. [Cài đặt](#2-cài-đặt)
 3. [Dùng với Claude Code](#3-dùng-với-claude-code)
+   - [Cách dùng `/uml-comet` từng bước](#cách-dùng-uml-comet-từng-bước)
 4. [Dùng với Google Antigravity](#4-dùng-với-google-antigravity)
 5. [Tự chạy tay (không cần AI)](#5-tự-chạy-tay-không-cần-ai)
 6. [Viết spec JSON – ví dụ nhanh](#6-viết-spec-json--ví-dụ-nhanh)
@@ -44,7 +46,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-package` | Package / subsystem | |
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
-| `/uml-erd` | **ERD (ký pháp Chen)** | thực thể chữ nhật + hình thoi quan hệ có tên, bản số `1` / `N` / `M`, quan hệ đệ quy, bậc 3 |
+| `/uml-erd` | **ERD (Chen hoặc crow's foot)** | Chen: thực thể chữ nhật + hình thoi quan hệ có tên, bản số `1` / `N` / `M`, quan hệ đệ quy, bậc 3. Crow's foot (`"notation": "crowfoot"`): ERD khái niệm (`entity`) và ERD vật lý (`table` + cột PK/FK) |
 | `/uml-screenflow` | **Screen flow (sơ đồ trang / site map)** | cây điều hướng từ Home, ô chỉ ghi tên màn hình, popup bo góc, mũi tên không nhãn |
 | `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp 2 cột trái/phải, mỗi luồng dữ liệu một mũi tên vuông góc, tên luồng nằm ngang |
 | `/uml-comet` | Trọn bộ COMET | use case → context → class → communication + sequence → statechart → (activity, package, component, deployment) |
@@ -71,6 +73,31 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 - Kiểm tra nhất quán COMET giữa các sơ đồ, ví dụ: actor chỉ nói chuyện với đối tượng boundary; event trên
   statechart phải khớp message trong communication diagram.
 - Chữ trên sơ đồ mặc định tiếng Anh; yêu cầu tiếng Việt thì tên có dấu vẫn hiển thị đúng.
+
+### `/uml-comet` được cải tiến những gì
+
+Bản đầu, `/uml-comet` chỉ vẽ lần lượt từng sơ đồ COMET rồi gộp vào một file. Mỗi sơ đồ đúng một mình, nhưng giữa các
+sơ đồ dễ lệch tên. Bản hiện tại coi cả bộ sơ đồ là **một mô hình** và kiểm tra chéo giữa chúng:
+
+| Cải tiến | Trước | Bây giờ |
+|---|---|---|
+| **Nhất quán giữa các sơ đồ** | Chỉ R1–R14 (use case ↔ tương tác ↔ statechart) | Thêm X1–X12: use case ↔ activity/sequence, entity ↔ bảng ERD, lớp ↔ lifeline, message ↔ operation, thuộc tính ↔ cột, cột FK ↔ thuộc tính quan hệ, lớp ↔ package; R15: mỗi lời gọi `sync` có `reply` |
+| **Cô lập hệ thống** | Hai hệ thống trùng tên use case bị trộn lẫn | Khoá `"bundle"` làm namespace; `--strict` coi WARN là lỗi (dùng cho CI) |
+| **Mô hình ngữ nghĩa** | Không có | `comet_model.py` gom mọi spec thành model v2 (concept, alias, quan hệ, provenance, impact graph); `comet_plan.py` sinh repair plan (luật → concept → sơ đồ bị ảnh hưởng → cách sửa); `comet_manifest.py` sinh cả ba cùng một `modelFingerprint` |
+| **Một nguồn sự thật** | Đổi tên một use case phải sửa tay nhiều spec | `comet_project.py bootstrap` gom thành một file canonical, `compile` sinh lại mọi spec: đổi tên một chỗ, mọi sơ đồ đổi theo; `compile --check` bắt spec bị sửa tay |
+| **Hồ sơ SEP490 (FPT capstone)** | Không có | Bảng ánh xạ từng mục Report 3 SRS + Report 4 SDS sang sơ đồ; ERD crow's foot khái niệm + vật lý; class/sequence mức thiết kế (`"level": "design"`) theo Spring Boot phân tầng + React + PostgreSQL (+ Flutter) |
+| **Kiểm độ đủ theo template** | Không có | `--profile sep490` với P1–P15: thiếu mục, actor chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa có bảng, state ≠ giá trị cột `status`, BF/sequence đổi trạng thái không khớp statechart, sequence thiếu use case «include»… |
+| **Data dictionary** | Viết tay, dễ lệch sơ đồ | `comet_datadict.py` sinh từ ERD vật lý |
+| **Tiết kiệm token** | AI hay mở file sinh ra (model vài MB) | Kỷ luật đọc file: chỉ đọc output lệnh và spec đang sửa; bộ SEP490 chia hai phiên SRS / SDS, quyết định ghi vào `./uml/NOTES.md` |
+| **Bố cục use case** | Actor → use case được «include» và use case → actor phụ bên phải hay cắt nhau | Chuỗi cạnh dài được chèn lại vào vị trí ít giao cắt nhất; hai cạnh vào cùng một actor không còn chung một điểm nối |
+
+Ví dụ bố cục use case (actor phụ bên phải + «include»), trước và sau khi sửa: cạnh *Book Appointment → Email
+Service* không còn cắt cạnh *Patient → Make Deposit Payment*.
+
+<p align="center">
+  <img src="docs/img/uc_crossing_before.png" width="48%" alt="Trước: hai cạnh cắt nhau">
+  <img src="docs/img/uc_crossing_after.png" width="48%" alt="Sau: không còn giao cắt">
+</p>
 
 ---
 
@@ -184,6 +211,66 @@ tự chọn đúng lệnh.
 
 Kết quả nằm trong `./uml/` của thư mục làm việc. File `.drawio` mở được bằng draw.io desktop, diagrams.net hoặc
 extension draw.io của VS Code.
+
+### Cách dùng `/uml-comet` từng bước
+
+`/uml-comet` có hai chế độ. Skill tự chọn chế độ theo nội dung prompt.
+
+**A. Bộ COMET chuẩn (Gomaa)**
+
+```text
+/uml-comet Hệ thống đặt món ăn: khách đặt món, nhà hàng xác nhận, shipper giao, thanh toán qua VNPay
+/uml-comet Hệ thống ATM của ngân hàng (đủ 10 bước)
+```
+
+- Mặc định vẽ bước 1–6: use case → context → entity class → communication + sequence cho từng use case →
+  statechart. Ghi "đủ 10 bước" để vẽ thêm activity, package, component, deployment. ERD, screen flow và context
+  nghiệp vụ chỉ vẽ khi bạn yêu cầu.
+- Mỗi sơ đồ là một spec `./uml/NN_<loại>.json` cùng một `"bundle"`. Tất cả được gộp thành
+  `./uml/<He_thong>.drawio`, mỗi sơ đồ một trang.
+
+**B. Hồ sơ SEP490 (Report 3 SRS + Report 4 SDS)**
+
+Nhắc "SEP490", "SRS SDS" hoặc đính kèm template. Nên làm **hai phiên**:
+
+1. **Phiên 1 – SRS:**
+   ```text
+   /uml-comet SEP490 ClinicCare: vẽ sơ đồ cho Report 3 (SRS). Bệnh nhân đặt lịch khám, đặt cọc qua VNPay,
+   bác sĩ xem lịch, admin quản lý bác sĩ; hệ thống gửi email xác nhận
+   ```
+   AI viết `srs_*.json` (context, business flow, ERD khái niệm, statechart, "UCs for <Actor>", screen flow) và kiểm
+   bằng `--partial` đến khi 0 WARN. Sau đó AI ghi các quyết định vào `./uml/NOTES.md` và xuất `<Sys>_SRS.drawio`.
+2. **Phiên 2 – SDS (mở phiên mới):**
+   ```text
+   /uml-comet SEP490 ClinicCare: vẽ Report 4 (SDS) từ các spec SRS trong ./uml
+   ```
+   AI đọc `NOTES.md` và spec SRS, rồi viết `sds_*.json`: kiến trúc, package, ERD vật lý, 2–3 bộ class + sequence
+   thiết kế và auth flow. Sau đó AI kiểm **cả bộ** (không `--partial`) để bắt lệch giữa SRS và SDS. Kết quả là
+   `<Sys>_SDS.drawio` và `<Sys>_DataDictionary.md`.
+3. **Thêm/sửa tính năng về sau:** mở phiên mới, mô tả thay đổi. AI sửa đúng các spec SRS + SDS liên quan rồi kiểm
+   lại cả bộ.
+
+**Bạn nhận được:** các file `.drawio` (một trang mỗi sơ đồ), ảnh `.png` từng trang, và bảng tóm tắt số
+ERROR/WARN/INFO còn lại kèm lý do.
+
+**Tự kiểm lại bằng tay** (từ thư mục dự án, `<ENGINE>` là `~/.claude/skills/comet-uml-drawio`):
+
+```bash
+python <ENGINE>/scripts/comet_check.py --strict --profile sep490 "./uml/*.json"
+```
+
+```bash
+python <ENGINE>/scripts/uml2drawio.py "./uml/srs_*.json" -o ./uml/ClinicCare_SRS.drawio
+```
+
+Mã thoát `0` là sạch. Mỗi dòng WARN có mã luật (vd `P12`, `X9`), tra nghĩa trong
+[`references/comet-method.md`](comet-uml-drawio/references/comet-method.md).
+
+**Mẹo:**
+- Muốn đổi tên một actor/use case/entity trên mọi sơ đồ: sau khi bộ đã sạch, chạy `comet_project.py bootstrap` một
+  lần, rồi chỉ sửa file `system.canonical.json` và `compile` lại (xem mục 5).
+- Không sửa file `.drawio` bằng tay nếu còn muốn sinh lại: nguồn là spec JSON, sửa spec rồi chạy lại.
+- Spec thử nghiệm để ngoài `./uml/`, vì glob `./uml/*.json` sẽ gộp mọi file JSON trong đó.
 
 ---
 
@@ -412,13 +499,19 @@ be-tap-ve/
     ├── scripts/
     │   ├── uml2drawio.py      ← spec JSON → .drawio (bố cục + sinh XML + tự kiểm tra)
     │   ├── validate_drawio.py ← kiểm tra hình học: chồng hình, đường cắt hình, nhãn đè
-    │   ├── comet_check.py     ← kiểm tra luật UML/COMET trên spec
+    │   ├── layout.py          ← bố cục phân tầng (Sugiyama), định tuyến đường nối
+    │   ├── comet_check.py     ← kiểm tra luật UML/COMET trên spec (R, X, P, S, A, C, E, F, B, L)
+    │   ├── comet_model.py     ← gom spec thành semantic model v2
+    │   ├── comet_plan.py      ← repair plan: luật → concept → sơ đồ bị ảnh hưởng
+    │   ├── comet_manifest.py  ← model + consistency + repair cùng một fingerprint
+    │   ├── comet_reconcile.py ← đối chiếu spec với canonical model
+    │   ├── comet_project.py   ← canonical-first: bootstrap / validate / compile
     │   ├── comet_datadict.py  ← ERD vật lý → Data Dictionary (Markdown)
     │   ├── preview_svg.py     ← .drawio → HTML/SVG/PNG để xem nhanh
     │   ├── install.py         ← cài vào Claude Code / Antigravity
     │   └── mcp_smoke.py       ← thử draw.io MCP server
-    ├── references/            ← spec-format, uml-notation, comet-method, drawio-mcp
-    ├── examples/              ← 14 spec mẫu (ATM/Banking, cửa hàng trực tuyến)
+    ├── references/            ← spec-format, uml-notation, comet-method, comet-model/-repair/-manifest/-reconcile/-project, drawio-mcp
+    ├── examples/              ← 16 spec mẫu (ATM/Banking, cửa hàng trực tuyến, ERD TalentHub)
     └── tests/                 ← run_tests.py + fuzz_specs.py
 ```
 
@@ -430,8 +523,9 @@ be-tap-ve/
 python comet-uml-drawio/tests/run_tests.py
 ```
 
-Bộ test gồm 81 test: validator, generator của từng loại sơ đồ, luật `comet_check`, CLI, cài/gỡ, tài liệu khớp
-với code, và fuzz trên spec ngẫu nhiên. Các biến môi trường điều chỉnh:
+Bộ test gồm 139 test: validator, generator của từng loại sơ đồ, luật `comet_check` (kể cả hồ sơ SEP490), semantic
+model / repair plan / canonical compiler, CLI, cài/gỡ, tài liệu khớp với code, đếm giao cắt đường nối ở sơ đồ use
+case, và fuzz trên spec ngẫu nhiên. Các biến môi trường điều chỉnh:
 - `COMET_FUZZ_SEEDS=300`: số spec fuzz (mặc định 80).
 - `COMET_TEST_PNG=0`: bỏ test xuất PNG.
 
