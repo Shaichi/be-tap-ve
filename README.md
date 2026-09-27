@@ -148,6 +148,10 @@ Mở phiên mới sau khi cài để Claude nạp skill, rồi gõ lệnh kèm m
 | SDS | II. Code Designs | `class` + `sequence` `"level": "design"` cho từng use case (sequence có `activations`) |
 | SDS | III.1.1 Authentication Flow | `sequence` `"level": "design"` |
 
+Stack mặc định khi vẽ SDS: **Spring Boot phân tầng** (Controller → Service/ServiceImpl → Repository `JpaRepository`,
+Entity, DTO, Spring Security + JWT), **React** web, **PostgreSQL**; có giao diện điện thoại thì thêm **Flutter** (client
+trong kiến trúc, trang Mobile Screen Flow riêng). Nêu stack khác trong prompt để skill ánh xạ lại tầng.
+
 Kết quả gom thành `<Hệ thống>_SRS.drawio` và `<Hệ thống>_SDS.drawio` (mỗi mục một trang); `comet_check.py` chạy
 trên cả hai bộ cùng lúc để bắt lệch tên giữa SRS và SDS (X7, X8, R1…). Thêm `--profile sep490` để kiểm **độ đủ**
 theo template (P1–P7): thiếu mục nào, actor nào chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa

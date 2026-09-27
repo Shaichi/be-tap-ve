@@ -54,11 +54,13 @@ bằng ngôn ngữ của họ.
   (`13a`) và đặt **sau** các message nhánh chính trong mảng.
 - Lifeline không gạch chân (UML 2.x) và message luôn nằm ngang — script tự vẽ; không khai báo `relations`.
 
-### Mức thiết kế (SDS – Servlet/Service/DAO, không stereotype COMET)
+### Mức thiết kế (SDS – mặc định Spring Boot Controller/Service/Repository, không stereotype COMET)
 - Thêm `"level": "design"` và `"activations": true` (thanh activation, self-call lồng thanh con), `"autonumber":
-  true`. Lifeline `{"type": "object", "class": "UserService"}` – lớp **y hệt** class diagram `"level": "design"`
-  cùng `"bundle"`/`"useCase"` (X8); Client/Browser: `{"type": "object", "name": "Client (Browser)", "external":
-  true}`. Message = tên operation + kiểu tham số (`addNewUser(UserFormDTO)`), reply ghi dữ liệu trả về.
+  true`. Lifeline `{"type": "object", "class": "UserServiceImpl"}` – lớp **y hệt** class diagram `"level": "design"`
+  cùng `"bundle"`/`"useCase"` (X8); client: `{"type": "object", "name": "React Web App", "external": true}` (hoặc
+  `Flutter Mobile App`); bean framework (`AuthenticationManager`, `PasswordEncoder`) cũng `"external": true`.
+  Message = tên operation + kiểu tham số (`register(RegisterRequest)`, `findByEmail(String)`), reply ghi dữ liệu
+  trả về (`UserResponse`, `201 Created`). Nhánh lỗi (409 email trùng, 401 sai mật khẩu…) dùng fragment `alt`.
 - Mức thiết kế bỏ R3/R4; R1/X2 chỉ INFO khi bundle không có sơ đồ tương tác mức phân tích.
 
 ## 3. Chạy – sửa đến sạch

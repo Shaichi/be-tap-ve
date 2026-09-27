@@ -66,6 +66,21 @@ Dùng **thay** bảng bước 1–10 khi người dùng nhắc SEP490, capstone 
 template `Software Requirement Specification` / `Software Design Specification`. Mọi spec cùng một `"bundle"`
 (vd `"talenthub"`); tiền tố `srs_`/`sds_` giữ thứ tự trang theo mục của báo cáo.
 
+**Stack mặc định (kiến trúc phân tầng – layered):** backend **Spring Boot** (Controller → Service → Repository,
+Spring Data JPA, Spring Security + JWT), web client **React** (SPA gọi REST API), CSDL **PostgreSQL**; hệ thống có
+giao diện điện thoại → thêm client **Flutter** (mobile app gọi cùng REST API). Chỉ đổi khi người dùng / SRS nêu
+stack khác – khi đó ánh xạ tầng theo bảng cuối mục này và ghi rõ giả định.
+
+| Tầng (Spring Boot) | Lớp / package | Vai trò trong class + sequence thiết kế |
+|---|---|---|
+| Client | `React Web App` (`"external": true`); `Flutter Mobile App` nếu có mobile | Lifeline đầu tiên, gọi REST endpoint |
+| Controller | `XxxController` – package `controller` | `@RestController`: `+createJob(request: JobRequest): ResponseEntity<JobResponse>` |
+| Service | `XxxService` (interface) + `XxxServiceImpl` – package `service`, `service.impl` | Nghiệp vụ, `@Transactional` |
+| Repository | `XxxRepository` – package `repository` | `«interface»` extends `JpaRepository<Xxx, Long>`: `+findByEmail(email: String): Optional<User>` |
+| Entity | `Xxx` – package `entity` | `@Entity` ánh xạ bảng PostgreSQL (SDS I.3) |
+| DTO / Mapper | `XxxRequest`, `XxxResponse` – `dto`; `XxxMapper` – `mapper` | Dữ liệu vào/ra API, chuyển Entity ↔ DTO |
+| Security / Config / Exception | `SecurityConfig`, `JwtAuthenticationFilter`, `JwtService`, `GlobalExceptionHandler` | Auth flow (SDS III), xử lý lỗi |
+
 | Mục báo cáo | Sơ đồ | Lệnh (đọc quy tắc) | File spec trong `./uml/` | `title` |
 |---|---|---|---|---|
 | SRS I.1 Context Diagram | Hệ thống (hình tròn) + actor/dịch vụ ngoài, luồng có tên | [/uml-bizcontext](../uml-bizcontext/SKILL.md) | `srs_01_context.json` | `<Sys> - Context Diagram` |
@@ -73,21 +88,27 @@ template `Software Requirement Specification` / `Software Design Specification`.
 | SRS I.3.1 Entity Relationship Diagram | ERD khái niệm crow's foot: `"notation": "crowfoot"`, `entity` + `attributes` `"+ Full Name"`, quan hệ động từ -ing | [/uml-erd](../uml-erd/SKILL.md) | `srs_03_erd.json` | `<Sys> - Entity Relationship Diagram` |
 | SRS I.4.3 Use Case Diagrams | **Mỗi actor 1 sơ đồ** (actor + use case của họ, include/extend) | [/uml-usecase](../uml-usecase/SKILL.md) | `srs_04_uc_<actor>.json` | `UCs for <Actor>` |
 | SRS I.5.1a Screen Flow | Site map màn hình | [/uml-screenflow](../uml-screenflow/SKILL.md) | `srs_05_screenflow.json` | `<Sys> - Screen Flow` |
-| SDS I.1 Software Architecture | Component lồng tầng: `Client Tier` / `Application Tier` / `Data Tier` / `External Services` (component cha, con qua `"in"`) | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
-| SDS I.2 Package Diagram | Package theo tầng code (controller/servlet, service, dao, dto/model, util) + dependency | [/uml-package](../uml-package/SKILL.md) | `sds_02_package.json` | `<Sys> - Package Diagram` |
+| SDS I.1 Software Architecture | Component lồng tầng (component cha `"stereotype": "subsystem"`, con qua `"in"`): `Client Tier` (`React Web App`, + `Flutter Mobile App`) / `Application Tier` – Spring Boot (`Security Filter (JWT)`, `REST Controllers`, `Service Layer`, `Repository Layer (Spring Data JPA)`) / `Data Tier` (`PostgreSQL Database`) / `External Services`; quan hệ nối **component tầng**, nhãn giao thức (`REST/JSON over HTTPS`, `JDBC`, `SMTP`…) | [/uml-component](../uml-component/SKILL.md) | `sds_01_architecture.json` | `<Sys> - Software Architecture` |
+| SDS I.2 Package Diagram | Package backend theo tầng: `controller`, `service`, `service.impl`, `repository`, `entity`, `dto`, `mapper`, `security`, `config`, `exception` + dependency (controller → service/dto; service.impl → service/repository/mapper/entity; repository → entity; mapper → entity/dto; security → repository) | [/uml-package](../uml-package/SKILL.md) | `sds_02_package.json` | `<Sys> - Package Diagram` |
 | SDS I.3 Database Design | ERD vật lý crow's foot: `table` + `columns` (kiểu, `pk`/`fk`/`nullable`) + `"entity"` trỏ ERD SRS | [/uml-erd](../uml-erd/SKILL.md) | `sds_03_database.json` | `<Sys> - Database Design` |
-| SDS II.x Code Designs (2–3 bộ) | Class diagram `"level": "design"` (Servlet/Service/DAO/DTO) | [/uml-class](../uml-class/SKILL.md) mục 4 | `sds_04_<feature>_class.json` | `<Feature> - Class Diagram` |
-| | Sequence `"level": "design"`, `"activations": true`, `"autonumber": true`, Client `"external": true` | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_04_<feature>_seq.json` | `<Feature> - Sequence Diagram` |
-| SDS III.1.1 Authentication Flow | Sequence mức thiết kế cho Login (tầng bảo mật: filter/session/hash) | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_05_auth_seq.json` | `Authentication Flow - Sequence Diagram` |
+| SDS II.x Code Designs (2–3 bộ) | Class diagram `"level": "design"`: Controller → Service (interface) ◁┄ ServiceImpl → Repository («interface» → `JpaRepository<Xxx, Long>`), Entity, Request/Response DTO, Mapper | [/uml-class](../uml-class/SKILL.md) mục 4 | `sds_04_<feature>_class.json` | `<Feature> - Class Diagram` |
+| | Sequence `"level": "design"`, `"activations": true`, `"autonumber": true`: `React Web App` (`"external": true`) → Controller → ServiceImpl → Repository (+ Mapper); reply `ResponseEntity`/DTO; nhánh lỗi (`alt`: 400/404/409) | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_04_<feature>_seq.json` | `<Feature> - Sequence Diagram` |
+| SDS III.1.1 Authentication Flow | Sequence thiết kế Login JWT: Client → `AuthController.login(LoginRequest)` → `AuthServiceImpl` → `AuthenticationManager` → `UserDetailsServiceImpl`/`UserRepository` → `PasswordEncoder` → `JwtService.generateToken` → `AuthResponse(token)`; `alt` sai mật khẩu → 401; request sau đi qua `JwtAuthenticationFilter` | [/uml-sequence](../uml-sequence/SKILL.md) | `sds_05_auth_seq.json` | `Authentication Flow - Sequence Diagram` |
 
 Khoá liên kết xuyên hai tài liệu (viết **y hệt**; comet_check kiểm):
 - Actor: context (SRS I.1) = làn BF (I.2) = actor của `UCs for <Actor>` (I.4.3). Ngoài context chỉ có actor
   người dùng + dịch vụ ngoài; dịch vụ ngoài (Email, Payment…) cũng là component trong `External Services` (SDS I.1).
 - Use case (I.4.3) = `"useCase"` của class/sequence thiết kế (SDS II) và auth flow (`"Login"`) – X1. Chọn 2–3 use
   case cốt lõi cho SDS II; các use case còn lại không có sequence là **INFO R1**, không phải lỗi.
-- Entity ERD SRS = `"entity"` của bảng SDS I.3 (X7); tên bảng snake_case số nhiều (`job_postings`).
-- Lớp trong class diagram SDS II = lifeline của sequence cùng bộ (X8) = class trong package tương ứng (SDS I.2);
-  message sequence = operation của lớp (`addNewUser(UserFormDTO)`).
+- Entity ERD SRS = `"entity"` của bảng SDS I.3 (X7); bảng PostgreSQL snake_case số nhiều (`job_postings`), kiểu
+  PostgreSQL: `bigserial`/`bigint`, `varchar(n)`, `text`, `boolean`, `numeric(12,2)`, `timestamptz`, `uuid`.
+  Lớp `@Entity` (SDS II) = bảng tương ứng (camelCase ↔ snake_case: `createdAt` ↔ `created_at`).
+- Lớp trong class diagram SDS II = lifeline của sequence cùng bộ (X8); message sequence = operation của lớp
+  (`createJob(JobRequest)`). Lớp thuộc đúng package theo bảng tầng (SDS I.2) – chưa có luật tự kiểm, tự soát.
+- Có Flutter: Screen Flow (SRS I.5.1a) tách hai trang `srs_05_screenflow_web.json` / `srs_05_screenflow_mobile.json`
+  (`<Sys> - Web Screen Flow` / `<Sys> - Mobile Screen Flow`); lifeline Client của sequence = client thật sự gọi use
+  case đó (`React Web App` hoặc `Flutter Mobile App`).
+- Framework bean không tự viết (`AuthenticationManager`, `PasswordEncoder`) → `"external": true` trong sequence.
 - Mục SRS/SDS không có sơ đồ (bảng use case, đặc tả UC, data dictionary, bảng method…) → viết trong câu trả lời
   hoặc file `.md`, không vẽ.
 
@@ -97,6 +118,15 @@ Chạy như mục 3 nhưng xuất hai file: `uml2drawio.py "./uml/srs_*.json" -o
 "UCs for", BF không swimlane, < 2 bộ code design, thiếu auth flow, entity chưa có bảng). **Không giao khi còn WARN P**:
 vẽ bổ sung đúng mục bị báo rồi chạy lại. Thêm tính năng sau này: cập nhật spec SRS + SDS liên quan rồi chạy lại lệnh
 này. Canonical (2a) cũng trên `"./uml/*.json"`.
+
+Stack khác (chỉ khi người dùng nêu) – đổi tên tầng, giữ nguyên cấu trúc:
+
+| Stack | Controller | Service | Truy cập dữ liệu | Client / khác |
+|---|---|---|---|---|
+| Java Servlet/JSP | `XxxServlet` (`doGet`/`doPost`) | `XxxService` | `XxxDAO` (JDBC) | JSP view, DTO |
+| ASP.NET Core | `XxxController` | `IXxxService` / `XxxService` | `XxxRepository` / `AppDbContext` (EF Core) | ViewModel |
+| Node.js / Express | `xxxController` + `xxxRouter` | `xxxService` | `xxxModel` (Sequelize/Mongoose) | middleware |
+| Laravel | `XxxController` | `XxxService` | Eloquent model `Xxx` | FormRequest, Resource |
 
 ## 3. Chạy – sửa đến sạch
 Sau mỗi bước: chạy 3 lệnh của lệnh con (có `--partial`) cho spec vừa viết. Xong tất cả:

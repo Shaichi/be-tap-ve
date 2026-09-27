@@ -102,7 +102,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 Tên message/event được so khớp sau khi bỏ danh sách tham số (`placeOrder(cart)` ~ `placeOrder`).
 
 **Bundle isolation:** nếu spec có `"bundle"`, validator coi đó là namespace consistency. Hai diagram cùng tên nhưng khác bundle không được dùng để thỏa R1/R7/R8/R12 hoặc X1–X6 cho nhau; R2/R5/R14 chỉ áp dụng khi chính bundle đó có use case model / entity class model / context diagram; spec không có bundle vẫn giữ hành vi cũ.
-**Mức thiết kế (`"level": "design"`)** – class/sequence kiểu SDS (Servlet/Controller, Service, DAO, DTO) không
+**Mức thiết kế (`"level": "design"`)** – class/sequence kiểu SDS (Controller, Service, Repository, DTO – mặc định Spring Boot) không
 dùng stereotype COMET: bỏ R3/R4/R10; C2 thiếu multiplicity chỉ INFO; R1/X2 chỉ INFO khi bundle không có sơ đồ
 tương tác mức phân tích cho use case đó (SDS chỉ cần 2–3 bộ thiết kế tiêu biểu). Lifeline thiết kế không
 stereotype được model gộp với lớp cùng tên của class diagram (đổi tên lan sang cả hai).

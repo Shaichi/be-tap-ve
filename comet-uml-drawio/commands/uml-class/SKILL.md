@@ -70,9 +70,13 @@ bằng ngôn ngữ của họ.
   bỏ trống.
 - Lớp trừu tượng (`"abstract": true`) có thể có thao tác trừu tượng; các lớp con khai báo lại thao tác đó.
 - Không gắn stereotype «entity» cho lớp thiết kế nếu lớp đó có operation (R10 chỉ áp dụng cho «entity»).
-- Design class diagram kiểu SDS (Servlet/Controller → Service → DAO, DTO/Entity): đặt `"level": "design"` (bỏ
-  R10; C2 thiếu multiplicity chỉ INFO), `"bundle"` và `"useCase"` của bộ thiết kế. Quan hệ: Servlet ◆ Service
-  (`composition`), Service ◇ DAO (`aggregation`), DAO → BaseDAO (`generalization`), phụ thuộc DTO/Util
+- Design class diagram kiểu SDS – mặc định **Spring Boot phân tầng** (stack khác: bảng cuối mục 2b của
+  [/uml-comet](../uml-comet/SKILL.md)): đặt `"level": "design"` (bỏ R10; C2 thiếu multiplicity chỉ INFO), `"bundle"`
+  và `"useCase"` của bộ thiết kế. Lớp: `XxxController`, `XxxService` (`interface`), `XxxServiceImpl`,
+  `XxxRepository` (`interface`), `JpaRepository<Xxx, Long>` (`interface`), entity `Xxx`, `XxxRequest`/`XxxResponse`,
+  `XxxMapper`. Quan hệ: Controller → Service (`association`, `"navigable": true`, `1`–`1`: field được inject),
+  ServiceImpl ┄▷ Service (`realization`), ServiceImpl → Repository và → Mapper (`association` navigable),
+  Repository → JpaRepository (`generalization`), Controller ┄> Request/Response và Repository ┄> Entity
   (`dependency`). Tên lớp phải **y hệt** lifeline của sequence cùng bộ (X8).
 
 ## 5. Tự soát đủ ký hiệu trước khi chạy

@@ -56,7 +56,7 @@ ERD / screen flow / context diagram nghiep vu:
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
 Ngon ngu (moi spec):
   L1  Chu tren so do mac dinh tieng Anh: co chu co dau (tieng Viet...) ma spec khong dat "lang" khac "en" -> WARN.
-Muc thiet ke ("level": "design" - class/sequence kieu SDS: Servlet/Service/DAO/DTO):
+Muc thiet ke ("level": "design" - class/sequence kieu SDS: Controller/Service/Repository/DTO):
   Khong ap R3/R4/R10; C2 thieu multiplicity chi la INFO; R1/X2 chi la INFO khi bundle khong co so do tuong
   tac muc phan tich cho use case do.
   X8  Lifeline cua sequence muc thiet ke phai la lop trong class diagram muc thiet ke cung bundle va cung
@@ -132,7 +132,7 @@ def is_reply(m):
 
 
 def is_design(s):
-    """Spec muc thiet ke (SDS: Servlet/Service/DAO...): khong ap cac luat phan tich COMET (R3/R4/R10, C2 multiplicity)."""
+    """Spec muc thiet ke (SDS: Controller/Service/Repository...): khong ap cac luat phan tich COMET (R3/R4/R10, C2 multiplicity)."""
     return norm(s.get("level")) == "design"
 
 
@@ -697,7 +697,7 @@ def check(specs, partial=False, profile=None):
             ta = "actor" if a.get("type") == "actor" else st_of(a)
             tb = "actor" if b.get("type") == "actor" else st_of(b)
             if design:
-                pass   # thiet ke: actor/Client goi thang Servlet/Controller - khong ap R3
+                pass   # thiet ke: actor/Client goi thang Controller - khong ap R3
             elif ta == "actor" and tb != "actor" and tb not in BOUNDARY:
                 W.append("R3 [%s] Actor '%s' gui '%s' truc tiep toi doi tuong «%s» '%s' - COMET yeu cau actor "
                          "giao tiep qua doi tuong boundary." % (src, a.get("name"), name, tb, obj_class(b)))

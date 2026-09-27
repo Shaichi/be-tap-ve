@@ -1567,11 +1567,11 @@ class TestCometCheck(unittest.TestCase):
 
         def design(name, cls):
             c = {"diagram": "class", "level": "design", "useCase": name, "title": name + " - Class",
-                 "elements": [{"id": "k", "type": "class", "name": cls, "operations": ["+doPost(): void"]}]}
+                 "elements": [{"id": "k", "type": "class", "name": cls, "operations": ["+handle(req: Request): Response"]}]}
             s = {"diagram": "sequence", "level": "design", "useCase": name, "title": name + " - Seq", "elements": [
                 {"id": "cl", "type": "object", "name": "Client", "external": True},
                 {"id": "k", "type": "object", "class": cls}],
-                "messages": [{"from": "cl", "to": "k", "name": "doPost"},
+                "messages": [{"from": "cl", "to": "k", "name": "handle(Request)"},
                              {"from": "k", "to": "cl", "name": "page", "type": "reply"}]}
             return c, s
         specs = {
@@ -1596,9 +1596,9 @@ class TestCometCheck(unittest.TestCase):
                 {"id": "c", "type": "package", "name": "controller"}, {"id": "s", "type": "package", "name": "service"}],
                 "relations": [{"type": "dependency", "from": "c", "to": "s"}]},
         }
-        specs["c1"], specs["s1"] = design("Submit Application", "ApplyServlet")
-        specs["c2"], specs["s2"] = design("Create Job", "JobServlet")
-        specs["auth"] = design("Login", "LoginServlet")[1]
+        specs["c1"], specs["s1"] = design("Submit Application", "ApplicationController")
+        specs["c2"], specs["s2"] = design("Create Job", "JobController")
+        specs["auth"] = design("Login", "AuthController")[1]
         for s in specs.values():
             s["bundle"] = "th"
         return specs
@@ -1675,15 +1675,15 @@ class TestCometCheck(unittest.TestCase):
             {"id": "v", "type": "usecase", "name": "View Jobs"}], "relations": [
             {"from": "g", "to": "r"}, {"from": "g", "to": "v"}]}
         cls = {"diagram": "class", "level": "design", "bundle": "d", "useCase": "Register", "title": "Register - Class",
-               "elements": [{"id": "srv", "type": "class", "name": "RegisterServlet", "operations": ["+doPost(): void"]},
+               "elements": [{"id": "srv", "type": "class", "name": "UserController", "operations": ["+handle(req: Request): Response"]},
                             {"id": "svc", "type": "class", "name": "UserService",
                              "operations": ["+addUser(f: UserForm): long"]}],
                "relations": [{"type": "composition", "from": "srv", "to": "svc"}]}
         seq = {"diagram": "sequence", "level": "design", "bundle": "d", "useCase": "Register", "title": "Register - Seq",
-               "elements": [{"id": "cl", "type": "object", "name": "Client (Browser)", "external": True},
-                            {"id": "srv", "type": "object", "class": "RegisterServlet"},
+               "elements": [{"id": "cl", "type": "object", "name": "React Web App", "external": True},
+                            {"id": "srv", "type": "object", "class": "UserController"},
                             {"id": "svc", "type": "object", "class": "UserService"}],
-               "messages": [{"from": "cl", "to": "srv", "name": "doPost"},
+               "messages": [{"from": "cl", "to": "srv", "name": "handle(Request)"},
                             {"from": "srv", "to": "svc", "name": "addUser(UserForm)"},
                             {"from": "svc", "to": "srv", "name": "id", "type": "reply"},
                             {"from": "srv", "to": "cl", "name": "page", "type": "reply"}]}
@@ -1697,10 +1697,10 @@ class TestCometCheck(unittest.TestCase):
         self.assertTrue(codes(W2, "R4") and codes(W2, "R1"), W2)             # muc phan tich van kiem nhu cu
         bad = copy.deepcopy(seq)
         bad["elements"][2]["class"] = "AccountService"
-        bad["messages"][0]["name"] = "doGet"
+        bad["messages"][0]["name"] = "deleteUser(Long)"
         E, W, I = check(uc, cls, bad)
         self.assertTrue(any("AccountService" in w for w in codes(W, "X8")), W)
-        self.assertTrue(any("doGet" in i for i in codes(I, "X8")), I)
+        self.assertTrue(any("deleteUser(Long)" in i for i in codes(I, "X8")), I)
         nocls = dict(copy.deepcopy(bad), useCase="View Jobs")                 # use case khong co class rieng -> INFO
         E, W, I = check(uc, cls, nocls)
         self.assertEqual(codes(W, "X8"), [])

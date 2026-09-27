@@ -411,9 +411,10 @@ Goal: `/uml-comet` produces every diagram the SEP490 Report 3 (SRS) and Report 4
 - `uml2drawio.py`: ERD `"notation": "crowfoot"` (entity boxes, `table` + `columns` with PK/FK/NOT NULL, draw.io `ER*` arrow ends from the cardinalities); sequence `"activations": true` (execution bars, nested for self calls). `preview_svg.py` draws the ER markers.
 - `validate_drawio.py`: activation bars may overlap their lifeline, fragments and each other.
 - `comet_check.py`: E1–E3 cover crow's foot, new E4 (table needs a PK), X7 (table `entity` ↔ conceptual ERD entity, same bundle), X8 (design sequence lifelines/messages ↔ design class diagram of the same useCase; WARN only when that useCase has its own class spec). `"level": "design"` skips R3/R4/R10, C2 → INFO, R1/X2 → INFO when the bundle has no analysis interaction for the use case.
-- `comet_model.py`: design lifelines without stereotype become `class` nodes (not application-logic); `external: true` lifelines (Client/Browser) stay external.
+- `comet_model.py`: design lifelines without stereotype become `class` nodes (not application-logic); `external: true` lifelines (React Web App, Flutter Mobile App, framework beans) stay external.
 - Examples `talenthub_erd_conceptual.json` / `talenthub_erd_physical.json` (no `bundle`: canonical tests bootstrap all examples as one bundle).
 - `comet_check.py --profile sep490`: completeness rules P1–P7 per bundle (required SRS/SDS pages, one use case diagram per actor, BF swimlane with System lane, ≥ 2 design class+sequence pairs, auth flow sequence, every conceptual entity has a table; replaces the X7 unmapped INFO). `--partial` → INFO.
+- Default design stack (section 2b): Spring Boot layered (Controller → Service/ServiceImpl → Repository extends JpaRepository, Entity, DTO, Spring Security + JWT), React web, PostgreSQL, Flutter when there is a mobile UI (separate Mobile Screen Flow page); other stacks via the mapping table at the end of 2b.
 - Verified end to end: 15 specs (SRS 7 + SDS 8) → 0 ERROR / 0 WARN with `--profile sep490`, canonical bootstrap exact, compile --check clean.
 
 Status: **130 tests** OK.

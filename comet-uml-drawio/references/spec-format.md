@@ -23,7 +23,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | `relations` | | Danh sách quan hệ (không dùng cho sequence) |
 | `messages` | tương tác | Message (communication, sequence) |
 | `fragments` | | Combined fragment (sequence) |
-| `level` | | `"design"` cho class/sequence/communication mức thiết kế (SDS: Servlet/Service/DAO/DTO, không stereotype COMET) – xem `comet-method.md` mục 5 (R3/R4/R10 bỏ qua, X8) |
+| `level` | | `"design"` cho class/sequence/communication mức thiết kế (SDS: Controller/Service/Repository/DTO – mặc định Spring Boot, không stereotype COMET) – xem `comet-method.md` mục 5 (R3/R4/R10 bỏ qua, X8) |
 | `activations` | | sequence: `true` → vẽ thanh activation (mở khi có message sync tới lifeline, đóng khi reply; self-call lồng thanh con) |
 | `notation` | | erd: `"crowfoot"` → ERD crow's foot (khái niệm hoặc vật lý) thay cho Chen |
 | `partitions` | | activity: danh sách làn (swimlane), chuỗi `"ATM"` hoặc `{"id": "atm", "name": "ATM"}`; thứ tự = thứ tự làn (TB: trái→phải, LR: trên→dưới) |
@@ -245,15 +245,15 @@ quan hệ giữa hai bảng không cần tên:
 ```json
 {"diagram": "sequence", "level": "design", "activations": true, "autonumber": true, "bundle": "talenthub",
  "title": "Register Account - Sequence", "useCase": "Register Account", "elements": [
-  {"id": "cl", "type": "object", "name": "Client (Browser)", "external": true},
-  {"id": "srv", "type": "object", "class": "UserServlet"},
-  {"id": "svc", "type": "object", "class": "UserService"}],
+  {"id": "cl", "type": "object", "name": "React Web App", "external": true},
+  {"id": "ctl", "type": "object", "class": "AuthController"},
+  {"id": "svc", "type": "object", "class": "UserServiceImpl"}],
  "messages": [
-  {"from": "cl", "to": "srv", "name": "doPost"},
-  {"from": "srv", "to": "svc", "name": "addNewUser(UserFormDTO)"},
-  {"from": "svc", "to": "svc", "name": "validateNewUser(UserFormDTO)"},
-  {"from": "svc", "to": "srv", "name": "new UserDTO", "type": "reply"},
-  {"from": "srv", "to": "cl", "name": "success page", "type": "reply"}]}
+  {"from": "cl", "to": "ctl", "name": "register(RegisterRequest)"},
+  {"from": "ctl", "to": "svc", "name": "register(RegisterRequest)"},
+  {"from": "svc", "to": "svc", "name": "validateEmailNotTaken(String)"},
+  {"from": "svc", "to": "ctl", "name": "UserResponse", "type": "reply"},
+  {"from": "ctl", "to": "cl", "name": "201 Created (UserResponse)", "type": "reply"}]}
 ```
 Lớp của lifeline (`class`) phải có trong class diagram `"level": "design"` cùng `bundle` (X8).
 
