@@ -22,6 +22,9 @@ làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ
   `*.repair.json`, `*.drawio`, `*.html`, `*_DataDictionary.md`. Cần tra một mục → `grep` đúng tên, đọc vài dòng.
 - Chỉ đọc: output của lệnh (checker đã in đủ mã luật, file, gợi ý sửa), spec `srs_*/sds_*.json` đang viết/sửa, và
   tài liệu ở mục 1. Spec lớn (ERD vật lý) → đọc phần cần sửa, không đọc lại cả file sau mỗi lần sửa nhỏ.
+- **Không đọc mã nguồn** `scripts/*.py` để đoán luật: nghĩa từng mã luật nằm ở bảng trong
+  `references/comet-method.md` (grep đúng mã, vd `grep -n "| P15 |"`), cách viết spec ở `references/spec-format.md`.
+  Thử spec tạm thì để ngoài `./uml/` (vd thư mục tạm hệ thống) để không lẫn vào glob `./uml/*.json`.
 - Ảnh PNG: mỗi trang xem **một lần** sau khi build; sửa trang nào thì chỉ xem lại trang đó.
 - Không dán lại nội dung spec/ảnh vào câu trả lời; báo cáo bằng tên file + output checker.
 
