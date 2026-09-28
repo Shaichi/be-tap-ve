@@ -201,7 +201,9 @@ Thực thể chỉ có tên, quan hệ là hình thoi có tên, bản số `1` /
   `{"from": "<entity>", "to": "r", "card": "N"}` cho từng thực thể.
 - Không vẽ thuộc tính (`attributes` bị bỏ qua kèm cảnh báo). `weak: true` → viền kép; không khung/tiêu đề (bật
   bằng `frame: true`).
-- Ví dụ đầy đủ: `examples/elearn_erd.json`. comet_check E1–E3.
+- Bản số hợp lệ: `1`, `N`, `M`, `P` (chữ hoa) hoặc `(min,max)` như `(0,N)`, `(1,1)`. Thực thể `weak` phải có ít
+  nhất một quan hệ `identifying: true` tới thực thể chủ (E5).
+- Ví dụ đầy đủ: `examples/elearn_erd.json`. comet_check E1–E3, E5.
 
 ### Screen flow (sơ đồ trang / site map)
 

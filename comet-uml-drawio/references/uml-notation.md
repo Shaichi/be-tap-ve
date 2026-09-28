@@ -112,14 +112,16 @@ UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: 
 - Cùng state, cùng event → guard phải phân biệt, nếu không state machine không tất định (S5).
 - Nhãn transition: `Event [guard] / action1, action2`; self-transition (`from == to`) hợp lệ.
 
-## ERD – ký pháp Chen (comet_check E1–E3)
+## ERD – ký pháp Chen (comet_check E1–E3, E5)
 
 - Thực thể: ô chữ nhật, tên in đậm, không liệt kê thuộc tính; thực thể yếu viền kép.
 - Quan hệ: hình thoi ghi tên (động từ / `has_xxx`) nằm giữa các thực thể, nối bằng đường liền **không mũi tên**.
 - Bản số ghi chữ ở đầu đường nối phía thực thể: `1`, `N`, `M` (1–1, 1–N, M–N). Quan hệ đệ quy: hình thoi nối 2
   lần vào cùng thực thể (vd Comment –replies– Comment, `1`/`N`).
 - M–N hợp lệ ở mức khái niệm; khi chuyển sang mức logic mới tách bảng trung gian.
-- Quan hệ nối đúng thực thể (E1); đủ bản số 2 đầu (E2); mỗi hình thoi có tên (E3).
+- Thực thể yếu (viền kép) phụ thuộc thực thể chủ qua quan hệ xác định (hình thoi viền kép) – E5.
+- Quan hệ nối đúng thực thể (E1); đủ bản số 2 đầu, đúng giá trị `1`/`N`/`M`/`P` hoặc `(min,max)` (E2); mỗi
+  hình thoi có tên (E3).
 
 ## Screen flow – sơ đồ trang / site map (comet_check F1–F2)
 

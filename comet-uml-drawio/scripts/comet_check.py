@@ -48,7 +48,8 @@ Class diagram (ap dung cho moi spec "class"):
   C1  Thuoc tinh phai co kieu: "ten: Kieu".
   C2  Association/aggregation/composition co multiplicity o ca 2 dau (WARN); association co ten/role (INFO).
 ERD / screen flow / context diagram nghiep vu:
-  E1  Relationship noi dung thuc the. E2 Du ban so 2 dau (1/N/M). E3 Quan he (hinh thoi) co ten.
+  E1  Relationship noi dung thuc the. E2 Du ban so 2 dau, dung gia tri (1/N/M/P hoac (min,max)).
+  E3  Quan he (hinh thoi) co ten. E5 Thuc the yeu co quan he xac dinh (hinh thoi vien kep).
   F1  Moi man hinh toi duoc tu man hinh goc. F2 Site map chi gom man hinh/popup + mui ten khong nhan: khong
       initial/final/decision, khong "items", khong trigger/guard/label.
   B1  Dung 1 he thong trung tam. B2 Luong co ten, noi he thong <-> ben ngoai. B3 Moi thuc the ngoai co luong.
@@ -342,12 +343,24 @@ def check_class(s, E, W, I):
                      % (src, name(a), name(b)))
 
 
+CHEN_CARD = re.compile(r"[1NMP]|\(\s*\d+\s*,\s*(\d+|[NMP*])\s*\)")
+
+
 def check_erd(s, E, W, I):
-    """E1-E3: ERD ky hieu Chen - quan he noi dung phan tu; du ban so 2 dau (1/N/M); quan he (hinh thoi) co ten."""
+    """E1-E3, E5: ERD ky hieu Chen - quan he noi dung phan tu; du ban so 2 dau, dung gia tri (1/N/M/P, (min,max));
+    quan he (hinh thoi) co ten; thuc the yeu co quan he xac dinh."""
     src = s["_src"]
     els = {str(e.get("id", e.get("name"))): e for e in s.get("elements", [])}
     name = lambda i: (els[i].get("name") or i) if i in els else i
     dia = {i for i, e in els.items() if norm(e.get("type")) in CHEN_REL}
+    owned = set()   # thuc the dung o mot quan he xac dinh
+
+    def bad_card(ent, c):
+        c = str(c).strip()
+        if c and not CHEN_CARD.fullmatch(c):
+            W.append("E2 [%s] Ban so '%s' o dau '%s' khong hop le (Chen: \"1\", \"N\", \"M\", \"P\" hoac "
+                     "(min,max) nhu \"(0,N)\")." % (src, c, name(ent)))
+
     for r in s.get("relations", []):
         a, b = str(r.get("from")), str(r.get("to"))
         if a not in els or b not in els:
@@ -356,10 +369,18 @@ def check_erd(s, E, W, I):
         fc, tc = r.get("fromCard", r.get("fromMult")), r.get("toCard", r.get("toMult"))
         if a in dia or b in dia:   # canh noi thuc the voi hinh thoi (quan he bac 3+): ban so o dau thuc the
             ent = b if a in dia else a
-            if not str((tc if a in dia else fc) or r.get("card") or r.get("cardinality") or "").strip():
+            c = str((tc if a in dia else fc) or r.get("card") or r.get("cardinality") or "").strip()
+            if not c:
                 W.append("E2 [%s] Canh '%s' - hinh thoi '%s' thieu ban so (\"card\": \"1\" / \"N\" / \"M\")."
                          % (src, name(ent), name(a if a in dia else b)))
+            bad_card(ent, c)
+            if els[a if a in dia else b].get("identifying"):
+                owned.add(ent)
             continue
+        if r.get("identifying"):
+            owned.update((a, b))
+        for x, c in ((a, fc), (b, tc)):
+            bad_card(x, c or "")
         miss = [name(x) for x, c in ((a, fc), (b, tc)) if not str(c or "").strip()]
         if miss:
             W.append("E2 [%s] Relationship '%s' - '%s' thieu ban so o dau %s (\"fromCard\"/\"toCard\": \"1\", "
@@ -370,6 +391,10 @@ def check_erd(s, E, W, I):
     for d in dia:
         if not els[d].get("name"):
             W.append("E3 [%s] Hinh thoi quan he '%s' chua co ten." % (src, d))
+    for i, e in els.items():
+        if e.get("weak") and i not in owned:
+            W.append("E5 [%s] Thuc the yeu '%s' chua co quan he xac dinh (them \"identifying\": true vao quan he "
+                     "voi thuc the chu)." % (src, name(i)))
 
 
 def check_screenflow(s, E, W, I):
@@ -664,7 +689,7 @@ def check(specs, partial=False):
     # C1-C2
     for s in by["class"]:
         check_class(s, E, W, I)
-    # E1-E3, F1-F2, B1-B3
+    # E1-E3, E5, F1-F2, B1-B3
     for s in by["erd"]:
         check_erd(s, E, W, I)
     for s in by["screenflow"]:

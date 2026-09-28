@@ -37,7 +37,8 @@ bằng ngôn ngữ của họ.
   `name` giữa 2 thực thể, nối bằng đường liền không mũi tên; `fromCard` ghi cạnh `from`, `toCard` cạnh `to`.
   - Bản số: `1`, `N`, `M` (1–1, 1–N, M–N) — **đủ cả 2 đầu** (E2).
   - `name`: động từ / `has_xxx` đọc từ `from` sang `to` — **bắt buộc** vì là chữ trong hình thoi (E3).
-  - Hình thoi viền kép (quan hệ xác định của thực thể yếu): thêm `"identifying": true`.
+  - Hình thoi viền kép (quan hệ xác định của thực thể yếu): thêm `"identifying": true`. Thực thể `weak` **phải**
+    có ít nhất một quan hệ như vậy tới thực thể chủ (E5).
 - Quan hệ đệ quy: `from` = `to` (vd Comment `replies` Comment, `1`–`N`).
 - Quan hệ bậc 3+: khai báo hình thoi là phần tử `{"id": "r", "type": "relationship", "name": "enrolls"}` rồi nối
   từng thực thể `{"from": "student", "to": "r", "card": "N"}`.
@@ -50,7 +51,7 @@ python "<ENGINE>/scripts/comet_check.py" --partial ./uml/erd_<ten>.json
 python "<ENGINE>/scripts/preview_svg.py" ./uml/erd_<ten>.drawio -o ./uml/erd_<ten>.html --png
 ```
 1. `uml2drawio.py` tự chạy validator hình học → phải **0 ERROR** (mã thoát 2 = còn lỗi: sửa spec, chạy lại).
-2. `comet_check.py` → 0 ERROR và **sửa hết WARN** (E1–E3) trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó
+2. `comet_check.py` → 0 ERROR và **sửa hết WARN** (E1–E3, E5) trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó
    không đúng ngữ cảnh — khi đó nêu mã luật + lý do cho người dùng.
 3. **Mở ảnh** `./uml/erd_<ten>.png` bằng công cụ đọc file (xem như ảnh) và tự soát: mỗi quan hệ có hình thoi ghi tên,
    bản số đúng phía thực thể, không hình/nhãn chồng nhau.

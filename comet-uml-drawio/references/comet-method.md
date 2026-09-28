@@ -78,7 +78,8 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | S1–S5 | Statechart hợp lệ: initial không event/guard; final không có transition ra; guard của choice; tới được / có đường ra; tất định | ERROR/WARN |
 | A1–A6 | Activity hợp lệ: guard của decision; fork/join; initial/final; merge; ngõ cụt; không join/fork ngầm trên action | ERROR/WARN |
 | C1–C2 | Class diagram: thuộc tính có kiểu; multiplicity ở hai đầu association/aggregation/composition (WARN), association có tên/role (INFO) | WARN/INFO |
-| E1–E3 | ERD (Chen): quan hệ tham chiếu đúng thực thể (ERROR); đủ bản số 2 đầu `1`/`N`/`M` (WARN); quan hệ / hình thoi có tên (WARN) |
+| E1–E3 | ERD (Chen): quan hệ tham chiếu đúng thực thể (ERROR); đủ bản số 2 đầu, giá trị `1`/`N`/`M`/`P` hoặc `(min,max)` như `(0,N)` (WARN); quan hệ / hình thoi có tên (WARN) |
+| E5 | ERD (Chen): thực thể yếu (`weak`) phải nối với ít nhất một quan hệ xác định (`identifying`, hình thoi viền kép) | WARN |
 | F1–F2 | Screen flow (site map): mọi màn hình tới được từ màn hình gốc; không initial/decision, không `items`, mũi tên không nhãn | WARN |
 | B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 | L1 | Mọi sơ đồ: chữ trên sơ đồ mặc định tiếng Anh – có chữ có dấu (tiếng Việt…) mà spec chưa đặt `"lang"` khác `"en"` | WARN |
