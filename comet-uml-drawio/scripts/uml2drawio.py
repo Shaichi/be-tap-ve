@@ -614,9 +614,12 @@ def render_chen(el, sp, name):
         lw, lh = text_size("\n".join(lines), 11)
         el.value = "<br>".join(esc(l) for l in lines)
         el.style = "rhombus;whiteSpace=wrap;html=1;fontSize=11;spacing=0;fillColor=#ffe6cc;"
+        w, h = max(72, math.ceil(lw * 1.35 + 14)), max(40, math.ceil(lh * 2 + 12))
         if el.sp.get("identifying"):
+            # vien trong lui vao 9px ngang / 5px doc -> no rong de hinh thoi trong van chua vua chu
             el.style += "double=1;"
-        el.box(max(72, math.ceil(lw * 1.35 + 14)), max(40, math.ceil(lh * 2 + 12)))
+            w, h = w + 24, h + 14
+        el.box(w, h)
         el.perim = "rhombus"
         return el
     lines = wrap(name, 200)

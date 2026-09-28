@@ -886,7 +886,7 @@ class TestGenerator(unittest.TestCase):
             {"id": "s", "type": "entity", "name": "Student"}, {"id": "k", "type": "entity", "name": "Course"},
             {"id": "enr", "type": "relationship", "name": "enrolls"}], "relations": [
             {"from": "r", "to": "u", "name": "has_role", "fromCard": "M", "toCard": "N"},
-            {"from": "u", "to": "c", "name": "comments", "fromCard": "1", "toCard": "N"},
+            {"from": "u", "to": "c", "name": "comments", "fromCard": "1", "toCard": "N", "identifying": True},
             {"from": "c", "to": "c", "name": "replies", "fromCard": "1", "toCard": "N"},
             {"from": "s", "to": "enr", "card": "N"}, {"from": "enr", "to": "k", "card": "M"},
             {"from": "u", "to": "enr", "card": "1"}]}
@@ -901,7 +901,10 @@ class TestGenerator(unittest.TestCase):
             st = style(e)
             self.assertEqual((st.get("endArrow"), st.get("startArrow")), ("none", "none"))
             self.assertEqual(text(e), "")
-        hr = dia["has_role"]
+        cm, hr = cs[dia["comments"]], dia["has_role"]
+        self.assertEqual(style(cm).get("double"), "1")                                 # quan he xac dinh: vien kep
+        self.assertIsNone(style(cs[hr]).get("double"))
+        self.assertGreaterEqual(float(cm.find("mxGeometry").get("width")), 72 + 24)    # du cho hinh thoi trong
         self.assertEqual(end_labels(cs, edge_between(cs, "r", hr).get("id")), {"M"})   # ban so phia thuc the
         self.assertEqual(end_labels(cs, edge_between(cs, hr, "u").get("id")), {"N"})
         rp = dia["replies"]
@@ -1553,6 +1556,20 @@ class TestCometCheck(unittest.TestCase):
         self.expect_one(erd, "W", "E3", "'A' - 'B' chua co ten")
         self.expect_one(erd, "W", "E3", "Hinh thoi quan he 'r' chua co ten")
         self.assertEqual(check(erd)[2], [])                                            # nhieu-nhieu hop le
+        bad = {"diagram": "erd", "title": "E", "elements": [
+            {"id": "a", "type": "entity", "name": "A"}, {"id": "b", "type": "entity", "name": "B", "weak": True},
+            {"id": "c", "type": "entity", "name": "C", "weak": True}, {"id": "d", "type": "entity", "name": "D"},
+            {"id": "r", "type": "relationship", "name": "r", "identifying": True}], "relations": [
+            {"from": "a", "to": "b", "name": "x", "fromCard": "X", "toCard": "many"},
+            {"from": "a", "to": "d", "name": "y", "fromCard": "(0,N)", "toCard": "( 1 , 1 )"},
+            {"from": "a", "to": "r", "card": "P"}, {"from": "c", "to": "r", "card": "n"}]}
+        self.expect_one(bad, "W", "E2", "'X' o dau 'A'")
+        self.expect_one(bad, "W", "E2", "'many' o dau 'B'")
+        self.expect_one(bad, "W", "E2", "'n' o dau 'C'")                             # phan biet hoa/thuong
+        self.expect_one(bad, "W", "E5", "'B' chua co quan he xac dinh")             # C: qua hinh thoi kep
+        self.assertEqual(len(codes(check(bad)[1], "E2")), 3)                           # (min,max), P hop le
+        bad["relations"][0]["identifying"] = True
+        self.assertEqual(codes(check(bad)[1], "E5"), [])
         sf = {"diagram": "screenflow", "title": "S", "elements": [
             {"id": "s", "type": "initial"}, {"id": "a", "type": "screen", "name": "A"},
             {"id": "b", "type": "screen", "name": "B"}, {"id": "c", "type": "dialog", "name": "C"}], "relations": [

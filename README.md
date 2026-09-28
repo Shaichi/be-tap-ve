@@ -463,7 +463,8 @@ Nhóm luật của `comet_check.py`:
 | S1–S5 | Statechart hợp lệ |
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
-| E1–E4 | ERD Chen/crow's foot (quan hệ nối đúng thực thể, đủ bản số 2 đầu, quan hệ có tên, bảng có khoá chính) |
+| E1–E3, E5 | ERD (quan hệ nối đúng thực thể, đủ bản số 2 đầu – Chen `1`/`N`/`M`/`P`/`(min,max)`, crow's foot `1`/`0..1`/`1..N`/`0..N` – quan hệ có tên, thực thể yếu Chen có quan hệ xác định) |
+| E4 | ERD crow's foot vật lý: bảng có khoá chính |
 | F1–F2 | Screen flow (mọi màn hình tới được từ gốc; chỉ màn hình/popup + mũi tên không nhãn) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 | L1 | Mọi sơ đồ: chữ mặc định tiếng Anh (có chữ có dấu mà chưa đặt `"lang"`) |
