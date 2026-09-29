@@ -720,6 +720,20 @@ class TestGenerator(unittest.TestCase):
                 self.assertEqual(check(sp)[:2], ([], []))
         self.assertNotIn("direction", ACT_SPEC)   # mac dinh ve ngang
         self.assertEqual(gen(ACT_SPEC)[0], gen(dict(ACT_SPEC, direction="LR"))[0])
+        # ngang gon: luong thang giua hai cot ke nhau ngan (du cho dau mui ten), action ten dai xuong dong
+        G = geo(gen(ACT_SPEC)[0])
+        flat = [pts[-1][0] - pts[0][0] for _, pts in G.edges.values()
+                if len(pts) == 2 and abs(pts[0][1] - pts[1][1]) < 0.5]
+        self.assertTrue(flat)
+        self.assertTrue(all(28 <= d <= 48 for d in flat), flat)
+        sp = copy.deepcopy(ACT_SPEC)
+        el(sp, "menu")["name"] = "Display Withdrawal Amount Options"
+        w = {}
+        for d in ("LR", "TB"):
+            r = rects(geo(gen(dict(sp, direction=d))[0]))["menu"]
+            w[d] = r[2] - r[0]
+        self.assertLessEqual(w["LR"], 130)
+        self.assertGreater(w["TB"], 130)   # doc: giu mot dong nhu cu
 
     def test_partition_warnings(self):
         sp = copy.deepcopy(ACT_SPEC)

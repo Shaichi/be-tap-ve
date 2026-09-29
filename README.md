@@ -92,7 +92,7 @@ sơ đồ dễ lệch tên. Bản hiện tại coi cả bộ sơ đồ là **m�
 | **Data dictionary** | Viết tay, dễ lệch sơ đồ | `comet_datadict.py` sinh từ ERD vật lý |
 | **Tiết kiệm token** | AI hay mở file sinh ra (model vài MB) | Kỷ luật đọc file: chỉ đọc output lệnh và spec đang sửa; bộ SEP490 chia hai phiên SRS / SDS, quyết định ghi vào `./uml/NOTES.md` |
 | **Bố cục use case** | Actor → use case được «include» và use case → actor phụ bên phải hay cắt nhau; đường nối bẻ vuông | Chuỗi cạnh dài được chèn lại vào vị trí ít giao cắt nhất; **đường nối thẳng** (chỉ gập một góc khi phải vòng qua hình), chọn đường ít cắt nhau, không đè hình, tên actor hay nhãn «include»/«extend» |
-| **Activity** | Mặc định vẽ dọc | Mặc định vẽ **ngang** (`"direction": "LR"`); ghi `"direction": "TB"` nếu muốn dọc |
+| **Activity** | Mặc định vẽ dọc | Mặc định vẽ **ngang** (`"direction": "LR"`), gọn: action hẹp (tên dài xuống dòng), đường nối giữa hai cột ngắn lại (ngắn hơn ~20%); ghi `"direction": "TB"` nếu muốn dọc |
 
 Ví dụ bố cục use case (actor phụ bên phải + «include»), trước và sau khi sửa: cạnh *Book Appointment → Email
 Service* không còn cắt cạnh *Patient → Make Deposit Payment*, mọi đường nối là đoạn thẳng.

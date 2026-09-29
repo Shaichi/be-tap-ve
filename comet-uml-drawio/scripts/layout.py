@@ -37,6 +37,8 @@ CFG = {
     "sweeps": 24,
     "coord_iters": 16,
     "chain_reinsert": False,  # chen lai chuoi dummy cua canh dai khi con cat nhau (bat cho use case)
+    "exit_gap": None,    # so tang nhan dup (co canh co nhan): khe phia dau ra cua tang nhan trong (khong chua
+                         # nhan) chi can ngan nay thay vi min_gap; khe phia mui ten giu min_gap (activity ngang)
 }
 
 
@@ -231,7 +233,8 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             c = V[x].cat
             rank[x] = min(catmax[c], max(catbase[c], min(rank[y] for y in succs[x]) - 1))
 
-    if any(e._lab for e in normal):
+    doubled = any(e._lab for e in normal)
+    if doubled:
         for x in rank:
             rank[x] *= 2
 
@@ -769,7 +772,11 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
     gapH = []
     for r in range(R):
         nt = ntr.get(r, 0)
-        inn = max(C["min_gap"], (nt + 1) * C["track_sep"])
+        mg = C["min_gap"]
+        if (C["exit_gap"] is not None and doubled and r % 2 == 0
+                and not any(V[x].is_label for x in layers[r + 1])):
+            mg = C["exit_gap"]
+        inn = max(mg, (nt + 1) * C["track_sep"])
         inner.append(inn)
         gapH.append(top_zone[r] + inn + bot_zone[r])
     Y = []

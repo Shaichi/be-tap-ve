@@ -471,7 +471,8 @@ def render(sp, direction, diagram):
 
     if k in ("state", "action"):
         acts = [str(a) for a in sp.get("activities", []) or []]
-        lines = wrap(name, 180)
+        narrow = k == "action" and direction == "LR"   # activity ngang: action hep, cao hon -> so do ngan lai
+        lines = wrap(name, 110 if narrow else 180)
         lw, lh = text_size("\n".join(lines))
         if acts and k == "state":
             aw = max(text_size(a)[0] for a in acts)
@@ -491,7 +492,7 @@ def render(sp, direction, diagram):
             el.style = ("rounded=1;whiteSpace=wrap;html=1;arcSize=40;" if k == "state" else
                         "rounded=1;absoluteArcSize=1;arcSize=20;whiteSpace=wrap;html=1;")
             el.value = "<br>".join(esc(l) for l in lines)
-            el.box(max(100, lw + 36), max(40, lh + 20))
+            el.box(max(80, lw + 24) if narrow else max(100, lw + 36), max(40, lh + 20))
         el.perim = "rounded"
         return el
 
@@ -1247,6 +1248,8 @@ def build_graph(spec, warns, origin):
     # use case: canh actor -> UC duoc «include» va UC goc -> actor phai hay ket o thu tu cat nhau
     # -> cho phep chen lai ca chuoi canh dai (cac loai so do khac giu thu tu cu)
     level_cfg = {"chain_reinsert": True} if diagram == "usecase" else None
+    if diagram == "activity" and direction == "LR":   # ngang: canh ngan lai de so do khong qua dai
+        level_cfg = {"exit_gap": 14, "min_gap": 28}
 
     def do_level(pid):
         for k in kids.get(pid, []):
