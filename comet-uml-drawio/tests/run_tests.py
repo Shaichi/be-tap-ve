@@ -1097,6 +1097,20 @@ class TestGenerator(unittest.TestCase):
         _, _, G2 = self.clean(sp2)
         self.assertLessEqual(rects(G2)["thue"][2], rects(G2)["shop"][0])
 
+    def test_bizcontext_uniform_box_size(self):
+        # mac dinh moi hop ben ngoai cung rong/cao (hop lon nhat); "uniformSize": false -> hop vua noi dung
+        sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))
+        ext = [e["id"] for e in sp["elements"] if e["type"] == "external"]
+        xml, _, G = self.clean(sp)
+        R = rects(G)
+        sizes = {(round(R[i][2] - R[i][0], 1), round(R[i][3] - R[i][1], 1)) for i in ext}
+        self.assertEqual(len(sizes), 1, sizes)
+        self.assertEqual(gen(sp)[0], xml)      # tat dinh
+        sp["uniformSize"] = False
+        _, _, G2 = self.clean(sp)
+        R2 = rects(G2)
+        self.assertGreater(len({(round(R2[i][2] - R2[i][0], 1), round(R2[i][3] - R2[i][1], 1)) for i in ext}), 1)
+
     def test_bizcontext_many_flows_compact(self):
         # hop co nhieu luong: hop cao ra, hinh tron chi nho vua du (luong du thi gap vao dinh/day), khong cat nhau
         els = [{"id": "s", "type": "system", "name": "Hệ thống"},

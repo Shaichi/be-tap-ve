@@ -1894,6 +1894,13 @@ def build_bizcontext(spec, warns, origin):
         w, h = text_size("\n".join(st + nm), 12, True)
         base_h[s["id"]] = h
         box[s["id"]] = [max(120.0, w + 28), max(54.0, h + 24), st, nm, []]
+    # mac dinh moi hop cung kich thuoc (rong/cao = hop lon nhat); "uniformSize": false -> hop vua noi dung
+    uniform = spec.get("uniformSize", True) is not False
+    if uniform and box:
+        bw = max(v[0] for v in box.values())
+        for v in box.values():
+            v[0] = bw
+    hmin = [0.0]   # chieu cao toi thieu chung cua hop (tang dan toi khi on dinh)
 
     # ---- gan duong: moi phia xet tat ca duong theo thu tu tu tren xuong (dem chung ca cot). Mot nhom lien tiep
     #      o giua (duong i..j-1) cam thang vao hong hinh tron (|y| <= BAND r); cac duong tren gap xuong cam vao
@@ -1913,7 +1920,7 @@ def build_bizcontext(spec, warns, origin):
                     if g + k in (i, j):
                         cur += SPLIT
                 o.append(cur)
-            h = max(54.0, base_h[e] + 24, cur + 28)
+            h = max(54.0, base_h[e] + 24, cur + 28, hmin[0])
             hts[e], offs[e] = h, [x - cur / 2 for x in o]
             ys += [(top + h / 2 + x, e, k) for k, x in enumerate(offs[e])]
             top += h + GY
@@ -1974,12 +1981,17 @@ def build_bizcontext(spec, warns, origin):
                     return hts, offs, cys, turn
         return None
 
-    r = math.ceil(max(60.0, th / 2 * 1.6 + 12, math.hypot(tw, th) / 2 + 14))
     while True:
-        res = {sd: solve_side(c, r) for sd, c in cols.items() if c}
-        if all(v is not None for v in res.values()):
+        r = math.ceil(max(60.0, th / 2 * 1.6 + 12, math.hypot(tw, th) / 2 + 14))
+        while True:
+            res = {sd: solve_side(c, r) for sd, c in cols.items() if c}
+            if all(v is not None for v in res.values()):
+                break
+            r += 2
+        hmax = max([h for v in res.values() for h in v[0].values()] or [0.0])
+        if not uniform or hmax <= hmin[0] + 0.01:
             break
-        r += 2
+        hmin[0] = hmax   # xep lai voi moi hop cao bang hop cao nhat
     a = b = r   # hinh tron
     cy, turn = {}, {}   # turn: (ext, j) -> x re (so duong, ca 2 phia)
     for sd, (hts, offs, cys, tn) in res.items():
