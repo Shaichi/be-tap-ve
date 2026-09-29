@@ -245,5 +245,6 @@ Hệ thống là hình tròn giữa; thực thể ngoài xếp 2 cột trái/ph�
 ép bằng `"side": "left"|"right"` trên element), cột căn giữa theo hình tròn. **Mỗi relation là 1 mũi tên
 vuông góc riêng** (không gộp): đi ngang ra từ cạnh hộp, tên luồng nằm ngang trên đoạn ngang; luồng ngang tầm cắm
 thẳng vào hông hình tròn, luồng cao hơn / thấp hơn gập một lần cắm vào đỉnh / đáy, các đường gập lồng nhau nên không cắt nhau.
-Hộp tự cao theo số luồng; bán kính hình tròn (nhỏ nhất xếp được) và khoảng cách cột tự nới tới khi không nhãn nào đè hình/đường/nhãn. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
+Mọi hộp thực thể ngoài cùng kích thước (rộng theo tên dài nhất, cao theo hộp nhiều luồng nhất); `"uniformSize": false`
+ở cấp spec → mỗi hộp vừa nội dung riêng. Bán kính hình tròn (nhỏ nhất xếp được) và khoảng cách cột tự nới tới khi không nhãn nào đè hình/đường/nhãn. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
 comet_check B1–B3.
