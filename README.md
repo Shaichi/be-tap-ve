@@ -8,8 +8,10 @@ chừa chỗ cho nhãn, sinh file `.drawio`, kiểm tra hình học và kiểm t
 phải tự đoán toạ độ**.
 
 <p align="center">
-  <img src="docs/img/atm_activity_withdraw.png" width="48%" alt="Activity diagram có swimlane">
-  <img src="docs/img/shop_bizcontext.png" width="48%" alt="Context diagram nghiệp vụ">
+  <img src="docs/img/atm_activity_withdraw.png" width="100%" alt="Activity diagram có swimlane (ngang)">
+</p>
+<p align="center">
+  <img src="docs/img/shop_bizcontext.png" width="60%" alt="Context diagram nghiệp vụ">
 </p>
 
 ---
@@ -34,13 +36,13 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 
 | Lệnh | Sơ đồ | Ghi chú |
 |---|---|---|
-| `/uml-usecase` | Use case | actor chính bên trái, actor phụ bên phải, «include»/«extend» |
+| `/uml-usecase` | Use case | actor chính bên trái, actor phụ bên phải, «include»/«extend», đường nối thẳng |
 | `/uml-context` | Context diagram (COMET) | «software system» + các lớp «external input device», «external system»… |
 | `/uml-class` | Class / entity class / design class | visibility `+ - # ~`, kiểu, operation, multiplicity, role, chiều điều hướng, aggregation, composition, generalization, lớp trừu tượng |
 | `/uml-communication` | Communication (collaboration) | message đánh số, mũi tên hướng tự đặt theo bố cục |
 | `/uml-sequence` | Sequence | sync/async/reply/create, fragment `alt`/`opt`/`loop`/`par` |
 | `/uml-statechart` | Statechart | composite state, choice, history, `Event [guard] / action` |
-| `/uml-activity` | Activity có swimlane | action bo góc, **decision có câu hỏi trong hình thoi**, fork/join |
+| `/uml-activity` | Activity có swimlane | mặc định vẽ ngang (luồng trái→phải, làn xếp trên→dưới), action bo góc, **decision có câu hỏi trong hình thoi**, fork/join |
 | `/uml-package` | Package / subsystem | |
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |

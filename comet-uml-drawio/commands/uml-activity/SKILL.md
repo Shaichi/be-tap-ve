@@ -34,6 +34,8 @@ bằng ngôn ngữ của họ.
 - `"diagram": "activity"`, `"title"`, tuỳ chọn `"useCase"` (tên use case y hệt use case model).
 - Swimlane: `"partitions": ["Customer", "System", "Payment Gateway"]` (thứ tự = thứ tự làn) + mỗi phần tử có
   `"partition"`. Mỗi action nằm trong làn của bên **thực hiện** nó.
+- Mặc định vẽ **ngang** (`"direction": "LR"`: luồng trái→phải, làn xếp trên→dưới); chỉ ghi `"direction": "TB"` khi
+  người dùng muốn sơ đồ dọc.
 - Nút: `initial` (đúng 1, không luồng vào, 1 luồng ra), `action` (động từ + bổ ngữ: "Enter PIN", "Validate Order"),
   `decision` (1 vào, ≥ 2 ra), `merge` (≥ 2 vào, 1 ra), `fork` / `join` (song song), `activityFinal` (kết thúc cả
   activity), `flowFinal` (kết thúc một luồng).

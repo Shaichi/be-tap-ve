@@ -541,6 +541,20 @@ DEPLOY_SPEC = {"diagram": "deployment", "title": "Deployment", "elements": [
     {"type": "communicationpath", "from": "atm", "to": "srv", "stereotype": "WAN", "fromMult": "1..*", "toMult": "1"}]}
 
 
+def edge_crossings(G):
+    """Cac cap canh cat nhau thuc su (giao diem nam trong ca hai doan; cham dau mut/trung nhau khong tinh)."""
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    segs = [(eid, p, q) for eid, (_, pts) in sorted(G.edges.items()) for p, q in zip(pts, pts[1:])]
+    out = set()
+    for i, (e1, p1, q1) in enumerate(segs):
+        for e2, p2, q2 in segs[i + 1:]:
+            if e1 != e2 and cr(p1, q1, p2) * cr(p1, q1, q2) < -1e-6 and cr(p2, q2, p1) * cr(p2, q2, q1) < -1e-6:
+                out.add((e1, e2))
+    return sorted(out)
+
+
 class TestGenerator(unittest.TestCase):
     def clean(self, spec):
         xml, warns = gen(spec)
@@ -567,6 +581,18 @@ class TestGenerator(unittest.TestCase):
         self.assertIn("[receipt requested]", text(ext))
         self.assertEqual(style(edge_between(cs, "cust", "wd")).get("endArrow"), "none")
         self.assertEqual(text(cs["diagram_frame"]), "uc ATM")
+
+    def test_usecase_edges_are_straight(self):
+        # canh use case la doan thang (toi da mot goc khi phai vong qua hinh), khong be vuong
+        atm = json.loads((EXAMPLES / "atm_usecase.json").read_text(encoding="utf-8"))
+        for sp in (UC_SPEC, atm):
+            with self.subTest(title=sp["title"]):
+                xml, cs, G = self.clean(sp)
+                bends = sorted(len(pts) - 2 for _, pts in G.edges.values())
+                self.assertLessEqual(bends[-1], 1, bends)
+                self.assertLessEqual(sum(bends), 2, bends)
+                self.assertLessEqual(len(edge_crossings(G)), 1)
+                self.assertEqual(gen(sp)[0], xml)      # tat dinh
 
     def test_class_notation(self):
         xml, cs, G = self.clean(CLASS_SPEC)
@@ -655,6 +681,8 @@ class TestGenerator(unittest.TestCase):
                     self.assertGreaterEqual(er[1] if direction == "TB" else er[0],
                                             (lr[1] if direction == "TB" else lr[0]) + 30, k)   # duoi tieu de lan
                 self.assertEqual(check(sp)[:2], ([], []))
+        self.assertNotIn("direction", ACT_SPEC)   # mac dinh ve ngang
+        self.assertEqual(gen(ACT_SPEC)[0], gen(dict(ACT_SPEC, direction="LR"))[0])
 
     def test_partition_warnings(self):
         sp = copy.deepcopy(ACT_SPEC)
