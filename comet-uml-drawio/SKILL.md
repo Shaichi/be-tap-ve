@@ -9,7 +9,7 @@ Bộ skill này tách việc vẽ sơ đồ thành 3 bước để AI **không b
 
 1. **Mô hình hoá** (việc của AI): viết *spec JSON* mô tả phần tử + quan hệ/message theo UML & COMET.
 2. **Bố cục + sinh XML** (việc của script): `scripts/uml2drawio.py` tự tính vị trí (Sugiyama layered layout),
-   định tuyến đường nối vuông góc theo làn riêng, chừa chỗ cho nhãn → không hình nào chồng/dính nhau,
+   định tuyến đường nối vuông góc theo làn riêng (use case: đường thẳng), chừa chỗ cho nhãn → không hình nào chồng/dính nhau,
    không đường nào đi xuyên hình hoặc đè khít lên đường khác.
 3. **Lập canonical semantic model + kiểm tra**: `scripts/comet_model.py` tạo semantic model v2 (canonical concept + diagram-local representation + provenance + impact graph), sau đó `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`; khi đã có canonical model thì dùng `scripts/comet_reconcile.py` để kiểm tra projection drift
    (nhất quán COMET giữa các sơ đồ) → mở bằng draw.io MCP hoặc giao file `.drawio`.
