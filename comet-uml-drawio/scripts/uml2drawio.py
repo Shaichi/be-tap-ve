@@ -127,7 +127,7 @@ FRAME_KIND = {
     # so do nghiep vu / du lieu (khong phai UML): khung chi ghi ten
     "erd": "", "screenflow": "", "bizcontext": "",
 }
-DEFAULT_DIR = {"usecase": "LR", "communication": "LR"}
+DEFAULT_DIR = {"usecase": "LR", "communication": "LR", "activity": "LR"}
 # quan he khong ghi "type": mac dinh theo loai so do (activity/state: luong co guard; erd: relationship...)
 DEFAULT_REL = {"activity": "flow", "state": "transition", "erd": "relationship", "screenflow": "navigate"}
 
@@ -836,6 +836,312 @@ def _constraint(p, el, kind):
     return "%sX=%s;%sY=%s;%sDx=0;%sDy=0;%sPerimeter=0;" % (kind, _n(fx, 4), kind, _n(fy, 4), kind, kind, kind)
 
 
+def _seg_hits(p, q, r):
+    """Doan pq di vao trong hinh chu nhat r=(x0,y0,x1,y1) (Liang-Barsky)."""
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    t0, t1 = 0.0, 1.0
+    for pp, qq in ((-dx, p[0] - r[0]), (dx, r[2] - p[0]), (-dy, p[1] - r[1]), (dy, r[3] - p[1])):
+        if abs(pp) < 1e-9:
+            if qq < 0:
+                return False
+            continue
+        t = qq / pp
+        if pp < 0:
+            t0 = max(t0, t)
+        else:
+            t1 = min(t1, t)
+        if t0 > t1:
+            return False
+    return t1 - t0 > 1e-6
+
+
+def _orient(o, a, b):
+    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+
+def _grow(r, d):
+    return (r[0] - d, r[1] - d, r[2] + d, r[3] + d)
+
+
+def _on_ellipse(el, toward):
+    """Diem tren vien ellipse cua el theo tia tu tam toi 'toward'."""
+    a, b = el.sr[2] / 2, el.sr[3] / 2
+    cx, cy = el.ax + a, el.ay + b
+    dx, dy = toward[0] - cx, toward[1] - cy
+    k = math.hypot(dx / a, dy / b) if a and b else 0
+    if k < 1e-9:
+        return (cx, cy)
+    return (cx + dx / k, cy + dy / k)
+
+
+def _ellipse_fan(el, p0):
+    """Cac diem tren vien ellipse quanh p0 (goc tham so lech 0, +-12, ... +-60 do) -> [(do lech, diem)]."""
+    a, b = el.sr[2] / 2, el.sr[3] / 2
+    cx, cy = el.ax + a, el.ay + b
+    t0 = math.atan2((p0[1] - cy) / b, (p0[0] - cx) / a)
+    out = [(0, p0)]
+    for k in range(1, 6):
+        for sgn in (-1, 1):
+            t = t0 + sgn * math.radians(12 * k)
+            out.append((k, (cx + a * math.cos(t), cy + b * math.sin(t))))
+    return out
+
+
+def _on_box(el, toward):
+    """Diem ra khoi khung hinh el tren tia tu tam toi 'toward' (actor, hinh chu nhat)."""
+    w, h = el.sr[2], el.sr[3]
+    cx, cy = el.ax + w / 2, el.ay + h / 2
+    dx, dy = toward[0] - cx, toward[1] - cy
+    k = max(abs(dx) / (w / 2) if w else 0, abs(dy) / (h / 2) if h else 0)
+    if k < 1e-9:
+        return (cx, cy)
+    return (cx + dx / k, cy + dy / k)
+
+
+def _box_fan(el, p0):
+    """Cac diem tren canh cua khung quanh p0 (truot doc canh chua p0 moi 6px) -> [(do lech, diem)]."""
+    x0, y0, w, h = el.ax, el.ay, el.sr[2], el.sr[3]
+    out = [(0, p0)]
+    for k in range(1, 7):
+        for sgn in (-1, 1):
+            d = sgn * 6 * k
+            if abs(p0[0] - x0) < 0.5 or abs(p0[0] - x0 - w) < 0.5:
+                q = (p0[0], p0[1] + d)
+                if y0 + 3 <= q[1] <= y0 + h - 3:
+                    out.append((k, q))
+            else:
+                q = (p0[0] + d, p0[1])
+                if x0 + 3 <= q[0] <= x0 + w - 3:
+                    out.append((k, q))
+    return out
+
+
+def straight_usecase_edges(E, edges, extra):
+    """Use case: canh noi thang thay cho duong be vuong. Moi canh thu doan thang (diem gan truot tren vien ellipse /
+    canh actor); bi hinh, ten actor hay tieu de khung (extra) chan thi vong mot goc sat hinh can duong; bi het thi rut
+    gon duong vuong cua bo cuc. Duong duoc chon de it cat nhau, it chay sat song song, it goc nhat. Nhan canh dat lai
+    tren duong moi, tranh hinh/canh/nhan khac."""
+    shape = {k: (el.ax, el.ay, el.ax + el.sr[2], el.ay + el.sr[3]) for k, el in E.items() if el.sr[2] and el.sr[3]}
+    names = {}   # ten actor ve duoi hinh: (x0, y0, x1, y1)
+    for k, el in E.items():
+        if el.kind == "actor" and el.h > el.sr[3] + el.sr[1] + 1:
+            x0 = el.ax - el.sr[0]
+            names[k] = (x0, el.ay + el.sr[3], x0 + el.w, el.ay - el.sr[1] + el.h)
+    PAD = 6
+    blocks = list(shape.values()) + list(names.values()) + extra
+
+    def ell(k):
+        return E[k].perim == "ellipse"
+
+    def hit_ellipse(p, q, r, d):
+        """Doan pq cham ellipse noi tiep r (noi rong d)."""
+        A, B = (r[2] - r[0]) / 2 + d, (r[3] - r[1]) / 2 + d
+        cx, cy = (r[0] + r[2]) / 2, (r[1] + r[3]) / 2
+        ux, uy, vx, vy = (p[0] - cx) / A, (p[1] - cy) / B, (q[0] - cx) / A, (q[1] - cy) / B
+        dx, dy = vx - ux, vy - uy
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, -(ux * dx + uy * dy) / L2))
+        return math.hypot(ux + dx * t, uy + dy * t) < 1.0
+
+    def free(p, q, skip):
+        x0, x1 = min(p[0], q[0]) - PAD, max(p[0], q[0]) + PAD
+        y0, y1 = min(p[1], q[1]) - PAD, max(p[1], q[1]) + PAD
+        for k, r in shape.items():
+            if k in skip or r[0] > x1 or r[2] < x0 or r[1] > y1 or r[3] < y0:
+                continue
+            if ell(k):   # ellipse: khong vao khung bao (validator) va cach duong vien >= PAD
+                if _seg_hits(p, q, _grow(r, 1)) or hit_ellipse(p, q, r, PAD):
+                    return False
+            elif _seg_hits(p, q, _grow(r, PAD)):
+                return False
+        if any(_seg_hits(p, q, _grow(r, PAD)) for r in [r for k, r in names.items() if k not in skip] + extra):
+            return False
+        # ten cua chinh actor dau mut: chi can khong cat qua chu
+        return not any(_seg_hits(p, q, _grow(names[k], 2)) for k in skip if k in names)
+
+    def fan(k, p0):
+        return _ellipse_fan(E[k], p0) if ell(k) else _box_fan(E[k], p0)
+
+    def anchor(k, toward):
+        el = E[k]
+        if ell(k):
+            return _on_ellipse(el, toward)
+        if el.kind == "actor":   # moi duong cua actor toa ra tu mot diem ngang tay, phia huong ve dau kia
+            return (el.ax + (el.sr[2] if toward[0] >= el.ax + el.sr[2] / 2 else 0), el.ay + el.sr[3] / 3)
+        return _on_box(el, toward)
+
+    def bbox(P, d=0):
+        return (min(p[0] for p in P) - d, min(p[1] for p in P) - d, max(p[0] for p in P) + d, max(p[1] for p in P) + d)
+
+    def meet(r, t):
+        return r[0] <= t[2] and t[0] <= r[2] and r[1] <= t[3] and t[1] <= r[3]
+
+    def crosses(P, Q):
+        n = 0
+        for p1, q1 in zip(P, P[1:]):
+            for p2, q2 in zip(Q, Q[1:]):
+                if (_orient(p1, q1, p2) * _orient(p1, q1, q2) < -1e-6
+                        and _orient(p2, q2, p1) * _orient(p2, q2, q1) < -1e-6):
+                    n += 1
+        return n
+
+    def samples(P):
+        """Diem mau moi 8px doc duong, bo 14px sat hai dau (cac canh chung dau mut toa ra tu mot cho la binh thuong)."""
+        out = []
+        for p, q in zip(P, P[1:]):
+            L = math.dist(p, q)
+            for i in range(1, int(L // 8)):
+                out.append((p[0] + (q[0] - p[0]) * i * 8 / L, p[1] + (q[1] - p[1]) * i * 8 / L))
+        return [s for s in out if math.dist(s, P[0]) > 14 and math.dist(s, P[-1]) > 14]
+
+    def near(S, Q, d):
+        """So diem mau cua S nam sat (< d) duong Q: hai canh chay song song sat nhau trong nhu mot."""
+        hit = set()
+        for p, q in zip(Q, Q[1:]):
+            x0, x1 = min(p[0], q[0]) - d, max(p[0], q[0]) + d
+            y0, y1 = min(p[1], q[1]) - d, max(p[1], q[1]) + d
+            dx, dy = q[0] - p[0], q[1] - p[1]
+            L2 = dx * dx + dy * dy or 1e-9
+            for i, s in enumerate(S):
+                if i in hit or not (x0 <= s[0] <= x1 and y0 <= s[1] <= y1):
+                    continue
+                t = max(0.0, min(1.0, ((s[0] - p[0]) * dx + (s[1] - p[1]) * dy) / L2))
+                if math.hypot(p[0] + dx * t - s[0], p[1] + dy * t - s[1]) < d:
+                    hit.add(i)
+        return len(hit)
+
+    cands = {}   # canh -> [(chi phi goc, duong, diem mau)]: thang (lech it) < mot goc (ngan) < rut day duong vuong
+    for le in edges:
+        if not le.abs or len(le.abs) < 2 or le.u == le.v:
+            continue
+        P, skip = list(le.abs), {le.u, le.v}
+        su, sv = E[le.u], E[le.v]
+        cu = (su.ax + su.sr[2] / 2, su.ay + su.sr[3] / 2)
+        cv = (sv.ax + sv.sr[2] / 2, sv.ay + sv.sr[3] / 2)
+        a0, b0 = anchor(le.u, cv), anchor(le.v, cu)
+        A, B = fan(le.u, a0), fan(le.v, b0)
+        C = sorted((2 * (da + db), [a, b]) for da, a in A for db, b in B if free(a, b, skip))[:16]
+        # mot goc: vong sat goc cac hinh nam trong vung giua hai dau mut
+        lo = (min(a0[0], b0[0]) - 80, min(a0[1], b0[1]) - 80, max(a0[0], b0[0]) + 80, max(a0[1], b0[1]) + 80)
+        corners = sorted({c for r in blocks if r[0] < lo[2] and lo[0] < r[2] and r[1] < lo[3] and lo[1] < r[3]
+                          for c in ((r[0] - PAD - 2, r[1] - PAD - 2), (r[2] + PAD + 2, r[1] - PAD - 2),
+                                    (r[0] - PAD - 2, r[3] + PAD + 2), (r[2] + PAD + 2, r[3] + PAD + 2))})
+        D = []
+        for c in corners:
+            A1, B1 = fan(le.u, anchor(le.u, c))[:5], fan(le.v, anchor(le.v, c))[:5]
+            for da, a in A1:
+                if not free(a, c, skip):
+                    continue
+                for db, b in B1:
+                    if free(c, b, skip):
+                        D.append((30 + 2 * (da + db) + (math.dist(a, c) + math.dist(c, b) - math.dist(a0, b0)) / 10,
+                                  [a, c, b]))
+        C += sorted(D)[:16]
+        if not C:
+            # rut day: tu moi diem nhay toi diem xa nhat con thay duoc
+            out, i = [P[0]], 0
+            while i < len(P) - 1:
+                j = next((j for j in range(len(P) - 1, i, -1) if free(P[i], P[j], skip)), i + 1)
+                out.append(P[j])
+                i = j
+            # dau mut tren ellipse: dat lai tren vien theo huong doan ke (khong cat vao trong hinh)
+            if ell(le.u) and len(out) > 2:
+                a = anchor(le.u, out[1])
+                if free(a, out[1], skip):
+                    out[0] = a
+            if ell(le.v) and len(out) > 2:
+                b = anchor(le.v, out[-2])
+                if free(out[-2], b, skip):
+                    out[-1] = b
+            C = [(0, out)]
+        cands[le.id] = [(c, p, samples(p), bbox(p, 24)) for c, p in C]
+
+    # chon duong: it cat nhau nhat, roi it chay sat, it goc / lech; lap vai vong vi moi canh phu thuoc canh khac
+    live = [le for le in edges if le.id in cands]
+    cur = {le.id: 0 for le in live}
+
+    memo = {}
+
+    def pair(le, i, o, j):
+        """Phat giua duong i cua canh le va duong j cua canh o (nho lai: cac vong lap tinh lai cung cap)."""
+        key = (le.id, i, o.id, j)
+        if key not in memo:
+            _, P, S, bb = cands[le.id][i]
+            _, Q, _, qb = cands[o.id][j]
+            # hai canh deu co nhan (vd «include» + «extend») can cach xa hon de hai nhan khong de nhau
+            memo[key] = (100 * crosses(P, Q) + 2 * near(S, Q, 24 if le.label and o.label else 11)
+                         if meet(bb, qb) else 0)
+        return memo[key]
+
+    def cost(le, i, others):
+        c, P, S, bb = cands[le.id][i]
+        for o, j in others:
+            Q = cands[o.id][j][1]
+            # hai canh cung cham mot ellipse gan nhau: mui ten / nhan chong len nhau
+            for x, px in ((le.u, P[0]), (le.v, P[-1])):
+                if ell(x):
+                    for y, qx in ((o.u, Q[0]), (o.v, Q[-1])):
+                        if y == x and math.dist(px, qx) < 16:
+                            c += 25
+            c += pair(le, i, o, j)
+        return c
+
+    for _ in range(4):
+        changed = False
+        for le in live:
+            others = [(o, cur[o.id]) for o in live if o is not le]
+            best = min(range(len(cands[le.id])), key=lambda i: (cost(le, i, others), i))
+            if best != cur[le.id]:
+                cur[le.id], changed = best, True
+        if not changed:
+            break
+    for le in live:
+        le.abs = cands[le.id][cur[le.id]][1]
+
+    # ---- nhan canh: thu cac vi tri doc theo duong, uu tien giua; tranh hinh, ten actor, canh khac, nhan da dat
+    placed = []
+
+    def lab_ok(r, own):
+        if any(_grow(r, 1)[0] < s[2] and s[0] < _grow(r, 1)[2] and _grow(r, 1)[1] < s[3] and s[1] < _grow(r, 1)[3]
+               for s in list(shape.values()) + list(names.values()) + extra + placed):
+            return False
+        return not any(_seg_hits(p, q, _grow(r, 2)) for le in edges if le is not own and le.abs
+                       for p, q in zip(le.abs, le.abs[1:]))
+
+    def along(pts, f):
+        L = [math.dist(p, q) for p, q in zip(pts, pts[1:])]
+        t = f * sum(L)
+        for (p, q), l in zip(zip(pts, pts[1:]), L):
+            if t <= l and l > 0:
+                return (p[0] + (q[0] - p[0]) * t / l, p[1] + (q[1] - p[1]) * t / l)
+            t -= l
+        return pts[-1]
+
+    def put(le, size, fracs):
+        w, h = size
+        for f in fracs:
+            for dx, dy in ((0, 0), (0, -(h / 2 + 5)), (0, h / 2 + 5), (-(w / 2 + 5), 0), (w / 2 + 5, 0)):
+                cx, cy = along(le.abs, f)
+                cx, cy = cx + dx, cy + dy
+                r = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                if lab_ok(r, le):
+                    placed.append(r)
+                    return (cx, cy)
+        cx, cy = along(le.abs, fracs[0])
+        placed.append((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
+        return (cx, cy)
+
+    for le in edges:
+        if not le.abs:
+            continue
+        if le.label and le.lab:
+            le.alab = put(le, le.lab, (0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82))
+        if le.sl and le.slab:
+            le.asrc = put(le, le.slab, (0.12, 0.2, 0.28))
+        if le.dl and le.dlab:
+            le.adst = put(le, le.dlab, (0.88, 0.8, 0.72))
+
+
 def build_graph(spec, warns, origin):
     diagram = spec["diagram"]
     direction = str(spec.get("direction", DEFAULT_DIR.get(diagram, "TB"))).upper()
@@ -1017,6 +1323,15 @@ def build_graph(spec, warns, origin):
                 lanes_abs.append((lid, nm, x - d, y, rw + d + LANE_PAD1, rh))
 
     place(None, origin[0], origin[1])
+
+    if diagram == "usecase" and not tree and not any(kids.get(k) for k in E):
+        extra = []
+        if bnd:   # tieu de khung he thong: canh khong ke ngang qua
+            title, x0, y0, x1, y1 = bnd
+            tw, th = text_size(title, 12, True)
+            cx = (x0 + x1) / 2
+            extra.append((cx - tw / 2, y0 + 2, cx + tw / 2, y0 + 6 + th))
+        straight_usecase_edges(E, level_edges.get(None, []), extra)
 
     # communication: build message labels now that positions are known
     if diagram == "communication":

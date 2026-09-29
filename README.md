@@ -8,8 +8,10 @@ chừa chỗ cho nhãn, sinh file `.drawio`, kiểm tra hình học và kiểm t
 phải tự đoán toạ độ**.
 
 <p align="center">
-  <img src="docs/img/atm_activity_withdraw.png" width="48%" alt="Activity diagram có swimlane">
-  <img src="docs/img/shop_bizcontext.png" width="48%" alt="Context diagram nghiệp vụ">
+  <img src="docs/img/atm_activity_withdraw.png" width="100%" alt="Activity diagram có swimlane (ngang)">
+</p>
+<p align="center">
+  <img src="docs/img/shop_bizcontext.png" width="60%" alt="Context diagram nghiệp vụ">
 </p>
 
 ---
@@ -36,13 +38,13 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 
 | Lệnh | Sơ đồ | Ghi chú |
 |---|---|---|
-| `/uml-usecase` | Use case | actor chính bên trái, actor phụ bên phải, «include»/«extend» |
+| `/uml-usecase` | Use case | actor chính bên trái, actor phụ bên phải, «include»/«extend», đường nối thẳng |
 | `/uml-context` | Context diagram (COMET) | «software system» + các lớp «external input device», «external system»… |
 | `/uml-class` | Class / entity class / design class | visibility `+ - # ~`, kiểu, operation, multiplicity, role, chiều điều hướng, aggregation, composition, generalization, lớp trừu tượng |
 | `/uml-communication` | Communication (collaboration) | message đánh số, mũi tên hướng tự đặt theo bố cục |
 | `/uml-sequence` | Sequence | sync/async/reply/create, fragment `alt`/`opt`/`loop`/`par` |
 | `/uml-statechart` | Statechart | composite state, choice, history, `Event [guard] / action` |
-| `/uml-activity` | Activity có swimlane | action bo góc, **decision có câu hỏi trong hình thoi**, fork/join |
+| `/uml-activity` | Activity có swimlane | mặc định vẽ ngang (luồng trái→phải, làn xếp trên→dưới), action bo góc, **decision có câu hỏi trong hình thoi**, fork/join |
 | `/uml-package` | Package / subsystem | |
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
@@ -89,10 +91,11 @@ sơ đồ dễ lệch tên. Bản hiện tại coi cả bộ sơ đồ là **m�
 | **Kiểm độ đủ theo template** | Không có | `--profile sep490` với P1–P15: thiếu mục, actor chưa có "UCs for", < 2 bộ code design, thiếu auth flow, entity chưa có bảng, state ≠ giá trị cột `status`, BF/sequence đổi trạng thái không khớp statechart, sequence thiếu use case «include»… |
 | **Data dictionary** | Viết tay, dễ lệch sơ đồ | `comet_datadict.py` sinh từ ERD vật lý |
 | **Tiết kiệm token** | AI hay mở file sinh ra (model vài MB) | Kỷ luật đọc file: chỉ đọc output lệnh và spec đang sửa; bộ SEP490 chia hai phiên SRS / SDS, quyết định ghi vào `./uml/NOTES.md` |
-| **Bố cục use case** | Actor → use case được «include» và use case → actor phụ bên phải hay cắt nhau | Chuỗi cạnh dài được chèn lại vào vị trí ít giao cắt nhất; hai cạnh vào cùng một actor không còn chung một điểm nối |
+| **Bố cục use case** | Actor → use case được «include» và use case → actor phụ bên phải hay cắt nhau; đường nối bẻ vuông | Chuỗi cạnh dài được chèn lại vào vị trí ít giao cắt nhất; **đường nối thẳng** (chỉ gập một góc khi phải vòng qua hình), chọn đường ít cắt nhau, không đè hình, tên actor hay nhãn «include»/«extend» |
+| **Activity** | Mặc định vẽ dọc | Mặc định vẽ **ngang** (`"direction": "LR"`); ghi `"direction": "TB"` nếu muốn dọc |
 
 Ví dụ bố cục use case (actor phụ bên phải + «include»), trước và sau khi sửa: cạnh *Book Appointment → Email
-Service* không còn cắt cạnh *Patient → Make Deposit Payment*.
+Service* không còn cắt cạnh *Patient → Make Deposit Payment*, mọi đường nối là đoạn thẳng.
 
 <p align="center">
   <img src="docs/img/uc_crossing_before.png" width="48%" alt="Trước: hai cạnh cắt nhau">

@@ -617,6 +617,19 @@ class TestGenerator(unittest.TestCase):
         self.assertEqual(len(over), 1, pts)
         self.assertLess(over[0], y0)
 
+    def test_usecase_edges_are_straight(self):
+        # canh use case la doan thang (toi da mot goc khi phai vong qua hinh), khong be vuong; khong cat, khong de hinh
+        # ATM: Query Account nam giua Withdraw/Transfer, ca ba «include» Validate PIN -> canh Query Account -> Bank
+        # Server buoc phai cat mot «include» (vong tren hay duoi Validate PIN deu vay)
+        atm = json.loads((EXAMPLES / "atm_usecase.json").read_text(encoding="utf-8"))
+        for sp, max_cross in ((UC_INCLUDE_SPEC, 0), (atm, 1)):
+            with self.subTest(title=sp["title"]):
+                xml, cs, G = self.clean(sp)
+                bends = sorted(len(pts) - 2 for _, pts in G.edges.values())
+                self.assertLessEqual(bends[-1], 1, bends)
+                self.assertLessEqual(sum(bends), 2, bends)
+                self.assertLessEqual(len(edge_crossings(G)), max_cross)
+
     def test_class_notation(self):
         xml, cs, G = self.clean(CLASS_SPEC)
         gz, rz = style(edge_between(cs, "chk", "acct")), style(edge_between(cs, "acct", "ifc"))
@@ -704,6 +717,8 @@ class TestGenerator(unittest.TestCase):
                     self.assertGreaterEqual(er[1] if direction == "TB" else er[0],
                                             (lr[1] if direction == "TB" else lr[0]) + 30, k)   # duoi tieu de lan
                 self.assertEqual(check(sp)[:2], ([], []))
+        self.assertNotIn("direction", ACT_SPEC)   # mac dinh ve ngang
+        self.assertEqual(gen(ACT_SPEC)[0], gen(dict(ACT_SPEC, direction="LR"))[0])
 
     def test_partition_warnings(self):
         sp = copy.deepcopy(ACT_SPEC)
