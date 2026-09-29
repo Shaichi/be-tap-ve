@@ -44,7 +44,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-communication` | Communication (collaboration) | message đánh số, mũi tên hướng tự đặt theo bố cục |
 | `/uml-sequence` | Sequence | sync/async/reply/create, fragment `alt`/`opt`/`loop`/`par` |
 | `/uml-statechart` | Statechart | composite state, choice, history, `Event [guard] / action` |
-| `/uml-activity` | Activity có swimlane | mặc định vẽ ngang (luồng trái→phải, làn xếp trên→dưới), action bo góc, **decision có câu hỏi trong hình thoi**, fork/join |
+| `/uml-activity` | Activity có swimlane | mặc định vẽ ngang (luồng trái→phải, làn xếp trên→dưới), gọn (action hẹp, tên dài xuống dòng), action bo góc, **decision có câu hỏi trong hình thoi**, fork/join |
 | `/uml-package` | Package / subsystem | |
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
