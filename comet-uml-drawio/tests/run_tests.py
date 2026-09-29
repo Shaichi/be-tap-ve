@@ -622,13 +622,14 @@ class TestGenerator(unittest.TestCase):
         # ATM: Query Account nam giua Withdraw/Transfer, ca ba «include» Validate PIN -> canh Query Account -> Bank
         # Server buoc phai cat mot «include» (vong tren hay duoi Validate PIN deu vay)
         atm = json.loads((EXAMPLES / "atm_usecase.json").read_text(encoding="utf-8"))
-        for sp, max_cross in ((UC_INCLUDE_SPEC, 0), (atm, 1)):
+        for sp, max_cross in ((UC_INCLUDE_SPEC, 0), (UC_SPEC, 0), (atm, 1)):
             with self.subTest(title=sp["title"]):
                 xml, cs, G = self.clean(sp)
                 bends = sorted(len(pts) - 2 for _, pts in G.edges.values())
                 self.assertLessEqual(bends[-1], 1, bends)
                 self.assertLessEqual(sum(bends), 2, bends)
                 self.assertLessEqual(len(edge_crossings(G)), max_cross)
+                self.assertEqual(gen(sp)[0], xml)      # tat dinh
 
     def test_class_notation(self):
         xml, cs, G = self.clean(CLASS_SPEC)
