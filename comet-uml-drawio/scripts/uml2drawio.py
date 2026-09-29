@@ -415,7 +415,8 @@ def render(sp, direction, diagram):
 
     if k in ("state", "action"):
         acts = [str(a) for a in sp.get("activities", []) or []]
-        lines = wrap(name, 180)
+        narrow = k == "action" and direction == "LR"   # activity ngang: action hep, cao hon -> so do ngan lai
+        lines = wrap(name, 110 if narrow else 180)
         lw, lh = text_size("\n".join(lines))
         if acts and k == "state":
             aw = max(text_size(a)[0] for a in acts)
@@ -435,7 +436,7 @@ def render(sp, direction, diagram):
             el.style = ("rounded=1;whiteSpace=wrap;html=1;arcSize=40;" if k == "state" else
                         "rounded=1;absoluteArcSize=1;arcSize=20;whiteSpace=wrap;html=1;")
             el.value = "<br>".join(esc(l) for l in lines)
-            el.box(max(100, lw + 36), max(40, lh + 20))
+            el.box(max(80, lw + 24) if narrow else max(100, lw + 36), max(40, lh + 20))
         el.perim = "rounded"
         return el
 
@@ -1184,6 +1185,9 @@ def build_graph(spec, warns, origin):
                     _widen(el, need)
 
     results = {}
+    level_cfg = None
+    if diagram == "activity" and direction == "LR":   # ngang: canh ngan lai de so do khong qua dai
+        level_cfg = {"exit_gap": 14, "min_gap": 28}
 
     def do_level(pid):
         for k in kids.get(pid, []):
@@ -1202,7 +1206,8 @@ def build_graph(spec, warns, origin):
         snap = {el.id: (el.w, el.h, el.sr, list(el.sub)) for el in members}
         for _ in range(3):
             res = layered_layout(members, level_edges.get(pid, []), direction,
-                                 cat_margin if pid is None else None, lanes=lane_w if pid is None else None)
+                                 cat_margin if pid is None else None, cfg=level_cfg,
+                                 lanes=lane_w if pid is None else None)
             grow = {k: w for k, w in res.get("need_w", {}).items()
                     if E[k].kind in CLASSLIKE and not E[k].container and w > snap[k][2][2] + 0.5}
             if not grow:
