@@ -601,7 +601,8 @@ class TestGenerator(unittest.TestCase):
             self.assertEqual((style(e).get("dashed"), style(e).get("endArrow")), ("1", "open"))
         self.assertIn("[receipt requested]", text(ext))
         self.assertEqual(style(edge_between(cs, "cust", "wd")).get("endArrow"), "none")
-        self.assertEqual(text(cs["diagram_frame"]), "uc ATM")
+        self.assertNotIn("diagram_frame", cs)      # mac dinh khong khung ngoai
+        self.assertEqual(text(cells(gen(dict(UC_SPEC, frame=True))[0])["diagram_frame"]), "uc ATM")
 
     def test_usecase_include_and_right_actors_do_not_cross(self):
         # SEP490: actor chinh trai, actor phu phai (UC -> actor), «include» day UC duoc include sang cot 2.
@@ -669,7 +670,7 @@ class TestGenerator(unittest.TestCase):
         self.assertEqual(text(edge_between(cs, "ch", "val")), "[else] / Invalid PIN Prompt")
         self.assertEqual(text(edge_between(cs, "menu", "menu")), "Tick")        # self-transition
         self.assertEqual(text(edge_between(cs, "i", "idle")), "")
-        self.assertEqual(text(cs["diagram_frame"]), "stm ATM Control")
+        self.assertEqual(text(cells(gen(dict(STATE_SPEC, frame=True))[0])["diagram_frame"]), "stm ATM Control")
         self.assertEqual(check(STATE_SPEC)[:2], ([], []))
 
     def test_pseudostate_shapes(self):
@@ -865,11 +866,11 @@ class TestGenerator(unittest.TestCase):
 
     def test_frame_and_escaping(self):
         sp = {"diagram": "state", "title": "R&D <Lab>", "elements": [{"id": "s", "type": "state", "name": "A & B <x>"}]}
-        xml, _ = gen(sp)
+        xml, _ = gen(dict(sp, frame=True))
         cs = cells(xml)
         self.assertEqual(text(cs["diagram_frame"]), "stm R&D <Lab>")
         self.assertEqual(text(cs["s"]), "A & B <x>")
-        cs = cells(gen(dict(sp, frame=False))[0])
+        cs = cells(gen(sp)[0])                      # mac dinh khong khung
         self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))
 
 

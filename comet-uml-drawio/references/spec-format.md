@@ -10,14 +10,14 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | Trường | Bắt buộc | Ý nghĩa |
 |---|---|---|
 | `diagram` | ✔ | `usecase` · `context` · `class` · `communication` · `sequence` · `state` · `activity` · `component` · `deployment` · `package` · `erd` · `screenflow` · `bizcontext` |
-| `title` | | Tên hiển thị trên khung (`uc Title`, `sd Title`...) |
+| `title` | | Tên sơ đồ (tên trang draw.io; nhãn khung `uc Title`, `sd Title`... khi bật `frame`) |
 | `lang` | | Ngôn ngữ chữ trên sơ đồ, mặc định `"en"` – mọi chữ viết tiếng Anh. Chỉ đặt `"vi"`… khi người dùng yêu cầu rõ ngôn ngữ khác (không đặt mà có chữ có dấu → L1) |
 | `useCase` | tương tác | Tên use case mà communication/sequence hiện thực (khớp R1) |
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
 | `system` | usecase | Tên hệ thống trên system boundary (mặc định = `title`) |
 | `bundle` | mọi sơ đồ | Khoá namespace cho toàn bộ bộ diagram của cùng một hệ thống; nên đặt giống nhau cho tất cả spec. Khi có bundle, các luật consistency/traceability không mượn dữ liệu từ bundle khác; spec cũ không có bundle vẫn tương thích |
 | `direction` | | `TB` (trên→dưới) hoặc `LR` (trái→phải). Mặc định `LR` cho usecase/communication/activity, `TB` còn lại |
-| `frame` | | `false` để bỏ khung UML ngoài (bizcontext, screenflow sitemap, ERD Chen mặc định không khung – `true` để vẽ) |
+| `frame` | | Mặc định không vẽ khung UML ngoài (chỉ có sơ đồ); `true` → thêm khung + nhãn `uc`/`sd`/`act`… |
 | `autonumber` | | communication: tự đánh số message nếu thiếu `seq` (mặc định true); sequence: mặc định false |
 | `elements` | ✔ | Danh sách phần tử |
 | `relations` | | Danh sách quan hệ (không dùng cho sequence) |
