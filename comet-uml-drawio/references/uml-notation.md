@@ -75,7 +75,8 @@ Multiplicity/role đặt sát đầu mút: `fromMult`, `toMult`, `fromRole`, `to
 ## Khung sơ đồ (diagram frame)
 
 UML 2 khuyến nghị khung ngoài với nhãn ngũ giác ở góc trái trên: `uc`, `class`, `sd`, `stm`, `act`,
-`cmp`, `deployment`, `pkg` + tên. Script tự thêm (tắt bằng `"frame": false`).
+`cmp`, `deployment`, `pkg` + tên. Script mặc định **không** vẽ khung (chỉ sơ đồ, dễ chèn vào báo cáo); cần khung
+thì đặt `"frame": true`.
 
 ## Quy tắc trình bày
 

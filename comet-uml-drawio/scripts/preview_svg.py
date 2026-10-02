@@ -382,12 +382,11 @@ def main():
         png = "%s.png" % stem if len(pages) == 1 else "%s_p%d.png" % (stem, i)
         tmp = "%s_p%d.tmp.html" % (stem, i)
         with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write('<!doctype html><meta charset="utf-8"><body style="margin:0;background:#fff">'
-                     '<div style="font:bold 14px sans-serif;padding:6px 8px;height:18px;white-space:nowrap">'
-                     '%s</div>%s</body>' % (html.escape(title), svg))
+            # anh chi co so do: khong dong tieu de, khong vien (tieu de van co trong preview.html)
+            fh.write('<!doctype html><meta charset="utf-8"><body style="margin:0;background:#fff">%s</body>'
+                     % svg.replace(";border:1px solid #ccc", "", 1))
         try:
-            # so do hep: noi rong cua so theo tieu de de khong bi cat chu
-            ok = shoot(browser, tmp, png, max(w + 4, int(len(title) * 8.5) + 24), h + 36)
+            ok = shoot(browser, tmp, png, w, h)
         finally:
             os.remove(tmp)
         print(("Da chup: %s  (%s)" if ok else "Chup that bai: %s  (%s)") % (png, title))
