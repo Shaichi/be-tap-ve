@@ -290,6 +290,11 @@ def is_decor(c):
     return b in ("text", "line", "edgeLabel") or c.shape == "module" or c.has("edgeLabel")
 
 
+def is_activation(c):
+    """Thanh kich hoat (execution specification) cua sequence diagram."""
+    return c.st.get("perimeter") == "orthogonalPerimeter"
+
+
 def is_frame(c):
     return (c.shape == "umlFrame" or c.st.get("fillColor") == "none" or c.st.get("_base") == "group"
             or getattr(c, "is_lane", False))
@@ -499,6 +504,10 @@ def analyze_page(name, model):
                 continue
             if (a.shape == "umlLifeline" and is_frame(b)) or (b.shape == "umlLifeline" and is_frame(a)):
                 continue
+            # thanh kich hoat (sequence) long nhau / nam tren lifeline / cat khung fragment la ky phap dung
+            act = [is_activation(v) for v in (a, b)]
+            if all(act) or (any(act) and ("umlLifeline" in (a.shape, b.shape) or is_frame(a) or is_frame(b))):
+                continue
             if rect_overlap(ra, rb):
                 if rect_contains(ra, rb) or rect_contains(rb, ra):
                     outer, inner = (a, b) if rect_contains(ra, rb) else (b, a)
@@ -519,7 +528,8 @@ def analyze_page(name, model):
                 skip |= anc.get(x, set())
                 skip.add(x)
         for v in prim:
-            if v.id in skip or is_frame(v):
+            # message/nét phân cách fragment cắt ngang thanh kích hoạt giống như cắt ngang lifeline
+            if v.id in skip or is_frame(v) or is_activation(v):
                 continue
             r = shape_rect(v)
             for p, q in zip(pts, pts[1:]):

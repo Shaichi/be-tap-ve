@@ -54,6 +54,31 @@ bằng ngôn ngữ của họ.
   (`13a`) và đặt **sau** các message nhánh chính trong mảng.
 - Lifeline không gạch chân (UML 2.x) và message luôn nằm ngang — script tự vẽ; không khai báo `relations`.
 
+### Mức thiết kế (SDS – mặc định Spring Boot Controller/Service/Repository, không stereotype COMET)
+- Thêm `"level": "design"` và `"activations": true` (thanh activation, self-call lồng thanh con), `"autonumber":
+  true`. Lifeline `{"type": "object", "class": "UserServiceImpl"}` – lớp **y hệt** class diagram `"level": "design"`
+  cùng `"bundle"`/`"useCase"` (X8); client: `{"type": "object", "name": "React Web App", "external": true}` (hoặc
+  `Flutter Mobile App`); bean framework (`AuthenticationManager`, `PasswordEncoder`) cũng `"external": true`.
+  Message = tên operation + kiểu tham số (`register(RegisterRequest)`, `findByEmail(String)`), reply ghi dữ liệu
+  trả về (`UserResponse`, `201 Created`). Mỗi message phải là operation có trong class diagram của lớp đích
+  (X11 – tính cả interface/JpaRepository/getter-setter); thiếu thì thêm operation vào class diagram trước.
+  Nhánh lỗi (409 email trùng, 401 sai mật khẩu…) dùng fragment `alt`.
+- Mỗi lời gọi `sync` có `reply` về đúng bên gọi (R15; hàm `void` → reply `"ok"`); việc không chờ kết quả (gửi
+  email, notification) → `"type": "async"`. Đọc dữ liệu trước khi dùng (load entity rồi mới gửi email/cập nhật).
+- Mức thiết kế bỏ R3/R4; R1/X2 chỉ INFO khi bundle không có sơ đồ tương tác mức phân tích (client `"external"`
+  đại diện actor → không báo X2).
+- Đủ nghiệp vụ so với SRS (`--profile sep490`, P12/P13):
+  - Đổi trạng thái entity (`setStatus("CONFIRMED")`): use case/operation = event vào state đó trên statechart, và
+    **kiểm trạng thái nguồn trước** – fragment `alt [status == PENDING_CONFIRM]` (nhánh else → 409) hoặc message
+    `getStatus()`/`validateTransition()` trước khi đổi.
+  - Use case «include» (Book Appointment → Make Deposit Payment) phải có bước/lifeline trong sequence
+    (`PaymentService`, `VnPayClient.createPaymentUrl(...)`) hoặc sequence riêng.
+  - Tạo entity cha có quan hệ ERD **1..N bắt buộc** (Prescription → Prescription Item) → tạo cả entity con: DTO
+    request có danh sách (`items: List<PrescriptionItemRequest>`), fragment `loop [each item]` quanh bước tạo con;
+    tham số message phải lấy được từ DTO (không dùng `medicineId` khi request không có).
+  - Hệ thống ngoài trong context (VNPay, Email) có lớp tích hợp (`VnPayClient`, `EmailService`) trong package +
+    được gọi trong sequence của use case dùng nó (P14 INFO).
+
 ## 3. Chạy – sửa đến sạch
 ```bash
 python "<ENGINE>/scripts/uml2drawio.py" ./uml/seq_<use-case>.json -o ./uml/seq_<use-case>.drawio

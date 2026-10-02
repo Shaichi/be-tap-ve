@@ -36,6 +36,7 @@ CFG = {
     "lab_slack": 10,     # nhan dau canh cua cong ngoai cung duoc phep lo ra ngoai mep hinh toi da ngan nay
     "sweeps": 24,
     "coord_iters": 16,
+    "chain_reinsert": False,  # chen lai chuoi dummy cua canh dai khi con cat nhau (bat cho use case)
     "exit_gap": None,    # so tang nhan dup (co canh co nhan): khe phia dau ra cua tang nhan trong (khong chua
                          # nhan) chi can ngan nay thay vi min_gap; khe phia mui ten giu min_gap (activity ngang)
 }
@@ -345,6 +346,74 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
     for r in range(R + 1):
         reindex(r)
 
+    def reinsert_chain(ch):
+        """Go cac dummy cua mot canh dai roi chen lai vao vi tri it cat nhat (quy hoach dong theo tang,
+        cac canh khac giu nguyen -> toi uu chinh xac cho chuoi nay). Hoa -> gan vi tri cu nhat.
+        Barycenter + transpose chi doi cho tung cap mot tang nen khong keo duoc ca chuoi qua mot hinh
+        (vd. use case: actor -> UC duoc «include» phai vuot len tren UC goc)."""
+        ds = ch[1:-1]
+        u, v = ch[0], ch[-1]
+        old = {d: pos[d] for d in ds}
+        for d in ds:
+            layers[V[d].rank].remove(d)
+            reindex(V[d].rank)
+        dset = set(ds)
+        r0 = V[ds[0]].rank
+
+        def gap(r):   # doan noi tang r -> r+1 cua cac canh khac
+            return [(pos[a], pos[b], a, b) for a in layers[r] for b in V[a].down if a not in dset and b not in dset]
+
+        def slots(d):
+            L, ln = layers[V[d].rank], V[d].lane
+            return [s for s in range(len(L) + 1)
+                    if (s == 0 or V[L[s - 1]].lane <= ln) and (s == len(L) or V[L[s]].lane >= ln)]
+
+        # cost[s] = (so cat, do lech) tot nhat khi dummy dau o khe s
+        pu = pos[u]
+        g = gap(r0 - 1)
+        cost = {s: (sum(1 for pa, pb, a, _ in g if a != u and ((pa < pu and pb >= s) or (pa > pu and pb < s))),
+                    abs(s - old[ds[0]])) for s in slots(ds[0])}
+        back = [{}]
+        for k in range(1, len(ds)):
+            g = gap(r0 + k - 1)
+            nxt, bk = {}, {}
+            for t in slots(ds[k]):
+                for s, (cx, dv) in cost.items():
+                    c = (cx + sum(1 for pa, pb, _, _ in g if (pa < s and pb >= t) or (pa >= s and pb < t)),
+                         dv + abs(t - old[ds[k]]))
+                    if t not in nxt or c < nxt[t]:
+                        nxt[t], bk[t] = c, s
+            cost = nxt
+            back.append(bk)
+        pv = pos[v]
+        g = gap(r0 + len(ds) - 1)
+        fin = {s: (cx + sum(1 for pa, pb, _, b in g if b != v and ((pa < s and pb > pv) or (pa >= s and pb < pv))), dv)
+               for s, (cx, dv) in cost.items()}
+        s = min(fin, key=lambda z: (fin[z], z))
+        pick = [s]
+        for k in range(len(ds) - 1, 0, -1):
+            s = back[k][s]
+            pick.append(s)
+        for d, s in zip(ds, reversed(pick)):
+            layers[V[d].rank].insert(s, d)
+            reindex(V[d].rank)
+
+    if best and C["chain_reinsert"]:
+        chains = [e._chain for e in normal if len(e._chain) > 2]
+        for _ in range(3):
+            for ch in chains:
+                reinsert_chain(ch)
+            transpose()
+            c = crossings()
+            if c >= best:
+                break
+            best, best_layers = c, [l[:] for l in layers]
+            if best == 0:
+                break
+        layers = best_layers
+        for r in range(R + 1):
+            reindex(r)
+
     # hinh thoi (decision/merge) co >= 2 canh o cung mot phia: 2 dinh tren/duoi qua hep cho nhieu canh
     # -> cho phep dung them goc trai/phai, va noi rong khung bo cuc 2 ben de doan doc canh goc co cho rieng
     for x in order:
@@ -604,6 +673,15 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             if good:
                 s.bx = good[0]
                 return
+            others = [t.bx for t in ins.get(s.b, []) if t is not s and not t.bside]
+            if others and cands:
+                # khong co cho sach: it nhat khong dat cong de len cong khac (2 canh vao trung mot diem)
+                def clear(nx):
+                    return min(abs(b - nx) for b in others)
+                best_nx = max(cands, key=lambda nx: (clear(nx) >= 5, not lab_block(s, nx), -cands.index(nx)))
+                if clear(best_nx) >= 5:
+                    s.bx = best_nx
+                    return
             nx = s.bx + delta
             if nx > hi - m or nx < lo + m:
                 nx = s.bx - delta

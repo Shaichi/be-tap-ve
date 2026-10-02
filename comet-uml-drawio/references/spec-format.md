@@ -15,6 +15,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | `useCase` | tương tác | Tên use case mà communication/sequence hiện thực (khớp R1) |
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
 | `system` | usecase | Tên hệ thống trên system boundary (mặc định = `title`) |
+| `bundle` | mọi sơ đồ | Khoá namespace cho toàn bộ bộ diagram của cùng một hệ thống; nên đặt giống nhau cho tất cả spec. Khi có bundle, các luật consistency/traceability không mượn dữ liệu từ bundle khác; spec cũ không có bundle vẫn tương thích |
 | `direction` | | `TB` (trên→dưới) hoặc `LR` (trái→phải). Mặc định `LR` cho usecase/communication/activity, `TB` còn lại |
 | `frame` | | Mặc định không vẽ khung UML ngoài (chỉ có sơ đồ); `true` → thêm khung + nhãn `uc`/`sd`/`act`… |
 | `autonumber` | | communication: tự đánh số message nếu thiếu `seq` (mặc định true); sequence: mặc định false |
@@ -22,6 +23,9 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | `relations` | | Danh sách quan hệ (không dùng cho sequence) |
 | `messages` | tương tác | Message (communication, sequence) |
 | `fragments` | | Combined fragment (sequence) |
+| `level` | | `"design"` cho class/sequence/communication mức thiết kế (SDS: Controller/Service/Repository/DTO – mặc định Spring Boot, không stereotype COMET) – xem `comet-method.md` mục 5 (R3/R4/R10 bỏ qua, X8) |
+| `activations` | | sequence: `true` → vẽ thanh activation (mở khi có message sync tới lifeline, đóng khi reply; self-call lồng thanh con) |
+| `notation` | | erd: `"crowfoot"` → ERD crow's foot (khái niệm hoặc vật lý) thay cho Chen |
 | `partitions` | | activity: danh sách làn (swimlane), chuỗi `"ATM"` hoặc `{"id": "atm", "name": "ATM"}`; thứ tự = thứ tự làn (TB: trái→phải, LR: trên→dưới) |
 
 ## Phần tử (`elements[]`)
@@ -29,6 +33,12 @@ trung tâm trước, quan hệ theo luồng chính trước).
 Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `type`, `name`, `stereotype`
 (chuỗi hoặc mảng; viết trần, không « »), `in` (id phần tử cha – lồng vào container),
 `partition` (activity có `partitions`: id hoặc tên làn; phần tử không ghi sẽ theo làn của nút kề).
+Semantic identity v2 (tuỳ chọn): `conceptId`/`semanticId`/`modelId` để trỏ tới cùng canonical concept xuyên diagram;
+`aliases` để khai báo tên thay thế; `aliasOf` để biểu diễn rằng representation này là alias của concept đã biết.
+Không dùng `id` diagram-local làm canonical identity.
+Spec do `comet_project.py compile` sinh ra luôn mang `conceptId` trên phần tử concept, và `useCaseConceptId` /
+`stateMachineOfConceptId` ở cấp spec khi `useCase` / `stateMachineOf` là concept → identity giữ nguyên khi đổi tên
+(xem `references/comet-project.md`). Không sửa tay các spec này; sửa file canonical rồi compile lại.
 
 | `type` | Trường riêng |
 |---|---|
@@ -37,7 +47,7 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `class`, `entity`, `external`, `system`, `datatype`, `box` | `attributes[]`, `operations[]`, `abstract`: true (tên in nghiêng), `compartments`: true (luôn vẽ ngăn rỗng) |
 | `interface` | như class (tự thêm «interface»); `notation: "lollipop"` → vẽ dạng ball (vòng tròn nhỏ + tên), dùng trong component diagram |
 | `enumeration` | `literals[]` |
-| `object` | `class`: tên lớp → hiển thị `name:Class` (không có `name` → `:Class`); lifeline UML 2 không gạch chân |
+| `object` | `class`: tên lớp → hiển thị `name:Class` (không có `name` → `:Class`); lifeline UML 2 không gạch chân; `external`: true → không phải lớp của hệ thống (Client/Browser, hệ thống ngoài) – X8 bỏ qua |
 | `state` | `activities[]` (vd `"entry / Display Welcome"`); con lồng qua `in` → composite state |
 | `action` | (activity diagram) |
 | `initial`, `final`, `activityFinal`, `flowFinal` | – |
@@ -50,7 +60,7 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `node`, `device`, `executionEnvironment` | stereotype mặc định «node»/«device»/«execution environment»; chứa component/artifact |
 | `artifact` | – |
 | `package`, `subsystem` | chứa phần tử con qua `in` |
-| `entity`, `table` (ERD) | chỉ `name`; `weak`: true (viền kép). Không vẽ thuộc tính |
+| `entity`, `table` (ERD) | Chen: chỉ `name`; `weak`: true (viền kép), không vẽ thuộc tính. Crow's foot: `entity` có `attributes[]` (vd `"+ Full Name"`); `table` có `columns[]` `{"name", "type", "pk", "fk", "nullable": false}` và `entity` (tên / mảng tên entity khái niệm mà bảng hiện thực, khớp X7) |
 | `relationship` (ERD) | hình thoi quan hệ bậc 3+, `name`; nối bằng relation có `card` |
 | `screen`, `page`, `dialog`, `popup` (screen flow) | chỉ `name`: màn hình = ô chữ nhật, popup/dialog = ô bo góc; `branch: "side"` (con toả từ cạnh phải), `side` (vị trí so với cha) |
 | `system` (bizcontext) | hình tròn trung tâm – đúng 1 |
@@ -204,6 +214,52 @@ Thực thể chỉ có tên, quan hệ là hình thoi có tên, bản số `1` /
 - Bản số hợp lệ: `1`, `N`, `M`, `P` (chữ hoa) hoặc `(min,max)` như `(0,N)`, `(1,1)`. Thực thể `weak` phải có ít
   nhất một quan hệ `identifying: true` tới thực thể chủ (E5).
 - Ví dụ đầy đủ: `examples/elearn_erd.json`. comet_check E1–E3, E5.
+
+### ERD crow's foot (`"notation": "crowfoot"`)
+
+Dùng cho SRS (ERD khái niệm) và SDS (Database Design vật lý). Bản số ở hai đầu: `1`, `0..1`, `1..N`, `0..N`
+(`N`/`M`/`*` = many). Khái niệm – thực thể có thuộc tính nghiệp vụ, quan hệ đặt tên bằng động từ -ing:
+```json
+{"diagram": "erd", "notation": "crowfoot", "bundle": "talenthub", "title": "TalentHub - ERD", "elements": [
+  {"id": "user", "type": "entity", "name": "User", "attributes": ["+ Full Name", "+ Email"]},
+  {"id": "job", "type": "entity", "name": "Job Posting", "attributes": ["+ Title", "+ Status"]}],
+ "relations": [
+  {"from": "user", "to": "job", "name": "creating (HR Manager)", "fromCard": "1", "toCard": "0..N"}]}
+```
+Vật lý – bảng có cột kiểu dữ liệu, `pk`/`fk`/`nullable`, `entity` trỏ về ERD khái niệm cùng `bundle` (X7);
+quan hệ giữa hai bảng không cần tên:
+```json
+{"diagram": "erd", "notation": "crowfoot", "bundle": "talenthub", "title": "TalentHub - Database Design", "elements": [
+  {"id": "users", "type": "table", "name": "users", "entity": "User", "columns": [
+    {"name": "id", "type": "bigserial", "pk": true},
+    {"name": "email", "type": "varchar(255)", "nullable": false}]},
+  {"id": "jobs", "type": "table", "name": "jobs", "entity": "Job Posting", "columns": [
+    {"name": "id", "type": "bigserial", "pk": true},
+    {"name": "created_by", "type": "bigint", "fk": true, "nullable": false}]}],
+ "relations": [{"from": "users", "to": "jobs", "fromCard": "1", "toCard": "0..N"}]}
+```
+- Mặc định `direction: LR`. Cột hiển thị `PK id: bigserial NOT NULL`, `FK created_by: bigint NOT NULL`.
+- Ví dụ đầy đủ: `examples/talenthub_erd_conceptual.json`, `examples/talenthub_erd_physical.json`. comet_check
+  E1–E4, X7, X9.
+- Cột có thể thêm `"values": ["PENDING", "CONFIRMED"]` (tập giá trị cột status/enum – P11 so với state của statechart, data dictionary in ra), `"description"` (mô tả trong data dictionary) và `"ref": "users.id"` (bảng đích của FK khi không
+  suy được từ tên cột). Data dictionary: `scripts/comet_datadict.py <spec ERD vật lý> -o <file>.md`.
+
+### Sequence mức thiết kế (SDS)
+
+```json
+{"diagram": "sequence", "level": "design", "activations": true, "autonumber": true, "bundle": "talenthub",
+ "title": "Register Account - Sequence", "useCase": "Register Account", "elements": [
+  {"id": "cl", "type": "object", "name": "React Web App", "external": true},
+  {"id": "ctl", "type": "object", "class": "AuthController"},
+  {"id": "svc", "type": "object", "class": "UserServiceImpl"}],
+ "messages": [
+  {"from": "cl", "to": "ctl", "name": "register(RegisterRequest)"},
+  {"from": "ctl", "to": "svc", "name": "register(RegisterRequest)"},
+  {"from": "svc", "to": "svc", "name": "validateEmailNotTaken(String)"},
+  {"from": "svc", "to": "ctl", "name": "UserResponse", "type": "reply"},
+  {"from": "ctl", "to": "cl", "name": "201 Created (UserResponse)", "type": "reply"}]}
+```
+Lớp của lifeline (`class`) phải có trong class diagram `"level": "design"` cùng `bundle` (X8).
 
 ### Screen flow (sơ đồ trang / site map)
 

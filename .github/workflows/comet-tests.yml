@@ -1,0 +1,22 @@
+name: Bé Tập Vẽ Tests
+
+on:
+  push:
+    branches: ["main", "feat/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile Python sources
+        run: python -m py_compile comet-uml-drawio/scripts/comet_check.py comet-uml-drawio/scripts/comet_semantic.py comet-uml-drawio/scripts/comet_model.py comet-uml-drawio/scripts/comet_plan.py comet-uml-drawio/scripts/comet_manifest.py comet-uml-drawio/scripts/comet_reconcile.py comet-uml-drawio/scripts/comet_project.py comet-uml-drawio/scripts/uml2drawio.py comet-uml-drawio/scripts/validate_drawio.py
+      - name: Run COMET test suite
+        env:
+          COMET_TEST_PNG: "0"
+        run: python comet-uml-drawio/tests/run_tests.py
