@@ -1966,7 +1966,7 @@ def build_bizcontext(spec, warns, origin):
 def build_page(spec, warns):
     diagram = str(spec.get("diagram", "class")).lower()
     spec["diagram"] = diagram
-    use_frame = spec.get("frame", not (sitemap_mode(spec) or chen_mode(spec)))
+    use_frame = spec.get("frame", not (diagram == "bizcontext" or sitemap_mode(spec) or chen_mode(spec)))
     title = spec.get("title") or spec.get("useCase") or spec.get("name") or diagram
     kind = FRAME_KIND.get(diagram, "")
     flabel = "%s %s" % (kind, title) if kind else title

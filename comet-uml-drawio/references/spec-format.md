@@ -16,7 +16,7 @@ trung tâm trước, quan hệ theo luồng chính trước).
 | `stateMachineOf` | state | Tên lớp «state dependent control» (khớp R7/R8) |
 | `system` | usecase | Tên hệ thống trên system boundary (mặc định = `title`) |
 | `direction` | | `TB` (trên→dưới) hoặc `LR` (trái→phải). Mặc định `LR` cho usecase/communication/activity, `TB` còn lại |
-| `frame` | | `false` để bỏ khung UML ngoài |
+| `frame` | | `false` để bỏ khung UML ngoài (bizcontext, screenflow sitemap, ERD Chen mặc định không khung – `true` để vẽ) |
 | `autonumber` | | communication: tự đánh số message nếu thiếu `seq` (mặc định true); sequence: mặc định false |
 | `elements` | ✔ | Danh sách phần tử |
 | `relations` | | Danh sách quan hệ (không dùng cho sequence) |
@@ -246,5 +246,5 @@ Hệ thống là hình tròn giữa; thực thể ngoài xếp 2 cột trái/ph�
 vuông góc riêng** (không gộp): đi ngang ra từ cạnh hộp, tên luồng nằm ngang trên đoạn ngang; luồng ngang tầm cắm
 thẳng vào hông hình tròn, luồng cao hơn / thấp hơn gập một lần cắm vào đỉnh / đáy, các đường gập lồng nhau nên không cắt nhau.
 Mọi hộp thực thể ngoài cùng kích thước (rộng theo tên dài nhất, cao theo hộp nhiều luồng nhất); `"uniformSize": false`
-ở cấp spec → mỗi hộp vừa nội dung riêng. Bán kính hình tròn (nhỏ nhất xếp được) và khoảng cách cột tự nới tới khi không nhãn nào đè hình/đường/nhãn. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
+ở cấp spec → mỗi hộp vừa nội dung riêng. Mặc định không có khung ngoài (`"frame": true` để vẽ khung + tiêu đề). Bán kính hình tròn (nhỏ nhất xếp được) và khoảng cách cột tự nới tới khi không nhãn nào đè hình/đường/nhãn. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
 comet_check B1–B3.

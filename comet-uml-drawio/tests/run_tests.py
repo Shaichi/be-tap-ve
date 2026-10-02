@@ -1020,7 +1020,8 @@ class TestGenerator(unittest.TestCase):
         # mac dinh moi hop ben ngoai cung rong/cao (hop lon nhat); "uniformSize": false -> hop vua noi dung
         sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))
         ext = [e["id"] for e in sp["elements"] if e["type"] == "external"]
-        xml, _, G = self.clean(sp)
+        xml, cs, G = self.clean(sp)
+        self.assertNotIn("diagram_frame", cs)  # mac dinh khong khung ngoai
         R = rects(G)
         sizes = {(round(R[i][2] - R[i][0], 1), round(R[i][3] - R[i][1], 1)) for i in ext}
         self.assertEqual(len(sizes), 1, sizes)
