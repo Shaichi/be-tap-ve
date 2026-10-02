@@ -16,8 +16,8 @@ Khác `/uml-context` (context diagram COMET dạng class «software system» –
 mềm): sơ đồ này dành cho **nghiệp vụ** – hình tròn ở giữa, ngôn ngữ của người dùng cuối, không có stereotype kỹ
 thuật.
 
-**ENGINE** = `<ENGINE>` — skill gốc [comet-uml-drawio](../comet-uml-drawio/SKILL.md) cài cạnh thư mục lệnh này
-(`../comet-uml-drawio`), chứa `scripts/`, `examples/`, `references/`. Không viết XML hay toạ độ bằng tay: chỉ viết
+**ENGINE** = `<skill>` — skill gốc [comet-uml-drawio](../../SKILL.md) (thư mục gốc skill, hai cấp trên file lệnh này,
+`../..`), chứa `scripts/`, `examples/`, `references/`. Không viết XML hay toạ độ bằng tay: chỉ viết
 **spec JSON**, script tự bố cục (không chồng/dính hình) và kiểm tra. Lưu spec + kết quả vào `./uml/` của thư mục
 làm việc (tạo nếu chưa có) trừ khi người dùng chỉ định chỗ khác.
 
@@ -28,8 +28,8 @@ tiếng Việt") → đặt `"lang": "vi"` trong spec (không đặt thì `comet
 bằng ngôn ngữ của họ.
 
 ## 1. Đọc bắt buộc (chưa đọc xong thì chưa viết spec)
-- `<ENGINE>/examples/shop_bizcontext.json` — khuôn chuẩn (1 hệ thống trung tâm, 6 bên ngoài, 13 luồng).
-- `<ENGINE>/references/spec-format.md` — mục *Context diagram nghiệp vụ*; `<ENGINE>/references/uml-notation.md` —
+- `<skill>/examples/shop_bizcontext.json` — khuôn chuẩn (1 hệ thống trung tâm, 6 bên ngoài, 13 luồng).
+- `<skill>/references/spec-format.md` — mục *Context diagram nghiệp vụ*; `<skill>/references/uml-notation.md` —
   mục *Context diagram nghiệp vụ*.
 
 ## 2. Quy tắc
@@ -52,9 +52,9 @@ bằng ngôn ngữ của họ.
 
 ## 3. Chạy – sửa đến sạch
 ```bash
-python "<ENGINE>/scripts/uml2drawio.py" ./uml/bctx_<ten>.json -o ./uml/bctx_<ten>.drawio
-python "<ENGINE>/scripts/comet_check.py" --partial ./uml/bctx_<ten>.json
-python "<ENGINE>/scripts/preview_svg.py" ./uml/bctx_<ten>.drawio -o ./uml/bctx_<ten>.html --png
+python "<skill>/scripts/uml2drawio.py" ./uml/bctx_<ten>.json -o ./uml/bctx_<ten>.drawio
+python "<skill>/scripts/comet_check.py" --partial ./uml/bctx_<ten>.json
+python "<skill>/scripts/preview_svg.py" ./uml/bctx_<ten>.drawio -o ./uml/bctx_<ten>.html --png
 ```
 1. `uml2drawio.py` tự chạy validator hình học → phải **0 ERROR** (mã thoát 2 = còn lỗi: sửa spec, chạy lại).
 2. `comet_check.py` → 0 ERROR và **sửa hết WARN** (B1–B3) trong spec rồi chạy lại.

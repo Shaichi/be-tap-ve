@@ -1,0 +1,26 @@
+{
+  "diagram": "package",
+  "title": "Banking System - Subsystem Packages",
+  "elements": [
+    {"id": "sys", "type": "package", "name": "Banking System", "stereotype": "system"},
+    {"id": "atmp", "type": "package", "name": "ATM Client Subsystem", "stereotype": "subsystem", "in": "sys"},
+    {"id": "bsp", "type": "package", "name": "Banking Service Subsystem", "stereotype": "subsystem", "in": "sys"},
+    {"id": "msgp", "type": "package", "name": "Bank Messages", "in": "sys"},
+    {"id": "ctl", "type": "class", "name": "ATM Control", "stereotype": "state dependent control", "in": "atmp"},
+    {"id": "crd", "type": "class", "name": "Card Reader Interface", "stereotype": "input", "in": "atmp"},
+    {"id": "atmtx", "type": "class", "name": "ATM Transaction", "stereotype": "entity", "in": "msgp"},
+    {"id": "coord", "type": "class", "name": "Bank Transaction Coordinator", "stereotype": "coordinator", "in": "bsp"},
+    {"id": "acct", "type": "class", "name": "Account", "stereotype": "entity", "abstract": true, "in": "bsp"},
+    {"id": "chk", "type": "class", "name": "Checking Account", "stereotype": "entity", "in": "bsp"},
+    {"id": "sav", "type": "class", "name": "Savings Account", "stereotype": "entity", "in": "bsp"}
+  ],
+  "relations": [
+    {"type": "dependency", "from": "atmp", "to": "bsp", "stereotype": "use"},
+    {"type": "dependency", "from": "atmp", "to": "msgp", "stereotype": "import"},
+    {"type": "dependency", "from": "bsp", "to": "msgp", "stereotype": "import"},
+    {"type": "dependency", "from": "crd", "to": "ctl", "stereotype": "use"},
+    {"type": "dependency", "from": "coord", "to": "acct", "stereotype": "use"},
+    {"type": "generalization", "from": "chk", "to": "acct"},
+    {"type": "generalization", "from": "sav", "to": "acct"}
+  ]
+}

@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Tạo repair plan có cấu trúc từ comet_check + semantic model."""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from collections import defaultdict
+from pathlib import Path
+
+from comet_check import check, load, norm
+from comet_model import build_model
+
+
+RULE_ACTIONS = {
+    "R1": "Tao it nhat mot communication/sequence diagram cho use case dang thieu.",
+    "R2": "Kiem tra actor trong interaction va bo sung/doi chieu actor voi use case model.",
+    "R3": "Dat boundary giua actor va control/entity; khong de actor goi truc tiep structural object.",
+    "R4": "Sua stereotype ve mot COMET structural role hop le.",
+    "R5": "Dong bo entity object voi entity class cung bundle.",
+    "R6": "Kiem tra entity co dang phat message chu dong hay chi tra du lieu.",
+    "R7": "Tao statechart cho state dependent control dang thieu.",
+    "R8": "Dong bo event/action cua statechart voi message den/di control.",
+    "R9": "Sua message reference/ten/seq de moi message co endpoint hop le va seq khong trung.",
+    "R10": "Bo operations khoi entity class o pha analysis.",
+    "R11": "Sua context diagram ve dung 1 software system va stereotype external hop le.",
+    "R12": "Dong bo message va endpoint giua communication va sequence cua cung use case.",
+    "R13": "Bao dam boundary/proxy co trao doi voi actor/external actor.",
+    "R14": "Dong bo actor voi context external cung bundle.",
+    "X1": "Sua useCase reference hoac them use case tuong ung trong cung bundle.",
+    "X2": "Bo actor thieu vao interaction dung use case/bundle.",
+    "X3": "Sua stateMachineOf hoac them state dependent control tuong ung trong interaction cung bundle.",
+    "X4": "Dong bo tap entity giua ERD va entity class model cung bundle.",
+    "X5": "Dong bo top-level component giua component va deployment cung bundle.",
+    "X6": "Chon mot structural role nhat quan cho concept trong cung bundle.",
+    "S1": "Sua initial pseudostate de chi co mot transition ra va khong co event/guard o transition khoi tao.",
+    "S2": "Bo transition ra khoi final state.",
+    "S3": "Them guard phan biet cho cac nhanh choice/junction.",
+    "S4": "Noi state bi cut voi flow hop le hoac final state.",
+    "S5": "Them guard phan biet cho cac transition cung event.",
+    "A1": "Them guard cho cac nhanh decision va toi da mot nhanh else.",
+    "A2": "Sua cardinality cua fork/join theo 1-in-many-out / many-in-1-out.",
+    "A3": "Sua initial/final node theo quy tac activity.",
+    "A4": "Dung merge de gop va decision de re nhanh, khong dung sai vai tro.",
+    "A5": "Noi action voi luong vao/ra hop le.",
+    "A6": "Tach join/fork ngam thanh node UML tuong ung.",
+    "C1": "Them kieu cho moi attribute.",
+    "C2": "Bo sung multiplicity va role/ten association khi can.",
+    "E1": "Chi noi quan he ERD vao entity/relationship hop le.",
+    "E2": "Bo sung cardinality o hai dau quan he.",
+    "E3": "Dat ten cho quan he/hinh thoi.",
+    "F1": "Noi moi man hinh tu root cua site map.",
+    "F2": "Loai bo node/label khong hop le khoi screen flow.",
+    "B1": "Chi de mot system trung tam trong business context.",
+    "B2": "Dat ten cho flow va noi flow giua system va external.",
+    "B3": "Bao dam moi external co it nhat mot flow.",
+    "L1": "Doi text ve tieng Anh hoac dat lang explicit neu co chu co dau.",
+    "M1": "Them projection cua canonical concept vao source spec phu hop; khong sua business semantics trong .drawio.",
+    "M2": "Kiem tra concept chi co trong projection; khai bao canonical concept hoac xoa projection semantic.",
+    "M3": "Dong bo identity/name/alias cua concept trong source spec voi canonical model authoritative.",
+    "M4": "Bo sung quan he canonical con thieu vao source spec va regenerate cac diagram anh huong.",
+    "M5": "Kiem tra relationship chi co trong projection; khai bao canonical relationship hoac xoa projection.",
+    "M6": "Bo sung alias canonical vao projection hoac khai bao aliasOf ro rang.",
+}
+
+
+def code_of(message):
+    return str(message).split(" ", 1)[0] if message else "UNKNOWN"
+
+
+def source_tokens(message):
+    out = []
+    for raw in re.findall(r"\[([^\]]+)\]", message):
+        for token in re.split(r"\s*<>\s*|,\s*", raw):
+            token = token.strip()
+            if token and token not in out and token.lower() not in {"default"}:
+                out.append(token)
+    return out
+
+
+def _concept_patterns(model):
+    """Regex nguyen tu cho ten concept: 'pin' khong duoc khop 'pinpad' hay 'spin'."""
+    out = {}
+    for cid, concept in model.get("concepts", {}).items():
+        keys = {concept.get("nameKey")} | {norm(a) for a in concept.get("aliases", [])}
+        keys = sorted(k for k in keys if k)
+        if keys:
+            out[cid] = re.compile(r"(?<!\w)(?:%s)(?!\w)" % "|".join(re.escape(k) for k in keys))
+    return out
+
+
+def build_plan(specs, canonical_model=None, model=None, check_result=None):
+    """`model`/`check_result` cho phep caller (comet_manifest) dung lai ket qua da tinh."""
+    errors, warnings, infos = check_result if check_result is not None else check(specs)
+    if model is None:
+        model = build_model(specs)
+    items = []
+    reconciliation = None
+    if canonical_model is not None:
+        from comet_reconcile import reconcile
+        reconciliation = reconcile(canonical_model, model)
+    for severity, messages in (("error", errors), ("warning", warnings), ("info", infos)):
+        for message in messages:
+            code = code_of(message)
+            items.append({
+                "id": "%s-%d" % (code, len(items) + 1),
+                "rule": code,
+                "severity": severity,
+                "message": message,
+                "action": RULE_ACTIONS.get(code, "Kiem tra spec va dong bo semantic model."),
+                "sources": source_tokens(message),
+            })
+
+    # V2 impact: nguồn vi phạm -> canonical concept -> propagated impact.
+    source_to_concepts = defaultdict(set)
+    for cid, concept in model.get("concepts", {}).items():
+        for src in concept.get("provenance", []):
+            if src.get("source"):
+                source_to_concepts[src["source"]].add(cid)
+        for src in concept.get("legacyNodeIds", []):
+            node = model["nodes"].get(src, {})
+            for source in node.get("sources", []):
+                source_to_concepts[source].add(cid)
+    patterns = _concept_patterns(model)
+    concepts = model.get("concepts", {})
+
+    for item in items:
+        in_sources = set()
+        for src in item["sources"]:
+            in_sources.update(source_to_concepts.get(src, set()))
+        message_key = norm(item["message"])
+        named = {cid: pat.search(message_key).group(0) for cid, pat in patterns.items() if pat.search(message_key)}
+        # "Query Account" khop ca concept "Account" -> chi giu ten dai nhat bao trum.
+        named = {cid for cid, hit in named.items()
+                 if not any(other != hit and re.search(r"(?<!\w)%s(?!\w)" % re.escape(hit), other)
+                            for other in named.values())}
+        # Uu tien concept vua nam trong spec vi pham vua duoc nhac ten trong message; message khong
+        # nhac ten concept nao (vd R11 dem so luong) -> ca spec; khong parse duoc source -> theo ten.
+        if in_sources:
+            affected_concepts = (in_sources & named) or in_sources
+        else:
+            affected_concepts = named
+
+        affected_nodes = set()
+        for cid in affected_concepts:
+            for nid in concepts.get(cid, {}).get("legacyNodeIds", []):
+                node_sources = model["nodes"].get(nid, {}).get("sources", [])
+                if not item["sources"] or set(node_sources) & set(item["sources"]):
+                    affected_nodes.add(nid)
+
+        impacted = set()
+        direct = set()
+        regenerate = set()
+        diagram_kinds = set()
+        for cid in affected_concepts:
+            impact = model.get("impactMap", {}).get(cid, {})
+            impacted.add(cid)
+            impacted.update(impact.get("impactedConceptIds", []))
+            direct.update(impact.get("directConceptIds", []))
+            regenerate.update(impact.get("regenerateSources", []))
+            diagram_kinds.update(impact.get("impactedDiagramKinds", []))
+
+        item["affectedNodeIds"] = sorted(affected_nodes)
+        item["affectedConceptIds"] = sorted(affected_concepts)
+        item["directlyImpactedConceptIds"] = sorted(direct - affected_concepts)
+        item["impactedConceptIds"] = sorted(impacted)
+        item["affectedDiagramKinds"] = sorted(diagram_kinds)
+        item["regenerateSources"] = sorted(regenerate or set(item["sources"]))
+
+    if reconciliation is not None:
+        for drift in reconciliation["drift"]:
+            affected = sorted(set(drift.get("affectedConceptIds", [])))
+            impacted_set = set(affected)
+            direct = set()
+            regenerate = set(drift.get("regenerateSources", []))
+            diagrams = set(drift.get("affectedDiagramKinds", []))
+            for cid in affected:
+                impact = model.get("impactMap", {}).get(cid)
+                if impact is None:
+                    impact = model.get("conceptImpactMap", {}).get(cid, {})
+                impacted_set.update(impact.get("impactedConceptIds", []))
+                direct.update(impact.get("directConceptIds", []))
+                regenerate.update(impact.get("regenerateSources", []))
+                diagrams.update(impact.get("impactedDiagramKinds", []))
+            items.append({
+                "id": "%s-%d" % (drift["rule"], len(items) + 1),
+                "rule": drift["rule"],
+                "severity": drift["severity"],
+                "message": drift["message"],
+                "action": drift.get("suggestion") or RULE_ACTIONS.get(drift["rule"], "Reconcile canonical model and source projections."),
+                "sources": sorted(regenerate),
+                "affectedNodeIds": [],
+                "affectedConceptIds": affected,
+                "directlyImpactedConceptIds": sorted(direct - set(affected)),
+                "impactedConceptIds": sorted(impacted_set),
+                "affectedDiagramKinds": sorted(diagrams),
+                "regenerateSources": sorted(regenerate),
+            })
+
+    errors_count = len(errors) + (reconciliation["summary"]["errors"] if reconciliation else 0)
+    warnings_count = len(warnings) + (reconciliation["summary"]["warnings"] if reconciliation else 0)
+    infos_count = len(infos) + (reconciliation["summary"]["infos"] if reconciliation else 0)
+
+    plan = {
+        "schemaVersion": 2,
+        "kind": "comet-repair-plan",
+        "modelFingerprint": canonical_model["fingerprint"] if canonical_model is not None else model["fingerprint"],
+        "projectionFingerprint": model["fingerprint"],
+        "canonicalModelFingerprint": canonical_model["fingerprint"] if canonical_model is not None else None,
+        "summary": {
+            "errors": errors_count,
+            "warnings": warnings_count,
+            "infos": infos_count,
+            "steps": len(items),
+        },
+        "steps": items,
+    }
+    if reconciliation is not None:
+        plan["canonicalReconciliation"] = reconciliation
+    return plan
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Xuat repair plan machine-readable cho bo COMET")
+    ap.add_argument("specs", nargs="+")
+    ap.add_argument("-o", "--output", help="ghi JSON plan vao file")
+    ap.add_argument("--canonical-model",
+                    help="model v2 authoritative; spec hien tai duoc xem la projection")
+    a = ap.parse_args()
+    canonical = None
+    if a.canonical_model:
+        from comet_reconcile import load_model
+        canonical = load_model(a.canonical_model)
+    plan = build_plan(load(a.specs), canonical_model=canonical)
+    text = json.dumps(plan, ensure_ascii=False, indent=2)
+    if a.output:
+        Path(a.output).parent.mkdir(parents=True, exist_ok=True)
+        Path(a.output).write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+
+
+if __name__ == "__main__":
+    main()

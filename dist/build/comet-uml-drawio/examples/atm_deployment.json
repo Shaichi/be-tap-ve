@@ -1,0 +1,15 @@
+{
+  "diagram": "deployment",
+  "title": "Banking System - Distributed Configuration",
+  "elements": [
+    {"id": "atmn", "type": "node", "name": "ATM", "stereotype": "device"},
+    {"id": "atmc", "type": "component", "name": "ATM Client", "stereotype": "client subsystem", "in": "atmn"},
+    {"id": "srv", "type": "node", "name": "Bank Server"},
+    {"id": "bsvc", "type": "component", "name": "Banking Service", "stereotype": "service subsystem", "in": "srv"},
+    {"id": "db", "type": "artifact", "name": "bank.db", "in": "srv"}
+  ],
+  "relations": [
+    {"type": "communicationpath", "from": "atmn", "to": "srv", "stereotype": "WAN", "fromMult": "1..*", "toMult": "1"},
+    {"type": "dependency", "from": "bsvc", "to": "db", "stereotype": "use"}
+  ]
+}

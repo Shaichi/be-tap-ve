@@ -1,0 +1,233 @@
+{
+  "diagram": "sequence",
+  "title": "Validate PIN",
+  "useCase": "Validate PIN",
+  "elements": [
+    {
+      "id": "cust",
+      "type": "actor",
+      "name": "ATM Customer"
+    },
+    {
+      "id": "cri",
+      "type": "object",
+      "class": "Card Reader Interface",
+      "stereotype": "input"
+    },
+    {
+      "id": "ci",
+      "type": "object",
+      "class": "Customer Interaction",
+      "stereotype": "user interaction"
+    },
+    {
+      "id": "ctl",
+      "type": "object",
+      "class": "ATM Control",
+      "stereotype": "state dependent control"
+    },
+    {
+      "id": "px",
+      "type": "object",
+      "class": "Bank Service Proxy",
+      "stereotype": "proxy"
+    },
+    {
+      "id": "card",
+      "type": "object",
+      "class": "Debit Card",
+      "stereotype": "entity"
+    },
+    {
+      "id": "trx",
+      "type": "object",
+      "class": "ATM Transaction",
+      "stereotype": "entity"
+    },
+    {
+      "id": "bank",
+      "type": "actor",
+      "name": "Bank Server",
+      "side": "right"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "seq": "1",
+      "from": "cust",
+      "to": "cri",
+      "name": "Card Reader Input",
+      "type": "async"
+    },
+    {
+      "id": "m2",
+      "seq": "2",
+      "from": "cri",
+      "to": "card",
+      "name": "Card Input Data",
+      "type": "sync"
+    },
+    {
+      "id": "m3",
+      "seq": "3",
+      "from": "cri",
+      "to": "ctl",
+      "name": "Card Inserted",
+      "type": "async"
+    },
+    {
+      "id": "m4",
+      "seq": "4",
+      "from": "ctl",
+      "to": "ci",
+      "name": "Get PIN",
+      "type": "async"
+    },
+    {
+      "id": "m5",
+      "seq": "5",
+      "from": "ci",
+      "to": "cust",
+      "name": "PIN Prompt",
+      "type": "async"
+    },
+    {
+      "id": "m6",
+      "seq": "6",
+      "from": "cust",
+      "to": "ci",
+      "name": "PIN Input",
+      "type": "async"
+    },
+    {
+      "id": "m7",
+      "seq": "7",
+      "from": "ci",
+      "to": "card",
+      "name": "Card Request",
+      "type": "sync"
+    },
+    {
+      "id": "m8",
+      "seq": "8",
+      "from": "card",
+      "to": "ci",
+      "name": "Card Data",
+      "type": "reply"
+    },
+    {
+      "id": "m9",
+      "seq": "9",
+      "from": "ci",
+      "to": "trx",
+      "name": "Card Id, PIN",
+      "type": "sync"
+    },
+    {
+      "id": "m10",
+      "seq": "10",
+      "from": "ci",
+      "to": "ctl",
+      "name": "PIN Entered",
+      "type": "async"
+    },
+    {
+      "id": "m11",
+      "seq": "11",
+      "from": "ctl",
+      "to": "px",
+      "name": "Validate PIN",
+      "type": "sync"
+    },
+    {
+      "id": "m12",
+      "seq": "12",
+      "from": "px",
+      "to": "bank",
+      "name": "PIN Validation Request",
+      "type": "sync"
+    },
+    {
+      "id": "m13",
+      "seq": "13",
+      "from": "bank",
+      "to": "px",
+      "name": "Valid PIN",
+      "type": "reply"
+    },
+    {
+      "id": "m14",
+      "seq": "14",
+      "from": "px",
+      "to": "ctl",
+      "name": "Valid PIN",
+      "type": "reply"
+    },
+    {
+      "id": "m15",
+      "seq": "15",
+      "from": "ctl",
+      "to": "ci",
+      "name": "Display Menu",
+      "type": "async"
+    },
+    {
+      "id": "m16",
+      "seq": "16",
+      "from": "ci",
+      "to": "cust",
+      "name": "Selection Menu",
+      "type": "async"
+    },
+    {
+      "id": "m13a",
+      "seq": "13a",
+      "from": "bank",
+      "to": "px",
+      "name": "Invalid PIN",
+      "type": "reply"
+    },
+    {
+      "id": "m14a",
+      "seq": "14a",
+      "from": "px",
+      "to": "ctl",
+      "name": "Invalid PIN",
+      "type": "reply"
+    },
+    {
+      "id": "m15a",
+      "seq": "15a",
+      "from": "ctl",
+      "to": "ci",
+      "name": "Invalid PIN Prompt",
+      "type": "async"
+    },
+    {
+      "id": "m16a",
+      "seq": "16a",
+      "from": "ci",
+      "to": "cust",
+      "name": "Invalid PIN Prompt",
+      "type": "async"
+    }
+  ],
+  "fragments": [
+    {
+      "type": "alt",
+      "operands": [
+        {
+          "guard": "PIN valid",
+          "from": "m13",
+          "to": "m16"
+        },
+        {
+          "guard": "else",
+          "from": "m13a",
+          "to": "m16a"
+        }
+      ]
+    }
+  ]
+}

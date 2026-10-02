@@ -1,0 +1,21 @@
+{
+  "diagram": "context",
+  "title": "Banking System - Software System Context",
+  "elements": [
+    {"id": "sys", "type": "system", "name": "Banking System", "stereotype": "software system"},
+    {"id": "cr", "type": "external", "name": "Card Reader", "stereotype": "external I/O device"},
+    {"id": "cd", "type": "external", "name": "Cash Dispenser", "stereotype": "external output device"},
+    {"id": "rp", "type": "external", "name": "Receipt Printer", "stereotype": "external output device"},
+    {"id": "cu", "type": "external", "name": "ATM Customer", "stereotype": "external user"},
+    {"id": "op", "type": "external", "name": "Operator", "stereotype": "external user"},
+    {"id": "bs", "type": "external", "name": "Bank Server", "stereotype": "external system"}
+  ],
+  "relations": [
+    {"type": "association", "from": "cr", "to": "sys", "label": "Inputs to", "fromMult": "1", "toMult": "1"},
+    {"type": "association", "from": "sys", "to": "cd", "label": "Outputs to", "fromMult": "1", "toMult": "1"},
+    {"type": "association", "from": "sys", "to": "rp", "label": "Outputs to", "fromMult": "1", "toMult": "1"},
+    {"type": "association", "from": "cu", "to": "sys", "label": "Interacts with", "fromMult": "1..*", "toMult": "1"},
+    {"type": "association", "from": "op", "to": "sys", "label": "Interacts with", "fromMult": "1", "toMult": "1"},
+    {"type": "association", "from": "bs", "to": "sys", "label": "Interacts with", "fromMult": "1", "toMult": "1"}
+  ]
+}

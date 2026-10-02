@@ -1,0 +1,36 @@
+{
+  "diagram": "class",
+  "title": "Order System - Design Class Diagram",
+  "elements": [
+    {"id": "cus", "type": "class", "name": "Customer",
+     "attributes": ["-name: String", "-address: String"]},
+    {"id": "ord", "type": "class", "name": "Order",
+     "attributes": ["-date: Date", "-status: String"],
+     "operations": ["+calcSubTotal(): float", "+calcTax(): float", "+calcTotal(): float", "+calcTotalWeight(): float"]},
+    {"id": "od", "type": "class", "name": "OrderDetail",
+     "attributes": ["-quantity: int", "-taxStatus: String"],
+     "operations": ["+calcSubTotal(): float", "+calcWeight(): float", "+calcTax(): float"]},
+    {"id": "item", "type": "class", "name": "Item",
+     "attributes": ["-shippingWeight: float", "-description: String"],
+     "operations": ["+getPriceForQuantity(qty: int): float", "+getTax(): float", "+inStock(): boolean"]},
+    {"id": "pay", "type": "class", "name": "Payment", "abstract": true,
+     "attributes": ["#amount: float"]},
+    {"id": "cash", "type": "class", "name": "Cash",
+     "attributes": ["-cashTendered: float"]},
+    {"id": "chk", "type": "class", "name": "Check",
+     "attributes": ["-name: String", "-bankID: String"],
+     "operations": ["+authorized(): boolean"]},
+    {"id": "cr", "type": "class", "name": "Credit",
+     "attributes": ["-number: String", "-type: String", "-expDate: Date"],
+     "operations": ["+authorized(): boolean"]}
+  ],
+  "relations": [
+    {"type": "association", "from": "cus", "to": "ord", "label": "Places", "fromMult": "1", "toMult": "0..*"},
+    {"type": "aggregation", "from": "ord", "to": "od", "fromMult": "1", "toMult": "1..*", "toRole": "line item"},
+    {"type": "association", "from": "od", "to": "item", "label": "Refers to", "fromMult": "0..*", "toMult": "1", "navigable": true},
+    {"type": "association", "from": "ord", "to": "pay", "label": "Paid by", "fromMult": "1", "toMult": "1..*"},
+    {"type": "generalization", "from": "cash", "to": "pay"},
+    {"type": "generalization", "from": "chk", "to": "pay"},
+    {"type": "generalization", "from": "cr", "to": "pay"}
+  ]
+}

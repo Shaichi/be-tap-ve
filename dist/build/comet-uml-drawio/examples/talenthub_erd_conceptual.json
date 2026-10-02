@@ -1,0 +1,25 @@
+{
+  "diagram": "erd",
+  "notation": "crowfoot",
+  "title": "TalentHub - Entity Relationship Diagram",
+  "elements": [
+    {"id": "user", "type": "entity", "name": "User",
+     "attributes": ["+ Full Name", "+ Username", "+ Email Address", "+ Role", "+ Account Status"]},
+    {"id": "job", "type": "entity", "name": "Job Posting",
+     "attributes": ["+ Job Title", "+ Department", "+ Location", "+ Description", "+ Requirements", "+ Salary Range", "+ Deadline"]},
+    {"id": "app", "type": "entity", "name": "Application",
+     "attributes": ["+ CV File", "+ Cover Letter", "+ Status", "+ Submitted At"]},
+    {"id": "note", "type": "entity", "name": "Internal Note",
+     "attributes": ["+ Content", "+ Created At"]},
+    {"id": "itv", "type": "entity", "name": "Interview",
+     "attributes": ["+ Scheduled At", "+ Location / Link", "+ Rating", "+ Feedback", "+ Status"]}
+  ],
+  "relations": [
+    {"from": "user", "to": "job", "name": "creating (HR Manager)", "fromCard": "1", "toCard": "0..N"},
+    {"from": "user", "to": "app", "name": "submitting (Candidate)", "fromCard": "1", "toCard": "0..N"},
+    {"from": "job", "to": "app", "name": "receiving", "fromCard": "1", "toCard": "0..N"},
+    {"from": "app", "to": "note", "name": "having", "fromCard": "1", "toCard": "0..N"},
+    {"from": "app", "to": "itv", "name": "having", "fromCard": "1", "toCard": "0..N"},
+    {"from": "user", "to": "itv", "name": "interviewing (Interviewer)", "fromCard": "1", "toCard": "0..N"}
+  ]
+}

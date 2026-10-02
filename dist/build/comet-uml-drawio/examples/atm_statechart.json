@@ -1,0 +1,29 @@
+{
+  "diagram": "state",
+  "title": "ATM Control",
+  "stateMachineOf": "ATM Control",
+  "elements": [
+    {"id": "i", "type": "initial"},
+    {"id": "closed", "type": "state", "name": "Closed Down"},
+    {"id": "idle", "type": "state", "name": "Idle", "activities": ["entry / Display Welcome"]},
+    {"id": "wpin", "type": "state", "name": "Waiting for PIN"},
+    {"id": "vpin", "type": "state", "name": "Validating PIN"},
+    {"id": "wch", "type": "state", "name": "Waiting for Customer Choice"},
+    {"id": "conf", "type": "state", "name": "Confiscating"},
+    {"id": "ej", "type": "state", "name": "Ejecting"}
+  ],
+  "relations": [
+    {"type": "transition", "from": "i", "to": "closed"},
+    {"type": "transition", "from": "closed", "to": "idle", "event": "Startup"},
+    {"type": "transition", "from": "idle", "to": "closed", "event": "Shutdown"},
+    {"type": "transition", "from": "idle", "to": "wpin", "event": "Card Inserted", "action": "Get PIN"},
+    {"type": "transition", "from": "wpin", "to": "vpin", "event": "PIN Entered", "action": "Validate PIN"},
+    {"type": "transition", "from": "vpin", "to": "wch", "event": "Valid PIN", "action": "Display Menu"},
+    {"type": "transition", "from": "vpin", "to": "wpin", "event": "Invalid PIN", "action": "Invalid PIN Prompt"},
+    {"type": "transition", "from": "vpin", "to": "conf", "event": "Third Invalid PIN", "action": "Confiscate"},
+    {"type": "transition", "from": "wpin", "to": "ej", "event": "Cancel", "action": "Eject"},
+    {"type": "transition", "from": "wch", "to": "ej", "event": "Cancel", "action": "Eject"},
+    {"type": "transition", "from": "ej", "to": "idle", "event": "Card Ejected", "action": "Display Welcome"},
+    {"type": "transition", "from": "conf", "to": "idle", "event": "Card Confiscated", "action": "Display Welcome"}
+  ]
+}
