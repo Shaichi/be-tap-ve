@@ -38,7 +38,48 @@ CFG = {
     "coord_iters": 16,
     "exit_gap": None,    # so tang nhan dup (co canh co nhan): khe phia dau ra cua tang nhan trong (khong chua
                          # nhan) chi can ngan nay thay vi min_gap; khe phia mui ten giu min_gap (activity ngang)
+    "fold": None,        # {category: (ti le hang/cot, so cot toi da, so hinh toi da mot tang)}: tang qua dai -> gap
+                         # hinh "tu do" sang nhieu tang (use case: nhieu UC cung actor khong don thanh mot cot dai)
 }
+
+
+def _fold(mem, c, base, rank, preds, succs, V, spec):
+    """Chia cac hinh tu do (moi lang gieng deu o category khac, vd UC chi noi voi actor) cua category c ra
+    nhieu tang de mot tang khong qua dai trong khi chieu kia con trong. So cot ~ sqrt(n / ratio).
+    Nhom hinh chung lang gieng chi o mot phia (vd cac UC cua mot actor trai) xep hinh quat: hinh giua nhom
+    (theo thu tu spec) ra cot xa, hai dau o cot gan -> duong tu actor toi cot xa di qua khoang trong giua
+    cot gan, tat ca deu thang. Noi ca hai phia: cot giua it hinh nhat.
+    Tra ve tap hinh da dat (khong de buoc keo nguon ve sat dich ghi de)."""
+    ratio, kmax, rows = spec
+    free = [x for x in mem if all(V[y].cat != c for y in preds[x] + succs[x])]
+    fs = set(free)
+    fixed = [x for x in mem if x not in fs]
+    span = (max(rank[x] for x in fixed) - base + 1) if fixed else 1
+    k = max(span, min(kmax, int(round(math.sqrt(len(mem) / ratio)))))
+    tall = max(sum(1 for x in mem if rank[x] == r) for r in range(base, base + span))
+    if k < 2 or not free or tall <= rows:
+        return set()
+    cnt = [0] * k
+    for x in fixed:
+        cnt[rank[x] - base] += 1
+    groups = defaultdict(list)
+    for x in free:
+        groups[(tuple(sorted(preds[x])), tuple(sorted(succs[x])))].append(x)
+    for (pr, su), G in groups.items():
+        g = len(G)
+        if pr and su:
+            for x in G:
+                r = min(sorted(range(k), key=lambda i: abs(i - (k - 1) / 2)), key=lambda i: cnt[i])
+                cnt[r] += 1
+                rank[x] = base + r
+            continue
+        mid = sorted(range(g), key=lambda i: (abs(i - (g - 1) / 2), i))
+        for j, i in enumerate(mid):
+            d = 0 if g <= 2 else k - 1 - (j * k + k - 1) // g   # so cot tinh tu phia actor (0: sat actor)
+            r = d if pr else k - 1 - d
+            cnt[r] += 1
+            rank[G[i]] = base + r
+    return set(free)
 
 
 class LV:
@@ -219,16 +260,19 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
     catbase, catmax = {}, {}
     cats = sorted(set(V[x].cat for x in order))
     base = 0
+    folded = set()
     for c in cats:
         mem = [x for x in topo if V[x].cat == c]
         catbase[c] = base
         for x in mem:
             rank[x] = max([base] + [rank[p] + 1 for p in preds[x] if p in rank])
+        if c in (C["fold"] or {}):
+            folded |= _fold(mem, c, base, rank, preds, succs, V, C["fold"][c])
         base = max(rank[x] for x in mem) + 1
     for i, c in enumerate(cats):
         catmax[c] = (catbase[cats[i + 1]] - 1) if i + 1 < len(cats) else 10 ** 9
     for x in reversed(topo):
-        if not preds[x] and succs[x]:
+        if not preds[x] and succs[x] and x not in folded:
             c = V[x].cat
             rank[x] = min(catmax[c], max(catbase[c], min(rank[y] for y in succs[x]) - 1))
 
@@ -252,7 +296,12 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             if isl:
                 d = LV("\x00d%s#%d" % (e.id, r), e._lab[0] + 10, e._lab[1] + 6, True, None, e, True)
             else:
-                d = LV("\x00d%s#%d" % (e.id, r), C["dummy_w"], 0, True, None, e, False)
+                dw = C["dummy_w"]
+                t = e._lv if e._lv in folded else e._lu if e._lu in folded else None
+                if t:   # hinh quat: duong toi hinh o cot xa can khe o cot gan ~ ti le quang duong da di
+                    f = (r - ru) / (rv - ru) if t == e._lv else (rv - r) / (rv - ru)
+                    dw = max(dw, (V[t].w + C["node_sep"]) * f - C["dummy_sep"])
+                d = LV("\x00d%s#%d" % (e.id, r), dw, 0, True, None, e, False)
             d.rank = r
             d.cat = -1
             d.lane = V[e._lv].lane      # doan doc cua canh dai di trong lan cua dau duoi
@@ -272,8 +321,16 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
         for i, x in enumerate(layers[r]):
             pos[x] = i
 
+    def rep(x):
+        """Gap tang: dummy xep theo thu tu cua UC ma canh do toi -> cot sau so le giua cac hinh cot truoc."""
+        e = V[x].edge
+        if not V[x].dummy or e is None:
+            return idx[x]
+        return idx[e._lv if V[e._lu].cat not in C["fold"] else e._lu]
+
     for r in range(R + 1):
-        layers[r].sort(key=lambda x: V[x].lane)   # on dinh; lan luon la khoa sap xep dau tien
+        # on dinh; lan luon la khoa sap xep dau tien
+        layers[r].sort(key=(lambda x: (V[x].lane, rep(x))) if folded else (lambda x: V[x].lane))
         reindex(r)
 
     def bary(r, attr):
@@ -437,6 +494,29 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
         place(r, "both")
     for r in range(1, R + 1):
         place(r, "up")
+
+    if folded and not LANES:
+        # da gap tang: nhom UC cua cac actor khac nhau khong hut nhau -> con khe trong ca hang ngang.
+        # Cat ngang tai mep duoi mot hinh, moi tang deu con du cho -> dua toan bo phan duoi len.
+        def slack(c):
+            d = float("inf")
+            for L in layers:
+                above = [x for x in L if X[x] + V[x].w / 2 <= c]
+                below = [x for x in L if X[x] - V[x].w / 2 >= c]
+                if len(above) + len(below) < len(L):
+                    return 0.0          # co hinh nam vat qua duong cat
+                if above and below:
+                    a, b = above[-1], below[0]
+                    d = min(d, X[b] - V[b].w / 2 - X[a] - V[a].w / 2 - sep(a, b))
+            return d if d != float("inf") else 0.0
+
+        for _ in range(4 * len(X)):
+            c, d = max(((c, slack(c)) for c in sorted({X[x] + V[x].w / 2 for x in X})), key=lambda t: t[1])
+            if d < 1:
+                break
+            for x in X:
+                if X[x] - V[x].w / 2 >= c:
+                    X[x] -= d
 
     lane_band = []
     if LANES:

@@ -595,6 +595,33 @@ class TestGenerator(unittest.TestCase):
                 self.assertLessEqual(len(edge_crossings(G)), 1)
                 self.assertEqual(gen(sp)[0], xml)      # tat dinh
 
+    def test_usecase_many_ucs_fold_into_columns(self):
+        # 12 UC cung mot actor: truoc day don thanh mot cot dai hep (khung cao ~1180, rong ~240)
+        # -> gap thanh 2 cot hinh quat (giua ra cot xa), khung thap hon han, canh van thang
+        names = ["Register", "Login", "Search Course", "View Course", "Enroll", "Pay", "Watch Lecture",
+                 "Take Quiz", "View Grades", "Send Feedback", "Update Profile", "Change Password"]
+        sp = {"diagram": "usecase", "title": "LMS", "system": "E-learning System",
+              "elements": [{"id": "st", "type": "actor", "name": "Student"}] + [
+                  {"id": "u%d" % i, "type": "usecase", "name": n} for i, n in enumerate(names)],
+              "relations": [{"from": "st", "to": "u%d" % i} for i in range(len(names))]}
+        xml, cs, G = self.clean(sp)
+        R = rects(G)
+        bnd = R["system_boundary"]
+        self.assertLess(bnd[3] - bnd[1], 2.5 * (bnd[2] - bnd[0]), bnd)
+        cols = {round((R["u%d" % i][0] + R["u%d" % i][2]) / 2) for i in range(len(names))}
+        self.assertEqual(len(cols), 2, cols)
+        for i in range(len(names)):
+            self.assertTrue(V.rect_contains(bnd, R["u%d" % i]))
+        bends = [len(pts) - 2 for _, pts in G.edges.values()]
+        self.assertLessEqual(max(bends), 1, bends)
+        self.assertLessEqual(sum(bends), 2, bends)
+        self.assertEqual(edge_crossings(G), [])
+        self.assertEqual(gen(sp)[0], xml)      # tat dinh
+        # it UC: van mot cot nhu cu
+        few = dict(sp, elements=sp["elements"][:6], relations=sp["relations"][:5])
+        R = rects(self.clean(few)[2])
+        self.assertEqual(len({round((R["u%d" % i][0] + R["u%d" % i][2]) / 2) for i in range(5)}), 1)
+
     def test_class_notation(self):
         xml, cs, G = self.clean(CLASS_SPEC)
         gz, rz = style(edge_between(cs, "chk", "acct")), style(edge_between(cs, "acct", "ifc"))
