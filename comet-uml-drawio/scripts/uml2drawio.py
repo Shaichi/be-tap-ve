@@ -917,7 +917,7 @@ def _box_fan(el, p0):
     return out
 
 
-def straight_usecase_edges(E, edges, extra):
+def straight_usecase_edges(E, edges, extra, room=None):
     """Use case: canh noi thang thay cho duong be vuong. Moi canh thu doan thang (diem gan truot tren vien ellipse /
     canh actor); bi hinh, ten actor hay tieu de khung (extra) chan thi vong mot goc sat hinh can duong; bi het thi rut
     gon duong vuong cua bo cuc. Duong duoc chon de it cat nhau, it chay sat song song, it goc nhat. Nhan canh dat lai
@@ -1010,6 +1010,38 @@ def straight_usecase_edges(E, edges, extra):
                 if math.hypot(p[0] + dx * t - s[0], p[1] + dy * t - s[1]) < d:
                     hit.add(i)
         return len(hit)
+
+    def straight(le, n=5):
+        """Canh le noi thang duoc (thu vai diem gan quanh huong tam-tam)."""
+        su, sv = E[le.u], E[le.v]
+        cu = (su.ax + su.sr[2] / 2, su.ay + su.sr[3] / 2)
+        cv = (sv.ax + sv.sr[2] / 2, sv.ay + sv.sr[3] / 2)
+        A, B = fan(le.u, anchor(le.u, cv))[:n], fan(le.v, anchor(le.v, cu))[:n]
+        return any(free(a, b, {le.u, le.v}) for _, a in A for _, b in B)
+
+    # UC chi noi voi actor bi UC khac che (hay gap khi so do gap nhieu cot): truot doc trong cot (trong khung he
+    # thong, khong sat hinh khac) toi cho moi canh cua no noi thang duoc ma khong che canh dang thang cua UC khac
+    live0 = [le for le in edges if le.abs and le.u != le.v] if room else []
+    ok0 = {le.id for le in live0 if straight(le)}
+    for k, el in [(k, el) for _ in range(2) for k, el in E.items()]:
+        mine = [le for le in live0 if k in (le.u, le.v)]
+        if (not ell(k) or not mine or all(le.id in ok0 for le in mine)
+                or any(E[le.v if le.u == k else le.u].kind != "actor" for le in mine)):
+            continue
+        r0, ay0 = shape[k], el.ay
+        for dy in sorted(range(-160, 161, 4), key=lambda d: (abs(d), d)):
+            r = (r0[0], r0[1] + dy, r0[2], r0[3] + dy)
+            if dy == 0 or r[1] < room[1] or r[3] > room[3]:
+                continue
+            if any(o != k and meet(_grow(r, 20), s) for o, s in shape.items()):
+                continue
+            shape[k], el.ay = r, ay0 + dy
+            if all(straight(le) for le in mine) and all(straight(le) for le in live0
+                                                        if le.id in ok0 and k not in (le.u, le.v)):
+                ok0 |= {le.id for le in mine}
+                break
+            shape[k], el.ay = r0, ay0
+    blocks = list(shape.values()) + list(names.values()) + extra
 
     cands = {}   # canh -> [(chi phi goc, duong, diem mau)]: thang (lech it) < mot goc (ngan) < rut day duong vuong
     for le in edges:
@@ -1247,7 +1279,8 @@ def build_graph(spec, warns, origin):
     results = {}
     # use case: canh actor -> UC duoc «include» va UC goc -> actor phai hay ket o thu tu cat nhau
     # -> cho phep chen lai ca chuoi canh dai (cac loai so do khac giu thu tu cu)
-    level_cfg = {"chain_reinsert": True} if diagram == "usecase" else None
+    # cot UC dai hon 6 -> gap thanh nhieu cot (~2.5 hang moi cot, toi da 4 cot) thay vi mot cot dai hep
+    level_cfg = {"chain_reinsert": True, "fold": {1: (2.5, 4, 6)}} if diagram == "usecase" else None
     if diagram == "activity" and direction == "LR":   # ngang: canh ngan lai de so do khong qua dai
         level_cfg = {"exit_gap": 14, "min_gap": 28}
 
@@ -1334,7 +1367,8 @@ def build_graph(spec, warns, origin):
             tw, th = text_size(title, 12, True)
             cx = (x0 + x1) / 2
             extra.append((cx - tw / 2, y0 + 2, cx + tw / 2, y0 + 6 + th))
-        straight_usecase_edges(E, level_edges.get(None, []), extra)
+            room = (x0 + 20, y0 + 6 + th + 18, x1 - 20, y1 - 18)
+        straight_usecase_edges(E, level_edges.get(None, []), extra, room if bnd else None)
 
     # communication: build message labels now that positions are known
     if diagram == "communication":
