@@ -37,6 +37,7 @@ import unittest
 import urllib.parse
 import xml.etree.ElementTree as ET
 import zlib
+from collections import defaultdict
 from pathlib import Path
 from xml.sax.saxutils import quoteattr
 
@@ -323,6 +324,30 @@ class TestFuzz(unittest.TestCase):
                     fx, fy = float(st[pre + "X"]), float(st[pre + "Y"])
                     with self.subTest(spec=sp.get("title"), edge=c.get("id"), end=end):
                         self.assertAlmostEqual(abs(fx - 0.5) + abs(fy - 0.5), 0.5, delta=0.01)
+        self.assertGreater(n, 50)
+
+    def test_activity_rhombus_edges_at_vertices(self):
+        """Activity: decision/merge <= 4 canh (moi phia <= 3) -> moi dau canh o 1 trong 4 dinh, khong 2 canh chung dinh."""
+        specs = [GENERATORS["activity"](s) for s in range(FUZZ_SEEDS)]
+        specs += U.load_specs([str(EXAMPLES / "atm_activity_withdraw.json")])
+        tips = {(0.5, 0.0), (0.5, 1.0), (0.0, 0.5), (1.0, 0.5)}
+        n = 0
+        for sp in specs:
+            cs = cells(gen(sp)[0])
+            ends = defaultdict(list)
+            for c in edges(cs):
+                st = style(c)
+                for end, pre in (("source", "exit"), ("target", "entry")):
+                    v = cs.get(c.get(end))
+                    if v is not None and "rhombus" in (v.get("style") or ""):
+                        ends[v.get("id")].append((round(float(st[pre + "X"]), 3), round(float(st[pre + "Y"]), 3)))
+            for vid, ps in ends.items():
+                if len(ps) > 4:   # qua 4 dinh: van rai tren canh xien (test_rhombus_ports_on_perimeter)
+                    continue
+                n += 1
+                with self.subTest(spec=sp.get("title"), node=vid):
+                    self.assertTrue(set(ps) <= tips, ps)
+                    self.assertEqual(len(set(ps)), len(ps), ps)
         self.assertGreater(n, 50)
 
 

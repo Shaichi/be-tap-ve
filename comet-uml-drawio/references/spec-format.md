@@ -170,6 +170,8 @@ Quan hệ có thể nối phần tử ở các cấp lồng khác nhau (vd compo
   (chờ đủ mọi luồng → nhánh rẽ từ decision bị kẹt), comet_check báo A6. comet_check A1–A6 kiểm tra các luật này.
 - Vòng lặp (luồng quay lui) được phép — quay về một `merge` đặt trước action cần lặp; script tự vẽ vào góc hình
   thoi, không đè luồng khác.
+- Mũi tên ra/vào `decision`/`merge` luôn ở **đỉnh** hình thoi (4 đỉnh, mỗi đỉnh một luồng) – không cần ghi gì
+  trong spec. Hình thoi > 4 luồng không đủ đỉnh → điểm nối rải trên cạnh xiên.
 
 ### Component diagram với provided/required interface
 

@@ -101,7 +101,9 @@ thì đặt `"frame": true`.
   decision bị kẹt); **≥ 2 luồng ra** = fork ngầm. Gộp nhánh bằng `merge`, rẽ nhánh bằng `decision`, song song
   bằng `fork`/`join` (A6). Vòng lặp quay về một `merge` đặt trước action cần lặp.
 - Swimlane: mỗi action nằm trong làn của tác nhân/đối tượng thực hiện nó (vd actor, hệ thống, hệ thống ngoài).
-- Hình thoi có nhiều luồng cùng phía: script tự đưa luồng xa nhất ra/vào góc trái/phải.
+- Decision/merge: mũi tên chỉ ra/vào tại **4 đỉnh** hình thoi (không chạm cạnh xiên), mỗi đỉnh một luồng – luồng
+  thuận ở 2 đỉnh theo chiều luồng, luồng thêm cùng phía (vd guard thứ 2, vòng lặp quay lui) ở 2 đỉnh bên. Hình thoi
+  quá 4 luồng (hoặc > 3 luồng một phía) không đủ đỉnh → script rải điểm nối trên cạnh xiên như cũ.
 
 ## Statechart – quy tắc hợp lệ (comet_check S1–S5)
 
