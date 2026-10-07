@@ -44,8 +44,9 @@ bằng ngôn ngữ của họ.
   (không gộp), thứ tự luồng trong spec = thứ tự từ trên xuống ở cạnh hộp. Mũi tên đi ngang ra từ cạnh hộp, tên
   luồng nằm ngang trên đoạn ngang (dễ đọc); các luồng ngang tầm hình tròn cắm thẳng vào hông, luồng cao hơn /
   thấp hơn gập vuông góc một lần cắm vào đỉnh / đáy, các đường gập lồng nhau → không cắt nhau, không nhãn nào
-  đè đường/nhãn khác. Nhiều luồng thì hộp tự cao ra, hình tròn chỉ nới vừa đủ; mọi hộp
-  cùng kích thước (theo hộp lớn nhất) – `"uniformSize": false` để mỗi hộp vừa nội dung riêng. Không vẽ khung ngoài
+  đè đường/nhãn khác. Cạnh hộp hướng về hệ thống nhận tối đa 4 mũi tên; hộp nhiều luồng hơn thì luồng dư tự
+  ra cạnh trên / dưới hộp (hộp không cao ra), hình tròn chỉ nới vừa đủ; mọi hộp cùng kích thước (theo hộp lớn
+  nhất, cao tối đa ~100px) – `"uniformSize": false` để mỗi hộp vừa nội dung riêng. Không vẽ khung ngoài
   (`"frame": true` nếu cần khung + tiêu đề). Tên luồng nên ngắn (≤ ~6 từ);
   dài quá 240px sẽ tự xuống dòng.
 - Mỗi thực thể ngoài có ít nhất 1 luồng (B3). Luồng giữa hai thực thể ngoài nằm ngoài phạm vi – bỏ.

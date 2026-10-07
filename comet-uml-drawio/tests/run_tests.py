@@ -1166,7 +1166,8 @@ class TestGenerator(unittest.TestCase):
         self.assertGreater(len({(round(R2[i][2] - R2[i][0], 1), round(R2[i][3] - R2[i][1], 1)) for i in ext}), 1)
 
     def test_bizcontext_many_flows_compact(self):
-        # hop co nhieu luong: hop cao ra, hinh tron chi nho vua du (luong du thi gap vao dinh/day), khong cat nhau
+        # hop co nhieu luong: canh trong toi da 4 mui ten, luong du ra canh tren/duoi hop (hop khong cao ra), hinh
+        # tron chi nho vua du (luong du thi gap vao dinh/day), khong cat nhau
         els = [{"id": "s", "type": "system", "name": "Hệ thống"},
                {"id": "a", "type": "external", "name": "Khách hàng", "side": "left"},
                {"id": "b", "type": "external", "name": "Nhân viên", "side": "left"},
@@ -1176,8 +1177,20 @@ class TestGenerator(unittest.TestCase):
         rel.append({"from": "c", "to": "s", "label": "Luồng c"})
         xml, cs, G = self.clean({"diagram": "bizcontext", "title": "T", "elements": els, "relations": rel})
         R = rects(G)
-        self.assertGreater(R["a"][3] - R["a"][1], 12 * 18)                              # hop cao du 12 mui ten
+        self.assertLessEqual(R["a"][3] - R["a"][1], 100.5)                              # hop khong cao theo 12 luong
+        ends = defaultdict(int)                                                         # canh hop noi dau mui ten
+        for e in edges(cs):
+            p = G.edges[e.get("id")][1]
+            x, y = p[0] if e.get("source") == "a" else p[-1] if e.get("target") == "a" else (None, None)
+            if x is not None:
+                ends["in" if abs(x - R["a"][2]) < 0.5 else "top" if abs(y - R["a"][1]) < 0.5 else
+                     "bottom" if abs(y - R["a"][3]) < 0.5 else "?"] += 1
+        self.assertEqual(dict(ends), {"in": 4, "top": 4, "bottom": 4})
         self.assertLess(R["s"][2] - R["s"][0], 400)                                     # hinh tron khong phinh
+        self.assertLessEqual(R["c"][3] - R["c"][1], 100.5)                              # hop it luong khong phinh theo
+        self.assertEqual(R["a"][2] - R["a"][0], R["c"][2] - R["c"][0])                  # van cung chieu rong
+        self.assertGreaterEqual(R["s"][0] - R["a"][2], R["a"][2] - R["a"][0])           # mui ten >= rong hop
+        self.assertTrue(all(style(c).get("endSize") == "7" for c in edges(cs)))         # dau mui ten nho
         segs = [(p, q) for _, pts in G.edges.values() for p, q in zip(pts, pts[1:])]
         for i, (p, q) in enumerate(segs):                                               # khong cat nhau
             for u, v in segs[i + 1:]:

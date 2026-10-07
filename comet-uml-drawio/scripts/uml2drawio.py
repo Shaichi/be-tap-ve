@@ -1926,10 +1926,10 @@ def build_bizcontext(spec, warns, origin):
     box = {}   # ext -> [w, h, st, nm, offs]
     base_h = {}
     for s in exts:
-        st, nm = lines_of(s, 160)
+        st, nm = lines_of(s, 120)   # ten dai xuong dong -> hop hep, mui ten dai hon hop
         w, h = text_size("\n".join(st + nm), 12, True)
         base_h[s["id"]] = h
-        box[s["id"]] = [max(120.0, w + 28), max(54.0, h + 24), st, nm, []]
+        box[s["id"]] = [max(110.0, w + 28), max(50.0, h + 20), st, nm, []]
     # mac dinh moi hop cung kich thuoc (rong/cao = hop lon nhat); "uniformSize": false -> hop vua noi dung
     uniform = spec.get("uniformSize", True) is not False
     if uniform and box:
@@ -1937,6 +1937,7 @@ def build_bizcontext(spec, warns, origin):
         for v in box.values():
             v[0] = bw
     hmin = [0.0]   # chieu cao toi thieu chung cua hop (tang dan toi khi on dinh)
+    HCAP = max([100.0] + [v[1] for v in box.values()])   # tran chieu cao chung (~5 luong)
 
     # ---- gan duong: moi phia xet tat ca duong theo thu tu tu tren xuong (dem chung ca cot). Mot nhom lien tiep
     #      o giua (duong i..j-1) cam thang vao hong hinh tron (|y| <= BAND r); cac duong tren gap xuong cam vao
@@ -1944,9 +1945,20 @@ def build_bizcontext(spec, warns, origin):
     #      nhau. Cho doi kieu duong nam giua mot hop thi hop chen them khe SPLIT de hai dau mui ten tren cung tron
     #      khong sat nhau. Ban kinh r = nho nhat ma ca hai phia xep duoc -> hinh tron gon.
     BAND, XMIN, XMAX, VMIN, SPLIT, GY = 0.7, 0.1, 0.85, 16.0, 16.0, 28.0
+    # hop nhieu luong: canh huong ve hinh tron chi nhan toi da INMAX mui ten, luong du chia ra canh tren / canh
+    # duoi hop (di doc ra khoi hop roi re ngang ve hinh tron, cach hop CL) -> hop khong phai cao ra theo so luong
+    INMAX, CL = 4, 16.0
+
+    def split_n(e):
+        """(so luong ra canh tren, so luong ra canh duoi) cua hop e."""
+        n = len(tracks[e])
+        if n <= INMAX:
+            return 0, 0
+        nt = (n - INMAX + 1) // 2
+        return nt, n - INMAX - nt
 
     def layout(c, i, j):
-        hts, offs, ys, top = {}, {}, [], 0.0
+        hts, offs, ys, top, ctr = {}, {}, [], 0.0, {}
         g = 0
         for e in c:
             tr, o, cur = tracks[e], [], 0.0
@@ -1956,10 +1968,21 @@ def build_bizcontext(spec, warns, origin):
                     if g + k in (i, j):
                         cur += SPLIT
                 o.append(cur)
-            h = max(54.0, base_h[e] + 24, cur + 28, hmin[0])
-            hts[e], offs[e] = h, [x - cur / 2 for x in o]
-            ys += [(top + h / 2 + x, e, k) for k, x in enumerate(offs[e])]
-            top += h + GY
+            nt, nb = split_n(e)
+            m = len(tr) - nb   # duong m.. ra canh duoi
+            a0, a1 = (o[nt], o[m - 1]) if tr else (0.0, 0.0)
+            h = max(50.0, base_h[e] + 20, a1 - a0 + 22, hmin[0])
+            o = [x - (a0 + a1) / 2 for x in o]   # nhom duong canh trong o giua hop
+            if nt:
+                dt = min(0.0, -h / 2 - CL - o[nt - 1])
+                o[:nt] = [x + dt for x in o[:nt]]
+            if nb:
+                db = max(0.0, h / 2 + CL - o[m])
+                o[m:] = [x + db for x in o[m:]]
+            lo, hi = min([-h / 2] + o), max([h / 2] + o)
+            hts[e], offs[e], ctr[e] = h, o, top - lo
+            ys += [(ctr[e] + x, e, k) for k, x in enumerate(o)]
+            top += hi - lo + GY
             g += len(tr)
         n = len(ys)
         if i < j:
@@ -1968,10 +1991,7 @@ def build_bizcontext(spec, warns, origin):
             mid = (ys[i - 1][0] + ys[i][0]) / 2
         else:
             mid = (top - GY) / 2
-        cys, t0 = {}, 0.0
-        for e in c:
-            cys[e] = t0 + hts[e] / 2 - mid
-            t0 += hts[e] + GY
+        cys = {e: ctr[e] - mid for e in c}
         return hts, offs, cys, [(y - mid, e, k) for y, e, k in ys]
 
     def place(lst, r, P):
@@ -2024,10 +2044,12 @@ def build_bizcontext(spec, warns, origin):
             if all(v is not None for v in res.values()):
                 break
             r += 2
-        hmax = max([h for v in res.values() for h in v[0].values()] or [0.0])
-        if not uniform or hmax <= hmin[0] + 0.01:
+        # xep lai voi moi hop cao bang hop cao nhat, nhung chi toi HCAP: hop nhieu luong hon tu cao rieng, cac hop
+        # it luong khong phinh theo (tranh hop rong to, mat can doi)
+        target = min(HCAP, max([h for v in res.values() for h in v[0].values()] or [0.0]))
+        if not uniform or target <= hmin[0] + 0.01:
             break
-        hmin[0] = hmax   # xep lai voi moi hop cao bang hop cao nhat
+        hmin[0] = target
     a = b = r   # hinh tron
     cy, turn = {}, {}   # turn: (ext, j) -> x re (so duong, ca 2 phia)
     for sd, (hts, offs, cys, tn) in res.items():
@@ -2036,8 +2058,10 @@ def build_bizcontext(spec, warns, origin):
         for k, x in tn.items():
             turn[k] = -x if sd == "left" else x
 
-    # ---- khoang trong giua cot hop va hinh tron: vua nhan dai nhat cua phia do
-    gap = {sd: max([80.0] + [t[3] + 44 for e in c for t in tracks[e]]) for sd, c in cols.items()}
+    # ---- khoang trong giua cot hop va hinh tron: vua nhan dai nhat cua phia do, it nhat bang chieu rong hop
+    #      -> mui ten dai, can doi voi hop/hinh tron
+    bwm = max([v[0] for v in box.values()] or [0.0])
+    gap = {sd: max([120.0, bwm] + [t[3] + 64 for e in c for t in tracks[e]]) for sd, c in cols.items()}
     xin = {"left": -a - gap["left"], "right": a + gap["right"]}
     rects = {}
     for sd, c in cols.items():
@@ -2056,14 +2080,23 @@ def build_bizcontext(spec, warns, origin):
     for sd, c in cols.items():
         sg = -1 if sd == "left" else 1
         for e in c:
+            nt, nb = split_n(e)
+            n, (w, h) = len(tracks[e]), box[e][:2]
+            step = min(14.0, (w - 24) / max(1, nt, nb))
             for j, (rid, d, lab, lw, lh) in enumerate(tracks[e]):
                 y = cy[e] + box[e][4][j]
-                p0 = (xin[sd], y)
+                if j < nt or j >= n - nb:
+                    # ra canh tren/duoi: duong cang xa hop thi chan cang xa canh trong -> long nhau, khong cat
+                    k = nt - 1 - j if j < nt else j - (n - nb)
+                    xs = xin[sd] + sg * (12 + k * step)
+                    head = [(xs, cy[e] + (h / 2 if j >= nt else -h / 2)), (xs, y)]
+                else:
+                    head = [(xin[sd], y)]
                 if (e, j) in turn:
                     x = turn[(e, j)]
-                    pts = [p0, (x, y), (x, ell_y(x, -1 if y < 0 else 1))]
+                    pts = head + [(x, y), (x, ell_y(x, -1 if y < 0 else 1))]
                 else:
-                    pts = [p0, (ell_x(y, sg), y)]
+                    pts = head + [(ell_x(y, sg), y)]
                 lc = (xin[sd] - sg * gap[sd] / 2, y)
                 if lab:
                     labs[(e, j)] = (lc[0] - lw / 2, y - lh / 2, lc[0] + lw / 2, y + lh / 2)
@@ -2098,7 +2131,7 @@ def build_bizcontext(spec, warns, origin):
             src, tgt, fs, ft = cid, e, fc, fe
         else:
             src, tgt, fs, ft = e, cid, fe, fc
-        style = (EDGE_BASE + "endArrow=block;endFill=1;"
+        style = (EDGE_BASE.replace("endSize=10;", "endSize=7;") + "endArrow=block;endFill=1;"
                  "exitX=%s;exitY=%s;exitDx=0;exitDy=0;exitPerimeter=0;"
                  "entryX=%s;entryY=%s;entryDx=0;entryDy=0;entryPerimeter=0;"
                  % (_n(fs[0], 4), _n(fs[1], 4), _n(ft[0], 4), _n(ft[1], 4)))
