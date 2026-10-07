@@ -1944,7 +1944,7 @@ def build_bizcontext(spec, warns, origin):
     #      dinh, duong duoi gap len cam vao day; duong cang xa tam theo chieu doc re cang gan truc giua -> long
     #      nhau. Cho doi kieu duong nam giua mot hop thi hop chen them khe SPLIT de hai dau mui ten tren cung tron
     #      khong sat nhau. Ban kinh r = nho nhat ma ca hai phia xep duoc -> hinh tron gon.
-    BAND, XMIN, XMAX, VMIN, SPLIT, GY = 0.7, 0.1, 0.85, 16.0, 16.0, 28.0
+    BAND, XMIN, XMAX, VMIN, SPLIT, GY = 0.8, 0.05, 0.9, 16.0, 16.0, 28.0
     # hop nhieu luong: canh huong ve hinh tron chi nhan toi da INMAX mui ten, luong du chia ra canh tren / canh
     # duoi hop (di doc ra khoi hop roi re ngang ve hinh tron, cach hop CL) -> hop khong phai cao ra theo so luong
     INMAX, CL = 4, 16.0
@@ -2027,7 +2027,7 @@ def build_bizcontext(spec, warns, origin):
                 if st and max(abs(y) for y, _, _ in st) > BAND * r:
                     continue
                 up, dn = ys[:i], ys[j:][::-1]
-                for P in (30.0, 26.0, 22.0, 18.0, 16.0):
+                for P in (30.0, 26.0, 22.0, 18.0, 16.0, 14.0, 12.0, 10.0):   # dau mui ten nho -> cam sat duoc
                     xu, xd = place(up, r, P), place(dn, r, P)
                     if xu is None or xd is None:
                         continue
