@@ -283,10 +283,10 @@ def render_svg(model):
                      % (" ".join("%.1f,%.1f" % p for p in pts), dash))
         ea = st.get("endArrow", "classic")
         if ea and ea != "none":
-            S.append(marker(ea, st.get("endFill", "1") != "0", pts[-1], pts[-2]))
+            S.append(marker(ea, st.get("endFill", "1") != "0", pts[-1], pts[-2], float(st.get("endSize", 10))))
         sa = st.get("startArrow", "none")
         if sa and sa != "none":
-            S.append(marker(sa, st.get("startFill", "1") != "0", pts[0], pts[1]))
+            S.append(marker(sa, st.get("startFill", "1") != "0", pts[0], pts[1], float(st.get("startSize", 10))))
         for p in pts:
             maxx, maxy = max(maxx, p[0]), max(maxy, p[1])
     for i, (r, owner, d, cell) in enumerate(G.labels):
