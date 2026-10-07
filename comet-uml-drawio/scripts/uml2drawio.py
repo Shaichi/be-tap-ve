@@ -1281,8 +1281,10 @@ def build_graph(spec, warns, origin):
     # -> cho phep chen lai ca chuoi canh dai (cac loai so do khac giu thu tu cu)
     # cot UC dai hon 6 -> gap thanh nhieu cot (~2.5 hang moi cot, toi da 4 cot) thay vi mot cot dai hep
     level_cfg = {"chain_reinsert": True, "fold": {1: (2.5, 4, 6)}} if diagram == "usecase" else None
-    if diagram == "activity" and direction == "LR":   # ngang: canh ngan lai de so do khong qua dai
-        level_cfg = {"exit_gap": 14, "min_gap": 28}
+    if diagram == "activity":   # decision/merge: mui ten chi ra/vao tai dinh hinh thoi
+        level_cfg = {"rhombus_tips": True}
+        if direction == "LR":   # ngang: canh ngan lai de so do khong qua dai
+            level_cfg.update({"exit_gap": 14, "min_gap": 28})
 
     def do_level(pid):
         for k in kids.get(pid, []):

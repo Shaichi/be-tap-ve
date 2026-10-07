@@ -40,7 +40,8 @@ bằng ngôn ngữ của họ.
   `decision` (1 vào, ≥ 2 ra), `merge` (≥ 2 vào, 1 ra), `fork` / `join` (song song), `activityFinal` (kết thúc cả
   activity), `flowFinal` (kết thúc một luồng).
 - Action vẽ thành hình chữ nhật bo góc. `decision` ghi **câu hỏi điều kiện** trong hình thoi:
-  `{"type": "decision", "question": "Valid PIN?"}` (hình thoi tự nới cho vừa chữ; `merge` để trống).
+  `{"type": "decision", "question": "Valid PIN?"}` (hình thoi tự nới cho vừa chữ; `merge` để trống). Mũi tên
+  tự ra/vào tại 4 đỉnh hình thoi; giữ decision/merge ≤ 4 luồng (1 vào + ≤ 3 guard) để đủ đỉnh.
 - Luồng `{"type": "flow", "from", "to"}`; luồng ra khỏi `decision` **luôn có** `"guard"` trả lời câu hỏi ("Yes" /
   "No"; tối đa một `"else"`) — A1; luồng thường không có guard.
 - **Action có ≥ 2 luồng vào là sai ngữ nghĩa** (join ngầm: chờ đủ mọi luồng → nhánh rẽ từ decision sẽ kẹt): gộp

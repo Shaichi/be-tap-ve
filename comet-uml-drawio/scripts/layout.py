@@ -20,6 +20,7 @@ import heapq
 import re
 import math
 from collections import defaultdict
+from itertools import combinations
 
 CFG = {
     "node_sep": 44,      # khoang cach ngang toi thieu giua 2 hinh cung tang
@@ -41,6 +42,7 @@ CFG = {
                          # nhan) chi can ngan nay thay vi min_gap; khe phia mui ten giu min_gap (activity ngang)
     "fold": None,        # {category: (ti le hang/cot, so cot toi da, so hinh toi da mot tang)}: tang qua dai -> gap
                          # hinh "tu do" sang nhieu tang (use case: nhieu UC cung actor khong don thanh mot cot dai)
+    "rhombus_tips": False,  # hinh thoi chi noi canh tai 4 dinh, khong tren canh xien (activity: decision/merge)
 }
 
 
@@ -480,6 +482,27 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             v.w += 2 * C["side_off"]
             v.sr[0] += C["side_off"]
 
+    def tipped(x):
+        """Hinh thoi chi noi canh tai 4 dinh: moi dinh mot canh -> toi da 4 canh, moi phia <= 3 (dinh tren/duoi
+        + 2 goc). Nhieu hon (hoac co canh tu vong) thi giu cach cu: cong rai tren canh xien."""
+        v = V[x]
+        return (C["rhombus_tips"] and v.perim == "rhombus" and x not in loops
+                and len(v.up) <= 3 and len(v.down) <= 3 and len(v.up) + len(v.down) <= 4)
+
+    # chi noi tai dinh: canh quay lui se ra/vao goc trai/phai -> khong keo hinh thoi lech khoi truc luong thuan
+    nopull = set()
+    if C["rhombus_tips"]:
+        flip_of = defaultdict(set)
+        for e in normal:
+            for a, b in ((e._chain[0], e._chain[1]), (e._chain[-1], e._chain[-2])):
+                flip_of[a, b].add(e._flip)
+        for x in order:
+            v = V[x]
+            if tipped(x) and v.side:
+                for nb in (v.up, v.down):
+                    if any(False in flip_of[x, y] for y in nb):
+                        nopull |= {p for y in nb if flip_of[x, y] == {True} for p in ((x, y), (y, x))}
+
     # ---------------------------------------------------------- x coordinates (PAVA)
     def anchor(x):
         v = V[x]
@@ -532,6 +555,8 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
                 nb = v.up + v.down
             if LANES:  # chi can thang hang voi hang xom cung lan (lan khac nam o dai khac)
                 nb = [y for y in nb if V[y].lane == v.lane]
+            if nopull:
+                nb = [y for y in nb if (x, y) not in nopull]
             if nb:
                 d = sum(X[y] + anchor(y) for y in nb) / len(nb) - anchor(x)
                 wt = len(nb) * (3.0 if v.dummy else 1.0)
@@ -688,6 +713,23 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
         for x, ss in dct.items():
             ss.sort(key=lambda s: X[getattr(s, other)] + anchor(getattr(s, other)))
             lo, hi = xrange_(x)
+            if tipped(x):
+                # chi noi tai dinh: k canh mot phia (da xep theo dau kia) lay k o theo dung thu tu trong
+                # [goc trai, dinh tren/duoi, goc phai] (bo goc phia kia da dung) -> khong cat nhau sat hinh; luon
+                # dung dinh, con lua chon thi dinh danh cho luong thuan (canh quay lui ra/vao goc) gan truc nhat
+                cx, off = (lo + hi) / 2, C["side_off"]
+
+                def tip_cost(o):
+                    s = ss[o.index(0)]
+                    return s.e._flip, abs(X[getattr(s, other)] + anchor(getattr(s, other)) - cx)
+                slots = [g for g in (-1, 0, 1) if g not in used_side[x]]
+                opts = [o for o in combinations(slots, len(ss)) if 0 in o]
+                for s, g in zip(ss, min(opts, key=tip_cost) if opts else [0] * len(ss)):
+                    if g:
+                        setattr(s, side, g)
+                        used_side[x].add(g)
+                    setattr(s, attr, cx + g * ((hi - lo) / 2 + off))
+                continue
             if V[x].side and len(ss) >= 2:
                 # canh co dau kia gan nhat giu o dinh; canh xa nhat moi ben (neu dau kia nam han ve ben do)
                 # ra/vao goc trai/phai -> khong con 2 mui ten dinh nhau o dinh hinh thoi
@@ -717,6 +759,65 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
     assign(outs, "ax", "b")
     assign(ins, "bx", "a")
 
+    # canh ra/vao goc hinh thoi: dua doan doc o goc (chi ra xa hinh) va ca chuoi dummy ve cung mot cot -> canh di
+    # mot mach (vd thang tu cong hinh kia toi ngang goc roi re vao), khong be moc quanh goc.
+    # canh ra/vao dinh tren/duoi: chuoi dummy thang cot voi dinh -> mui ten vao/ra dinh thang, khong khuc gay sat dinh
+    def col_ok(e, x, ends):
+        chain = set(e._chain)
+        for d in e._chain[1:-1]:
+            v, x0 = V[d], X[d]
+            for y in layers[v.rank]:
+                if y in chain:
+                    continue
+                gap_ = 4 if V[y].dummy else C["dummy_sep"]   # hai duong song song chi can khong dinh nhau
+                if min(x0, x) <= X[y] <= max(x0, x) or abs(X[y] - x) < (V[y].w + v.w) / 2 + gap_:
+                    return False
+        for n, px in ends:   # doan ngang tu goc toi cot x (o muc tam hinh) khong cat hinh nao cung tang
+            a, b = min(px, x) - 6, max(px, x) + 6
+            if any(y not in chain and X[y] - V[y].w / 2 < b and a < X[y] + V[y].w / 2 for y in layers[V[n].rank]):
+                return False
+        return True
+
+    # canh noi goc truoc (doi duong quay lui ra ngoai), canh noi dinh sau (dung cho vua giai phong)
+    for e in sorted(normal, key=lambda e: not any(s.aside or s.bside for s in e._segs)):
+        s0, sl = e._segs[0], e._segs[-1]
+        ends = []
+        if tipped(s0.a) and s0.aside:
+            ends.append((s0.a, s0.aside, s0.ax))
+        if tipped(sl.b) and sl.bside:
+            ends.append((sl.b, sl.bside, sl.bx))
+        if not ends:
+            tips = [sl.bx] if tipped(sl.b) and not sl.bside else []
+            if tipped(s0.a) and not s0.aside:
+                tips.append(s0.ax)
+            for x in tips if len(e._chain) > 2 else []:
+                if col_ok(e, x, []):
+                    for d in e._chain[1:-1]:
+                        X[d] = x
+                    break
+            continue
+        if len({g for _, g, _ in ends}) > 1:
+            continue
+        g = ends[0][1]
+        far = max(px * g for _, _, px in ends) * g          # cot ngoai cung trong cac goc
+        cands = [far]
+        cur = {X[d] for d in e._chain[1:-1]}
+        if len(cur) == 1 and (min(cur) - far) * g > 0:     # chuoi dummy da thang cot ngoai goc: giu nguyen
+            cands.insert(0, min(cur))
+        if len(ends) == 1:
+            other = sl.bx if ends[0][0] == s0.a else s0.ax   # cong cua hinh o dau kia
+            if (other - far) * g > 0:
+                cands.insert(0, other)
+        for x in cands:
+            if col_ok(e, x, [(n, xrange_(n)[0] if g < 0 else xrange_(n)[1]) for n, _, _ in ends]):
+                for d in e._chain[1:-1]:
+                    X[d] = x
+                if s0.aside and tipped(s0.a):
+                    s0.ax = x
+                if sl.bside and tipped(sl.b):
+                    sl.bx = x
+                break
+
     def cax(s):
         return X[s.a] if V[s.a].dummy else s.ax
 
@@ -738,6 +839,8 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
         return False
 
     def move_b(s, delta, ss=()):
+        if tipped(s.b) and not s.bside:   # cong o dinh hinh thoi: giu nguyen
+            return
         if V[s.b].dummy:
             X[s.b] += delta
         elif s.bside:              # doan doc vao goc: chi day ra xa hinh
@@ -780,6 +883,12 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
                     lo, hi = xrange_(s.b)
                     if (s.bside < 0 and ax <= lo - 8) or (s.bside > 0 and ax >= hi + 8):
                         s.bx = ax
+                elif tipped(s.b):
+                    # dinh hinh thoi co dinh -> dich cong ra cua hinh nguon cho thang (neu con trong hinh do)
+                    if not V[s.a].dummy and not s.aside and not tipped(s.a):
+                        alo, ahi = xrange_(s.a)
+                        if alo + 4 <= bx <= ahi - 4 and all(abs(t.ax - bx) >= 5 for t in outs[s.a] if t is not s):
+                            s.ax = bx
                 else:
                     lo, hi = xrange_(s.b)
                     if lo + 4 <= ax <= hi - 4 and not lab_block(s, ax):
@@ -811,9 +920,26 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             s = t[2]
             return (0, -s.ax) if s.bx > s.ax else (1, s.ax)
 
+        seq = sorted(ivs, key=tkey)
+        # cong o dinh hinh thoi khong dich duoc (buoc 2 bo qua) -> doan doc cua canh khac co the trung cot voi no:
+        # canh roi cot do (cong ra) phai re ngang truoc (track tren) canh di vao cot do -> hai doan doc khong chong
+        above = {}
+        for _, _, s in seq:
+            for _, _, t in seq:
+                if t.e is not s.e and abs(t.ax - s.bx) < 5 and (
+                        (tipped(s.b) and not s.bside) or (tipped(t.a) and not t.aside)):
+                    above.setdefault(id(s), []).append(t)
+        if above:
+            for _ in range(len(seq)):
+                pos = {id(t[2]): i for i, t in enumerate(seq)}
+                bad = next(((pos[id(t)], pos[sid]) for sid, ts in above.items() for t in ts
+                            if pos[id(t)] > pos[sid]), None)
+                if bad is None:
+                    break
+                seq.insert(bad[1], seq.pop(bad[0]))
         placed = []
-        for lo, hi, s in sorted(ivs, key=tkey):
-            tr = 0
+        for lo, hi, s in seq:
+            tr = max([t.track + 1 for t in above.get(id(s), []) if t.track is not None] + [0])
             for l2, h2, t2 in placed:
                 if not (h2 + C["track_gap"] <= lo or hi + C["track_gap"] <= l2):
                     tr = max(tr, t2 + 1)
