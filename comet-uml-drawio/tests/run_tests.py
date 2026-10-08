@@ -1109,7 +1109,7 @@ class TestGenerator(unittest.TestCase):
         self.assertLessEqual(R["c"][3] - R["c"][1], 100.5)                              # hop it luong khong phinh theo
         self.assertEqual(R["a"][2] - R["a"][0], R["c"][2] - R["c"][0])                  # van cung chieu rong
         self.assertGreaterEqual(R["s"][0] - R["a"][2], R["a"][2] - R["a"][0])           # mui ten >= rong hop
-        self.assertTrue(all(style(c).get("endSize") == "7" for c in edges(cs)))         # dau mui ten nho
+        self.assertTrue(all(style(c).get("endSize") == "5" for c in edges(cs)))         # dau mui ten nho
         segs = [(p, q) for _, pts in G.edges.values() for p, q in zip(pts, pts[1:])]
         for i, (p, q) in enumerate(segs):                                               # khong cat nhau
             for u, v in segs[i + 1:]:

@@ -249,7 +249,7 @@ vuông góc riêng** (không gộp): đi ngang ra từ cạnh hộp, tên luồn
 thẳng vào hông hình tròn, luồng cao hơn / thấp hơn gập một lần cắm vào đỉnh / đáy, các đường gập lồng nhau nên không cắt nhau.
 Cạnh hộp hướng về hình tròn nhận tối đa 4 mũi tên; hộp > 4 luồng thì luồng dư chia ra cạnh trên / cạnh dưới hộp
 (đi dọc ra rồi rẽ ngang, lồng nhau) nên hộp không cao theo số luồng. Mũi tên dài ít nhất bằng chiều rộng hộp, đầu
-mũi tên nhỏ (`endSize=7`); tên thực thể dài tự xuống dòng (~120px) cho hộp gọn.
+mũi tên nhỏ (`endSize=5`, các điểm cắm vào hình tròn sát tới 7px khi nhiều luồng → hình tròn nhỏ); tên thực thể dài tự xuống dòng (~120px) cho hộp gọn.
 Mọi hộp thực thể ngoài cùng kích thước (rộng theo tên dài nhất, cao theo hộp cao nhất nhưng tối đa ~100px – hộp cần cao hơn thì chỉ hộp đó cao); `"uniformSize": false`
 ở cấp spec → mỗi hộp vừa nội dung riêng. Mặc định không có khung ngoài (`"frame": true` để vẽ khung + tiêu đề). Bán kính hình tròn (nhỏ nhất xếp được) và khoảng cách cột tự nới tới khi không nhãn nào đè hình/đường/nhãn. `relations` có thể thay bằng `flows`. Ví dụ: `examples/shop_bizcontext.json`.
 comet_check B1–B3.
