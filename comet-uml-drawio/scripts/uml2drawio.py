@@ -2027,7 +2027,7 @@ def build_bizcontext(spec, warns, origin):
                 if st and max(abs(y) for y, _, _ in st) > BAND * r:
                     continue
                 up, dn = ys[:i], ys[j:][::-1]
-                for P in (30.0, 26.0, 22.0, 18.0, 16.0, 14.0, 12.0, 10.0):   # dau mui ten nho -> cam sat duoc
+                for P in (30.0, 26.0, 22.0, 18.0, 16.0, 14.0, 12.0, 10.0, 8.0, 7.0):   # dau mui ten nho -> cam sat duoc
                     xu, xd = place(up, r, P), place(dn, r, P)
                     if xu is None or xd is None:
                         continue
@@ -2131,7 +2131,7 @@ def build_bizcontext(spec, warns, origin):
             src, tgt, fs, ft = cid, e, fc, fe
         else:
             src, tgt, fs, ft = e, cid, fe, fc
-        style = (EDGE_BASE.replace("endSize=10;", "endSize=7;") + "endArrow=block;endFill=1;"
+        style = (EDGE_BASE.replace("endSize=10;", "endSize=5;") + "endArrow=block;endFill=1;"
                  "exitX=%s;exitY=%s;exitDx=0;exitDy=0;exitPerimeter=0;"
                  "entryX=%s;entryY=%s;entryDx=0;entryDy=0;entryPerimeter=0;"
                  % (_n(fs[0], 4), _n(fs[1], 4), _n(ft[0], 4), _n(ft[1], 4)))
