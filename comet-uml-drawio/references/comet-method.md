@@ -82,7 +82,7 @@ actor chính | boundary | control | application logic | entity | actor/hệ th�
 | E1–E3 | ERD: quan hệ tham chiếu đúng thực thể (ERROR); đủ bản số 2 đầu – Chen `1`/`N`/`M`/`P` hoặc `(min,max)` như `(0,N)`, crow's foot `1`/`0..1`/`1..N`/`0..N` (WARN); quan hệ có tên – Chen: hình thoi, crow's foot khái niệm: động từ -ing trên đường nối (WARN) | ERROR/WARN |
 | E4 | ERD crow's foot vật lý: bảng (`"type": "table"`) có `columns` phải có cột `"pk": true` | WARN |
 | E5 | ERD (Chen): thực thể yếu (`weak`) phải nối với ít nhất một quan hệ xác định (`identifying`, hình thoi viền kép) | WARN |
-| F1–F2 | Screen flow (site map): mọi màn hình tới được từ màn hình gốc; không initial/decision, không `items`, mũi tên không nhãn | WARN |
+| F1–F3 | Screen flow: mọi màn hình tới được từ màn hình gốc (vào nhóm = vào mọi dashboard trong nhóm); không initial/decision, không `items`, mũi tên không nhãn; tối đa 1 nhóm `group`, `in` phải trỏ tới nhóm | WARN |
 | B1–B3 | Context nghiệp vụ: đúng 1 hệ thống trung tâm (ERROR); luồng có tên và nối trung tâm ↔ bên ngoài; thực thể ngoài có luồng | ERROR/WARN |
 | L1 | Mọi sơ đồ: chữ trên sơ đồ mặc định tiếng Anh – có chữ có dấu (tiếng Việt…) mà spec chưa đặt `"lang"` khác `"en"` | WARN |
 | X1 | Interaction/activity tham chiếu `useCase` không tồn tại trong use case model cùng `bundle` | WARN (bundle chưa có use case model + `--partial`: INFO) |

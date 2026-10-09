@@ -137,14 +137,18 @@ thì đặt `"frame": true`.
   quan hệ = khoá ngoại, không bắt buộc tên; M–N tách bảng trung gian.
 - Mỗi bảng có khoá chính (E4); bảng trỏ về entity khái niệm qua `entity` (X7).
 
-## Screen flow – sơ đồ trang / site map (comet_check F1–F2)
+## Screen flow – theo vai trò / site map (comet_check F1–F3)
 
-- Màn hình (`screen`/`page`): ô chữ nhật chỉ ghi tên; popup/modal (`popup`/`dialog`): ô bo góc. Không liệt kê thành
-  phần giao diện, không decision/initial/final.
-- Điều hướng: mũi tên mở **không nhãn**, bẻ góc bo tròn; không khung, không tiêu đề.
-- Bố cục cây từ Home: List → Details cùng hàng (mũi tên ngang), Add/Edit ở hàng dưới; các nhánh chính của Home
-  đi chung một trục dọc.
-- Mọi màn hình tới được từ màn hình gốc (F1); spec chỉ gồm màn hình/popup và mũi tên không nhãn (F2).
+- Màn hình (`screen`/`page`): ô chữ nhật góc vuông chỉ ghi tên; popup/modal (`popup`/`dialog`): ellipse. Không liệt
+  kê thành phần giao diện, không decision/initial/final. Màn ghép (`tabs`): tên ở trên, các tab là ô trắng bên trong.
+- Màu theo vai trò người dùng (Admin cam, Manager tím, Teacher xanh lá, Student hồng…); màn công khai trắng viền
+  đen; màn cần lưu ý chữ đỏ (`highlight`).
+- Điều hướng: mũi tên **đặc, không nhãn**, đường gấp khúc **góc vuông**; không khung, không tiêu đề.
+- Bố cục theo vai trò: cột trái màn công khai (Login, Password Reset, User Profile); nhóm `Post-Login` nét đứt chứa
+  các dashboard xếp dọc; mỗi dashboard toả một trục ngang sang phải, màn con treo trên/dưới trục, Detail thẳng hàng
+  List. Không có nhóm → cây site map từ Home (List → Details cùng hàng, Add/Edit hàng dưới).
+- Mọi màn hình tới được từ màn hình gốc (F1); spec chỉ gồm màn hình/popup và mũi tên không nhãn (F2); tối đa 1
+  nhóm, `in` trỏ tới nhóm (F3).
 
 ## Context diagram nghiệp vụ (comet_check B1–B3)
 

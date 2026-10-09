@@ -483,7 +483,8 @@ def check_erd_crowfoot(s, E, W, I):
 
 
 def check_screenflow(s, E, W, I):
-    """F1-F2: screen flow (site map) - moi man hinh toi duoc tu goc; chi co man hinh/popup va mui ten khong nhan."""
+    """F1-F3: screen flow - moi man hinh toi duoc tu goc (vao nhom = vao moi dashboard ben trong); chi co man
+    hinh/popup va mui ten khong nhan; toi da 1 nhom sau dang nhap, "in" phai tro toi nhom."""
     src = s["_src"]
     els, adj, starts = screen_graph(s)
     name = lambda i: (els[i].get("name") or i) if i in els else i
@@ -498,6 +499,19 @@ def check_screenflow(s, E, W, I):
         if any(r.get(k) for k in NAV_LABELS):
             W.append("F2 [%s] Dieu huong '%s' -> '%s' co nhan - site map ve mui ten khong nhan, bo %s."
                      % (src, name(a), name(b), "/".join(k for k in NAV_LABELS if r.get(k))))
+    groups = [i for i, e in els.items() if norm(e.get("type")) == "group"]
+    if len(groups) > 1:
+        W.append("F3 [%s] Screen flow chi co 1 nhom (type \"group\", vd 'Post-Login'), dang co %d: %s."
+                 % (src, len(groups), ", ".join(name(g) for g in groups)))
+    for i, e in els.items():
+        g = e.get("in")
+        if g is not None and str(g) not in groups:
+            W.append("F3 [%s] Man hinh '%s' khai \"in\": '%s' nhung '%s' khong phai nhom (type \"group\")."
+                     % (src, name(i), g, g))
+    for g in groups:
+        if not any(str(e.get("in")) == g for e in els.values()):
+            W.append("F3 [%s] Nhom '%s' chua co man hinh nao - khai \"in\": \"%s\" tren cac dashboard sau dang "
+                     "nhap." % (src, name(g), g))
     seen = reach(adj, starts)
     for i, e in els.items():
         if norm(e.get("type")) in ("screen", "page", "dialog", "popup") and i not in seen:
@@ -530,7 +544,8 @@ def check_bizcontext(s, E, W, I):
             W.append("B3 [%s] Thuc the ngoai '%s' khong trao doi luong du lieu nao voi he thong." % (src, name(i)))
 
 
-NO_TEXT_KEYS = {"_src", "id", "from", "to", "type", "diagram", "lang", "style", "direction", "notation", "side"}
+NO_TEXT_KEYS = {"_src", "id", "from", "to", "type", "diagram", "lang", "style", "direction", "notation", "side",
+                "role", "roles", "in", "root", "highlight", "tree", "color", "fill", "stroke"}
 
 
 def _accented(s):
@@ -668,6 +683,10 @@ def screen_graph(s):
         a, b = str(r.get("from")), str(r.get("to"))
         adj[a].add(b)
         ins[b] += 1
+    for i, e in els.items():   # nhom (vd Post-Login) -> cac dashboard ben trong ("in": nhom)
+        if e.get("in") is not None and str(e["in"]) in els:
+            adj[str(e["in"])].add(i)
+            ins[i] += 1
     starts = [s["root"]] if s.get("root") in els else \
         [i for i, e in els.items() if norm(e.get("type")) == "initial"] or \
         [i for i, e in els.items() if norm(e.get("type")) in ("screen", "page") and not ins[i]][:1]

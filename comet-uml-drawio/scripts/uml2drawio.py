@@ -430,7 +430,7 @@ def render(sp, direction, diagram):
 
     if diagram == "erd" and sp.get("_chen"):
         return render_chen(el, sp, name)
-    if k in SCREEN_KINDS:
+    if k in SCREEN_KINDS or diagram == "screenflow":
         return render_screen(el, sp, name)
 
     if k in CLASSLIKE:
@@ -634,15 +634,39 @@ def render_chen(el, sp, name):
 
 
 def render_screen(el, sp, name):
-    """Screen flow (site map): o chi ghi ten - man hinh chu nhat, dialog/popup bo goc tron."""
-    dialog = el.kind in ("dialog", "popup")
-    lines = ([(stereo(sp["stereotype"]), False, False)] if sp.get("stereotype") else []) +         [(l, False, False) for l in wrap(name, 200)]
+    """Screen flow: o chi ghi ten, mau theo vai tro (_fill/_stroke, mac dinh trang vien den). Man hinh = chu nhat
+    goc vuong; dialog/popup = ellipse; "highlight": true -> chu do; "tabs": [...] -> o ghep (ten tren, cac tab
+    o trang ben trong)."""
+    fill, stroke = sp.get("_fill") or SF_PUBLIC[0], sp.get("_stroke") or SF_PUBLIC[1]
+    font = SF_RED if sp.get("highlight") else None
+    color = "fillColor=%s;strokeColor=%s;%s" % (fill, stroke, "fontColor=%s;" % font if font else "")
+    lines = ([(stereo(sp["stereotype"]), False, False)] if sp.get("stereotype") else []) + \
+        [(l, False, False) for l in wrap(name, 150)]
     el.value = _html_lines(lines)
-    el.style = ("rounded=%d;%swhiteSpace=wrap;html=1;fillColor=%s;"
-                % (1 if dialog else 0, "absoluteArcSize=1;arcSize=24;" if dialog else "",
-                   "#fff2cc" if dialog else "#dae8fc"))
-    el.box(max(100, max(text_size(t, 12, b)[0] for t, b, _ in lines) + 16), max(48, len(lines) * 16 + 18))
-    el.perim = "rounded" if dialog else "rect"
+    tw = max(text_size(t, 12, b)[0] for t, b, _ in lines)
+    th = len(lines) * 16
+    tabs = [str(t.get("name", t.get("id", "")) if isinstance(t, dict) else t) for t in (sp.get("tabs") or [])]
+    if el.kind in ("dialog", "popup") and not tabs:
+        el.style = "ellipse;whiteSpace=wrap;html=1;" + color
+        el.box(max(120, math.ceil(tw * 1.25 + 26)), max(50, math.ceil(th * 1.35 + 18)))
+        el.perim = "ellipse"
+        return el
+    if tabs:
+        nc = 2 if len(tabs) > 1 else 1
+        cw = max([text_size(t, 11)[0] + 14 for t in tabs] + [70])
+        head = th + 12
+        rows = (len(tabs) + nc - 1) // nc
+        W = max(tw + 24, nc * cw + (nc - 1) * 8 + 20)
+        cw = (W - 20 - (nc - 1) * 8) / nc
+        el.style = "rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;spacingTop=2;container=1;collapsible=0;" + color
+        el.box(W, head + rows * 24 + (rows - 1) * 8 + 10)
+        for i, t in enumerate(tabs):
+            r, c = divmod(i, nc)
+            el.sub.append(("tab%d" % (i + 1), esc(t), "rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;"
+                           "strokeColor=%s;" % stroke, 10 + c * (cw + 8), head + r * 32, cw, 24))
+        return el
+    el.style = "rounded=0;whiteSpace=wrap;html=1;" + color
+    el.box(max(110, tw + 24), max(40, th + 16))
     return el
 
 
@@ -1019,14 +1043,14 @@ def straight_usecase_edges(E, edges, extra, room=None):
         A, B = fan(le.u, anchor(le.u, cv))[:n], fan(le.v, anchor(le.v, cu))[:n]
         return any(free(a, b, {le.u, le.v}) for _, a in A for _, b in B)
 
-    # UC chi noi voi actor bi UC khac che (hay gap khi so do gap nhieu cot): truot doc trong cot (trong khung he
+    # UC chi noi voi actor (hoac UC la chi co mot canh, vd UC con gap quat) bi UC khac che: truot doc trong cot (trong khung he
     # thong, khong sat hinh khac) toi cho moi canh cua no noi thang duoc ma khong che canh dang thang cua UC khac
     live0 = [le for le in edges if le.abs and le.u != le.v] if room else []
     ok0 = {le.id for le in live0 if straight(le)}
     for k, el in [(k, el) for _ in range(2) for k, el in E.items()]:
         mine = [le for le in live0 if k in (le.u, le.v)]
         if (not ell(k) or not mine or all(le.id in ok0 for le in mine)
-                or any(E[le.v if le.u == k else le.u].kind != "actor" for le in mine)):
+                or (len(mine) > 1 and any(E[le.v if le.u == k else le.u].kind != "actor" for le in mine))):
             continue
         r0, ay0 = shape[k], el.ay
         for dy in sorted(range(-160, 161, 4), key=lambda d: (abs(d), d)):
@@ -1061,7 +1085,7 @@ def straight_usecase_edges(E, edges, extra, room=None):
                                     (r[0] - PAD - 2, r[3] + PAD + 2), (r[2] + PAD + 2, r[3] + PAD + 2))})
         D = []
         for c in corners:
-            A1, B1 = fan(le.u, anchor(le.u, c))[:5], fan(le.v, anchor(le.v, c))[:5]
+            A1, B1 = fan(le.u, anchor(le.u, c))[:9], fan(le.v, anchor(le.v, c))[:9]
             for da, a in A1:
                 if not free(a, c, skip):
                     continue
@@ -1428,7 +1452,8 @@ def build_graph(spec, warns, origin):
         ox, oy = (0.0, 0.0) if pid is None else (E[pid].ax, E[pid].ay)
         par = "1" if pid is None else E[pid].id
         pts = le.abs
-        style = (EDGE_BASE.replace("rounded=0", "rounded=1") if tree else EDGE_BASE) + le.style + _constraint(pts[0], su, "exit") + _constraint(pts[-1], sv, "entry")
+        style = ((SF_EDGE + "strokeColor=#000000;") if sitemap_mode(spec) else EDGE_BASE + le.style) \
+            + _constraint(pts[0], su, "exit") + _constraint(pts[-1], sv, "entry")
         way = [(x - ox, y - oy) for x, y in pts[1:-1]]
         gx, off = (None, None)
         if le.label and le.alab:
@@ -2145,6 +2170,657 @@ def build_bizcontext(spec, warns, origin):
     return out
 
 
+# =============================================================== screen flow theo vai tro (role-based)
+SF_PALETTE = OrderedDict([
+    ("orange", ("#ffe6cc", "#d6b656")), ("purple", ("#e1d5e7", "#9673a6")), ("green", ("#d5e8d4", "#82b366")),
+    ("pink", ("#ffccf2", "#b5739d")), ("blue", ("#dae8fc", "#6c8ebf")), ("yellow", ("#fff2cc", "#d6b656")),
+    ("red", ("#f8cecc", "#b85450")), ("grey", ("#f5f5f5", "#666666")),
+])
+SF_ALIAS = {"gray": "grey", "violet": "purple", "magenta": "pink", "rose": "pink", "gold": "yellow"}
+SF_PUBLIC = ("#ffffff", "#000000")   # man hinh khong thuoc vai tro nao (Login, Password Reset...)
+SF_RED = "#b20000"                   # "highlight": true -> chu do
+SF_EDGE = EDGE_BASE.replace("endSize=10;", "endSize=8;") + "endArrow=classic;endFill=1;"
+SF_UP, SF_DOWN = {"up", "top", "above"}, {"down", "bottom", "below"}
+SF_NOROLE = ("", "none", "public", "guest", "null")
+# vg: khe List -> Detail thang hang; stub/comb: truc luoc (nhieu con) - doan doc ra khoi cha / tu truc toi con;
+# hg: khe ngang giua 2 nhanh; side: mui ten toi con cung hang toi thieu; bus: truc dashboard -> hang con;
+# bandx: mep nhom -> nhanh dau tien; band: khe giua 2 dai; corr: hanh lang cot trai <-> nhom; pad/head: le nhom
+SF = dict(vg=36, stub=16, comb=30, hg=30, side=44, bus=40, bandx=56, band=64, corr=84, pad=24, head=36, lgap=36,
+          gap=16, hubgap=24, lgap2=40)
+
+
+def screenflow_group(spec):
+    """Screen flow co nhom (phan tu type "group", vd "Post-Login") -> bo cuc theo vai tro (build_screenflow)."""
+    return sitemap_mode(spec) and any(norm_key(e.get("type")) == "group" for e in spec.get("elements", []))
+
+
+def _sf_darken(c, k=0.6):
+    h = c.lstrip("#")
+    return "#%02x%02x%02x" % tuple(int(int(h[i:i + 2], 16) * k) for i in (0, 2, 4))
+
+
+def _sf_color(v):
+    """Ten mau trong bang (orange, purple...), ma hex "#rrggbb" hoac {"fill", "stroke"} -> (fill, stroke)."""
+    if isinstance(v, dict):
+        f, s = v.get("fill") or v.get("fillColor"), v.get("stroke") or v.get("strokeColor")
+        if f:
+            f = str(f).strip().lower()
+            if s:
+                return f, str(s).strip().lower()
+            return f, (_sf_darken(f) if re.fullmatch(r"#[0-9a-f]{6}", f) else "#000000")
+        v = v.get("color")
+    v = norm_key(v)
+    v = SF_ALIAS.get(v, v)
+    if v in SF_PALETTE:
+        return SF_PALETTE[v]
+    if re.fullmatch(r"#[0-9a-f]{6}", v):
+        return v, _sf_darken(v)
+    return None
+
+
+def _sf_tokens(rel, el):
+    s = str((rel or {}).get("side") or (el or {}).get("side") or "").lower()
+    return {t for t in re.split(r"[\s,_\-/]+", s) if t}
+
+
+def sf_role_colors(spec, sps, parent, order, warns):
+    """id -> (fill, stroke) theo vai tro. Spec "roles": {"admin": "orange", "student": {"fill", "stroke"}}; role
+    chua khai mau -> cap lan luot tu bang mau. Phan tu khong ghi "role" ke thua role cua man hinh cha tren cay
+    dieu huong (nhom khong truyen role); "role": "public" hoac khong co role -> trang vien den."""
+    S = {s["id"]: s for s in sps}
+    roles = spec.get("roles") or {}
+    if isinstance(roles, list):
+        roles = OrderedDict((str(r.get("id", r.get("name"))), r) if isinstance(r, dict) else (str(r), None)
+                            for r in roles)
+    cmap = OrderedDict()
+    for k, v in (roles.items() if isinstance(roles, dict) else []):
+        c = _sf_color(v) if v is not None else None
+        if v is not None and c is None:
+            warns.append("Mau cua role '%s' khong hop le (%s) -> tu cap mau." % (k, v))
+        if c:
+            cmap[norm_key(k)] = c
+    free = [c for c in SF_PALETTE.values() if c not in cmap.values()]
+
+    def color_of(r):
+        if r not in cmap:
+            cmap[r] = free.pop(0) if free else SF_PALETTE["grey"]
+        return cmap[r]
+
+    for s in sps:   # cap mau theo thu tu xuat hien trong spec (on dinh)
+        if "role" in s and norm_key(s.get("role")) not in SF_NOROLE:
+            color_of(norm_key(s.get("role")))
+    role = {}
+    for x in order:   # thu tu BFS: cha truoc con
+        s = S.get(x, {})
+        if "role" in s:
+            r = norm_key(s.get("role"))
+            role[x] = None if r in SF_NOROLE else r
+        else:
+            p = parent.get(x)
+            role[x] = role.get(p) if p is not None and norm_key(S.get(p, {}).get("type")) != "group" else None
+    return {x: (color_of(role[x]) if role.get(x) else SF_PUBLIC) for x in order}
+
+
+def _sf_tree(S, rels, root, warns, grp=None, hubs=()):
+    """Cay khung BFS theo thu tu quan he tu man hinh goc -> (parent, tree_rel, kids, order). Nhom: con = cac
+    dashboard ben trong (theo thu tu spec) roi moi toi dieu huong cua nhom; dieu huong tu ngoai vao mot dashboard
+    tinh nhu vao nhom. Quan he "tree": false khong bao gio la canh cay."""
+    hubset = set(hubs)
+    out_r, indeg = defaultdict(list), defaultdict(int)
+    for r in rels:
+        out_r[r["_a"]].append(r)
+        indeg[r["_b"]] += 1
+    parent, tree_rel, kids, order, seen = {}, {}, defaultdict(list), [], set()
+
+    def bfs(x0):
+        seen.add(x0)
+        order.append(x0)
+        parent[x0] = None
+        q = [x0]
+        while q:
+            x = q.pop(0)
+            nxt = [(h, None) for h in hubs] if x == grp else []
+            for r in out_r[x]:
+                b = r["_b"]
+                if r.get("tree") is False:
+                    continue
+                if b in hubset:
+                    if x in hubset:
+                        continue
+                    b, r = grp, None
+                nxt.append((b, r))
+            for b, r in nxt:
+                if b not in seen:
+                    seen.add(b)
+                    parent[b], tree_rel[b] = x, r
+                    kids[x].append(b)
+                    order.append(b)
+                    q.append(b)
+
+    if root is not None and str(root) not in S:
+        warns.append("root '%s' khong ton tai -> tu chon man hinh goc." % root)
+        root = None
+    if root is not None and str(root) in hubset:
+        root = grp
+    if root is None:
+        cand = [i for i in S if not indeg[i] and i not in hubset]
+        root = cand[0] if cand else next((i for i in S if i not in hubset), None)
+    if root is not None:
+        bfs(str(root))
+    for i in S:
+        if i not in seen and not indeg[i] and i not in hubset:
+            bfs(i)
+    for i in S:
+        if i not in seen and (i not in hubset or grp is None):
+            bfs(i)
+    return parent, tree_rel, kids, order
+
+
+def _sf_rels(spec, S, warns, grp=None, hubs=()):
+    rels, have = [], set()
+    for k, r in enumerate(spec.get("relations", [])):
+        a, b = str(r.get("from")), str(r.get("to"))
+        if a not in S or b not in S:
+            warns.append("Dieu huong #%d: man hinh '%s' hoac '%s' khong ton tai -> bo qua." % (k + 1, a, b))
+            continue
+        if a == b or (a, b) in have:
+            continue
+        if grp is not None and {a, b} & {grp} and {a, b} & set(hubs):
+            continue   # nhom <-> dashboard ben trong: da the hien bang viec chua trong nhom
+        have.add((a, b))
+        rels.append(dict(r, _a=a, _b=b, _id=str(r.get("id") or "e%d" % (k + 1))))
+    return rels
+
+
+def sf_annotate(spec, warns):
+    """Screen flow dang cay (khong co nhom): gan mau vai tro (_fill/_stroke) cho tung man hinh."""
+    sp = dict(spec)
+    sps = []
+    for e in spec.get("elements", []):
+        e = dict(e)
+        e.setdefault("id", e.get("name"))
+        e["id"] = str(e["id"])
+        sps.append(e)
+    S = OrderedDict((s["id"], s) for s in sps)
+    rels = _sf_rels(spec, S, [])
+    parent, _, _, order = _sf_tree(S, rels, spec.get("root"), [])
+    col = sf_role_colors(spec, sps, parent, order, warns)
+    for s in sps:
+        s["_fill"], s["_stroke"] = col.get(s["id"], SF_PUBLIC)
+    sp["elements"] = sps
+    return sp
+
+
+def build_screenflow(spec, warns, origin):
+    """Screen flow theo vai tro (so do man hinh sau dang nhap):
+    * cot trai: man hinh cong khai (Login -> Password Reset ben duoi), con cua nhom (User Profile...) va con
+      "side": "left" cua dashboard (vd Public Credit Packages) - xep doc, mui ten ngang vao mep nhom/dashboard;
+    * giua: nhom net dut nen xam (type "group", vd "Post-Login") chua cac dashboard ("in": nhom) xep doc;
+    * ben phai moi dashboard la mot dai: truc ngang di ra tu canh phai dashboard, man hinh con treo len tren
+      ("side": "up") hoac xuong duoi ("down") truc; moi nhanh di tiep ra xa truc: 1 con -> thang hang (List ->
+      Detail), nhieu con -> luoc, "side": "right"/"left" -> cung hang ben canh;
+    * canh khong thuoc cay (lien ket cheo) -> duong truc giao tranh hinh. Mau theo vai tro, popup = ellipse,
+      mui ten dac, goc vuong, khong nhan."""
+    from layout import TREE, _route
+    G = SF
+    sps = []
+    for e in spec.get("elements", []):
+        e = dict(e)
+        e.setdefault("id", e.get("name"))
+        e["id"] = str(e["id"])
+        sps.append(e)
+    S = OrderedDict((s["id"], s) for s in sps)
+    groups = [i for i, s in S.items() if norm_key(s.get("type")) == "group"]
+    grp = groups[0]
+    for g in groups[1:]:
+        warns.append("Screen flow chi ve 1 nhom: '%s' ve nhu man hinh thuong." % g)
+        S[g]["type"] = "screen"
+    hubs = [i for i, s in S.items() if i != grp and str(s.get("in") or "") == grp]
+    for i, s in S.items():
+        if s.get("in") and str(s["in"]) != grp:
+            warns.append("'%s' khai bao in='%s' nhung '%s' khong phai nhom -> bo qua." % (i, s["in"], s["in"]))
+    if not hubs:
+        warns.append("Nhom '%s' chua co man hinh nao (khai \"in\": \"%s\" tren cac dashboard)." % (grp, grp))
+    hubset = set(hubs)
+    for h in hubs:   # dashboard khong ghi role -> moi dashboard mot mau rieng (con ke thua), nhu hinh mau
+        if "role" not in S[h]:
+            S[h] = dict(S[h], role="_dash_" + h)
+    rels = _sf_rels(spec, S, warns, grp, hubs)
+    parent, tree_rel, kids, order = _sf_tree(S, rels, spec.get("root"), warns, grp, hubs)
+    colors = sf_role_colors(spec, list(S.values()), parent, order, warns)
+
+    def tok(x):
+        return _sf_tokens(tree_rel.get(x), S[x])
+
+    region = {}
+    for x in order:
+        p = parent[x]
+        if x == grp:
+            region[x] = "group"
+        elif x in hubset:
+            region[x] = "hub"
+        elif p in hubset:
+            region[x] = "left" if "left" in tok(x) else "band"
+        else:
+            region[x] = "band" if p is not None and region[p] == "band" else "left"
+
+    E = OrderedDict()
+    for x in order:
+        if x != grp:
+            s = dict(S[x], _fill=colors[x][0], _stroke=colors[x][1])
+            E[x] = render_screen(Elem(s), s, str(s.get("name", x)))
+    hw = max([E[h].w for h in hubs] or [160.0])
+    hh = max([E[h].h for h in hubs] + [56.0])
+    for h in hubs:
+        if not E[h].sub:
+            E[h].box(hw, hh)
+
+    # ------------------------------------------------ khoi nhanh (toa do "xa truc": nut goc o (0,0), +y ra xa)
+    def shift(o, dx, dy):
+        return (o[0] + dx, o[1] + dy, o[2] + dx, o[3] + dy)
+
+    def seg_box(p, q, t=1.0):
+        return (min(p[0], q[0]) - t, min(p[1], q[1]) - t, max(p[0], q[0]) + t, max(p[1], q[1]) + t)
+
+    def put(B, C, dx, dy):
+        for k, o in C["R"].items():
+            B["R"][k] = shift(o, dx, dy)
+        B["edges"] += [(u, v, kd, [(x + dx, y + dy) for x, y in pts]) for u, v, kd, pts in C["edges"]]
+        B["obs"] += [shift(o, dx, dy) for o in C["obs"]]
+
+    def add_edge(B, u, v, kd, pts):
+        pts = _sf_simplify(pts)
+        B["edges"].append((u, v, kd, pts))
+        B["obs"] += [seg_box(p, q) for p, q in zip(pts, pts[1:])]
+
+    def push(placed, C, dy, xmin, sgn=1):
+        """Do lech x nho nhat (sgn=1: sang phai, >= xmin) de khoi C (dich dy) khong cham vat can cung khoang y."""
+        dx = xmin
+        for a in placed:
+            for b in C["obs"]:
+                if a[1] < b[3] + dy + 8 and b[1] + dy < a[3] + 8:
+                    dx = max(dx, a[2] + G["hg"] - b[0]) if sgn > 0 else min(dx, a[0] - G["hg"] - b[2])
+        return dx
+
+    def row(Cs, stub):
+        """Xep cac khoi trai -> phai sat nhau theo duong vien (contour) -> [x neo]."""
+        xs, placed = [], []
+        for C in Cs:
+            C["obs"].append((-1.0, -stub, 1.0, 0.0))   # nhanh doc vao nut goc cua khoi
+            x = 0.0 if not xs else push(placed, C, 0.0, -math.inf)
+            xs.append(x)
+            placed += [shift(o, x, 0.0) for o in C["obs"]]
+        for C in Cs:
+            C["obs"].pop()
+        return xs
+
+    def miny(C):
+        return min(o[1] for o in C["obs"])
+
+    def maxy(C):
+        return max(o[3] for o in C["obs"])
+
+    def blk(n, ban=None):
+        el = E[n]
+        w, h = el.w, el.h
+        B = {"R": {n: (-w / 2, 0.0, w / 2, h)}, "edges": [], "obs": [(-w / 2, 0.0, w / 2, h)]}
+        aw, rk, lk = [], None, None
+        for c in kids[n]:
+            if region.get(c) != "band":
+                continue
+            t = tok(c)
+            if rk is None and ban != "right" and t & {"right", "same"}:
+                rk = c
+            elif lk is None and ban != "left" and "left" in t:
+                lk = c
+            else:
+                aw.append(c)
+        if len(aw) == 1:
+            C = blk(aw[0])
+            dy = h + max(G["vg"], G["gap"] - miny(C))
+            put(B, C, 0.0, dy)
+            add_edge(B, n, aw[0], "line", [(0.0, h), (0.0, dy)])
+        elif aw:
+            Cs = [blk(c) for c in aw]
+            my = min(miny(C) for C in Cs)
+            xs = row(Cs, G["comb"])
+            mid = (xs[0] + xs[-1]) / 2
+            yb = h + G["stub"]
+            yk = yb + max(G["comb"], G["gap"] - my)
+            for c, C, x in zip(aw, Cs, xs):
+                put(B, C, x - mid, yk)
+                add_edge(B, n, c, "comb", [(0.0, h), (0.0, yb), (x - mid, yb), (x - mid, yk)])
+        for c, sgn in ((rk, 1), (lk, -1)):
+            if c is None:
+                continue
+            C = blk(c, "left" if sgn > 0 else "right")
+            wc, hc = E[c].w, E[c].h
+            dy = h / 2 - hc / 2
+            x = push(B["obs"], C, dy, sgn * (w / 2 + G["side"] + wc / 2), sgn)
+            put(B, C, x, dy)
+            add_edge(B, n, c, "line", [(sgn * w / 2, h / 2), (x - sgn * wc / 2, h / 2)])
+        return B
+
+    # ------------------------------------------------ dai cua tung dashboard: hang tren / hang duoi truc
+    band = {}
+    for hb in hubs:
+        bk = [c for c in kids[hb] if region[c] == "band"]
+        Cs = {c: blk(c) for c in bk}
+        wid = {c: max(o[2] for o in Cs[c]["obs"]) - min(o[0] for o in Cs[c]["obs"]) for c in bk}
+        upk = {c for c in bk if tok(c) & SF_UP}
+        dnk = {c for c in bk if tok(c) & SF_DOWN and c not in upk}
+        for c in bk:   # khong ghi side -> can bang do rong hai hang
+            if c not in upk and c not in dnk:
+                (upk if sum(wid[x] for x in upk) <= sum(wid[x] for x in dnk) else dnk).add(c)
+        info = {}
+        for key, vs in (("up", [c for c in bk if c in upk]), ("dn", [c for c in bk if c in dnk])):
+            Cv = [Cs[c] for c in vs]
+            if not vs:
+                info[key] = None
+                continue
+            gb = max(G["bus"], G["gap"] - min(miny(C) for C in Cv))
+            xs = row(Cv, gb)
+            x0 = min(x + min(o[0] for o in C["obs"]) for x, C in zip(xs, Cv))
+            info[key] = dict(vs=vs, Cs=Cv, xs=[x - x0 for x in xs], g=gb,
+                             ext=gb + max(maxy(C) for C in Cv))
+        band[hb] = info
+
+    # ------------------------------------------------ xep doc cac dai, nhom va dashboard
+    hy, prev = {}, None
+    for i, hb in enumerate(hubs):
+        up, dn = band[hb]["up"], band[hb]["dn"]
+        top = max(up["ext"] if up else 0.0, hh / 2 + (G["head"] if i == 0 else G["hubgap"]))
+        hy[hb] = top if prev is None else prev + G["band"] + top
+        prev = hy[hb] + max(dn["ext"] if dn else 0.0, hh / 2 + G["hubgap"])
+    gx0, gw = 0.0, hw + 2 * G["pad"]
+    if hubs:
+        gy0, gy1 = hy[hubs[0]] - hh / 2 - G["head"], hy[hubs[-1]] + hh / 2 + G["pad"]
+    else:
+        gy0, gy1 = 0.0, 80.0
+    gx1 = gx0 + gw
+    RECT = OrderedDict()
+    EDGES = []   # (u, v, mau, pts, quan he)
+
+    def col(v, kd):
+        return colors[v][1] if kd == "line" else "#000000"
+
+    for hb in hubs:
+        y = hy[hb]
+        RECT[hb] = (gx0 + G["pad"], y - E[hb].h / 2, gx0 + G["pad"] + E[hb].w, y + E[hb].h / 2)
+        bx = gx1 + G["bandx"]
+        for key, sg in (("up", -1), ("dn", 1)):
+            info = band[hb][key]
+            if not info:
+                continue
+            yn = y + sg * info["g"]   # mep gan truc cua hang con
+
+            def T(p, X=None):
+                return (X + p[0], yn + sg * p[1])
+            for c, C, x in zip(info["vs"], info["Cs"], info["xs"]):
+                X = bx + x
+                for k, o in C["R"].items():
+                    a, b = T((o[0], o[1]), X), T((o[2], o[3]), X)
+                    RECT[k] = (min(a[0], b[0]), min(a[1], b[1]), max(a[0], b[0]), max(a[1], b[1]))
+                for u, v, kd, pts in C["edges"]:
+                    EDGES.append((u, v, col(v, kd), [T(p, X) for p in pts], tree_rel.get(v)))
+                EDGES.append((hb, c, "#000000", _sf_simplify([(RECT[hb][2], y), (X, y), (X, yn)]), tree_rel.get(c)))
+
+    # ------------------------------------------------ cot trai: man hinh ngoai nhom, xep doc
+    lefts = [x for x in order if region[x] == "left"]
+    lroots = [x for x in lefts if parent[x] is None or region[parent[x]] != "left"]
+    tops = [x for x in lroots if parent[x] is None]
+    seq = ([x for x in lroots if parent[x] == grp] + tops[:1]
+           + [x for hb in hubs for x in kids[hb] if x in lroots] + tops[1:])
+    want = {}
+    if tops and hubs:
+        want[tops[0]] = hy[hubs[0]]
+    for hb in hubs:
+        hl = [x for x in kids[hb] if x in lroots]
+        if hl:
+            want[hl[0]] = hy[hb]
+
+    def lblk(n):
+        el = E[n]
+        items, links = {n: 0.0}, []
+        top, bot = -el.h / 2, el.h / 2
+        lk = [c for c in kids[n] if region[c] == "left"]
+        ups = [c for c in lk if tok(c) & SF_UP]
+        for i, c in enumerate([c for c in lk if c not in ups]):
+            it, ln, t, b = lblk(c)
+            dy = bot + G["lgap"] - t
+            items.update((k, y + dy) for k, y in it.items())
+            links += ln + [(n, c, i == 0 and abs(t + E[c].h / 2) < 0.01)]
+            bot = dy + b
+        for i, c in enumerate(ups):
+            it, ln, t, b = lblk(c)
+            dy = top - G["lgap"] - b
+            items.update((k, y + dy) for k, y in it.items())
+            links += ln + [(n, c, i == 0 and abs(b - E[c].h / 2) < 0.01)]
+            top = dy + t
+        return items, links, top, bot
+
+    LB = [lblk(x) for x in seq]
+    cy = {}
+    if seq:
+        a = next((i for i, x in enumerate(seq) if x in want), 0)
+        cy[seq[a]] = want.get(seq[a], hy[hubs[0]] if hubs else 0.0)
+        for i in range(a - 1, -1, -1):
+            cy[seq[i]] = cy[seq[i + 1]] + LB[i + 1][2] - G["lgap2"] - LB[i][3]
+        for i in range(a + 1, len(seq)):
+            cy[seq[i]] = max(cy[seq[i - 1]] + LB[i - 1][3] + G["lgap2"] - LB[i][2], want.get(seq[i], -math.inf))
+    yc = {k: cy[x] + dy for x, (items, _, _, _) in zip(seq, LB) for k, dy in items.items()}
+
+    # ------------------------------------------------ canh cot trai <-> nhom / dashboard
+    links = []   # (u, v, quan he)
+    for x in lroots:
+        p = parent[x]
+        if p is not None:
+            links.append((p, x, tree_rel.get(x)))
+    if parent.get(grp) is not None and tree_rel.get(grp) is not None:
+        links.append((parent[grp], grp, tree_rel[grp]))
+    routes = []   # (u, v, quan he) - dinh tuyen sau cung
+    drawn = {id(r) for r in tree_rel.values() if r is not None}
+    for r in rels:
+        if id(r) in drawn:
+            continue
+        u, v = r["_a"], r["_b"]
+        pair = {region[u], region[v]}
+        if "left" in pair and pair & {"group", "hub"}:
+            links.append((u, v, r))
+        else:
+            routes.append((u, v, r))
+    SL = [dict(u=u, v=v, r=r, item=u if region[u] == "left" else v, other=v if region[u] == "left" else u)
+          for u, v, r in links]
+    byit = defaultdict(list)
+    for L in SL:
+        byit[L["item"]].append(L)
+    for it, ls in byit.items():   # nhieu canh cung man hinh -> cong rai deu theo chieu cao, moi canh mot y
+        st = min(12.0, (E[it].h - 16) / max(1, len(ls) - 1))
+        for j, L in enumerate(ls):
+            L["iy"] = yc[it] + (j - (len(ls) - 1) / 2.0) * st
+    taken = [L["iy"] for L in SL]
+    gl = {"above": [], "below": []}
+    lane = []
+    for L in SL:
+        o, iy = L["other"], L["iy"]
+        if o == grp:
+            if gy0 + 14 <= iy <= gy1 - 14:
+                L["ty"] = iy
+            else:
+                gl["above" if iy < gy0 else "below"].append(L)
+            continue
+        h0, h1 = RECT[o][1] + 8, RECT[o][3] - 8
+        if h0 <= iy <= h1:
+            L["ty"] = iy
+            continue
+        # vao dashboard o y rieng (cach moi duong ngang khac >= 10px), gan phia man hinh nhat
+        pref = min(max(iy, h0), h1)
+        cand = sorted({min(max(pref + s * d, h0), h1) for d in range(0, int(h1 - h0) + 2, 2) for s in (1, -1)},
+                      key=lambda c: abs(c - pref))
+        gap = {c: min([abs(c - t) for t in taken] + [99.0]) for c in cand}
+        ok = [c for c in cand if gap[c] >= 10]
+        L["ty"] = ok[0] if ok else max(cand, key=gap.get)
+        taken.append(L["ty"])
+        lane.append(L)
+    # hanh lang giua cot trai va nhom: moi doan doc mot lan, doan ngan sat nhom hon (long nhau, it cat nhau)
+    lanes = []
+    for L in sorted(lane, key=lambda L: abs(L["ty"] - L["iy"])):
+        a, b = sorted((L["iy"], L["ty"]))
+        k = next((k for k, iv in enumerate(lanes) if all(b + 6 < c or d + 6 < a for c, d in iv)), len(lanes))
+        if k == len(lanes):
+            lanes.append([])
+        lanes[k].append((a, b))
+        L["xc"] = gx0 - 18 - 12 * k
+    corr = max(G["corr"], 18 + 12 * max(len(lanes) - 1, 0) + 30)
+    lw = max([E[x].w for x in lefts] or [0.0])
+    lx = gx0 - corr - lw / 2
+    for k, y in yc.items():
+        RECT[k] = (lx - E[k].w / 2, y - E[k].h / 2, lx + E[k].w / 2, y + E[k].h / 2)
+    for x, (items, lks, _, _) in zip(seq, LB):
+        for u, v, straight in lks:
+            if straight:
+                down = RECT[v][1] > RECT[u][1]
+                pts = [(lx, RECT[u][3] if down else RECT[u][1]), (lx, RECT[v][1] if down else RECT[v][3])]
+                EDGES.append((u, v, col(v, "line"), pts, tree_rel.get(v)))
+            else:
+                routes.append((u, v, tree_rel.get(v)))
+
+    def rx(it, y):   # mep phai man hinh cot trai tai do cao y (popup ellipse -> diem tren vien)
+        x0, y0, x1, y1 = RECT[it]
+        if E[it].perim == "ellipse":
+            t = (y - (y0 + y1) / 2) / ((y1 - y0) / 2)
+            return (x0 + x1) / 2 + (x1 - x0) / 2 * math.sqrt(max(0.0, 1 - t * t))
+        return x1
+
+    for L in SL:
+        if "ty" not in L:
+            continue
+        o, iy, ty = L["other"], L["iy"], L["ty"]
+        tx = gx0 if o == grp else RECT[o][0]
+        pts = ([(rx(L["item"], iy), iy), (tx, iy)] if abs(iy - ty) < 0.01
+               else [(rx(L["item"], iy), iy), (L["xc"], iy), (L["xc"], ty), (tx, ty)])
+        EDGES.append((L["u"], L["v"], "#000000", pts if L["item"] == L["u"] else pts[::-1], L["r"]))
+    for key, lst in gl.items():   # vao canh tren / duoi nhom: duong cang xa nhom re cang xa mep trai -> long nhau
+        lst.sort(key=lambda L: L["iy"] if key == "above" else -L["iy"])
+        for k, L in enumerate(lst):
+            xv = gx0 + 18 + 14 * (len(lst) - 1 - k)
+            pts = [(rx(L["item"], L["iy"]), L["iy"]), (xv, L["iy"]), (xv, gy0 if key == "above" else gy1)]
+            EDGES.append((L["u"], L["v"], "#000000", pts if L["item"] == L["u"] else pts[::-1], L["r"]))
+
+    # ------------------------------------------------ canh khong thuoc cay: dinh tuyen truc giao tranh hinh
+    RR = {k: (o[0], o[1], o[2] - o[0], o[3] - o[1]) for k, o in RECT.items()}
+    RR[grp] = (gx0, gy0, gw, gy1 - gy0)
+    segs = [(p, q, u) for u, v, _, pts, _ in EDGES for p, q in zip(pts, pts[1:])]
+    for u, v, r in routes:
+        R2 = RR if not ({u, v} & hubset) else {k: o for k, o in RR.items() if k != grp}
+        pts, ghost = _route(R2, u, v, segs, dict(TREE)), []
+        for _ in range(3):   # di sat song song (< 8px) canh khac nguon -> them "bong" doan do roi dinh tuyen lai
+            nr = _sf_near(pts, segs, u)
+            if not nr:
+                break
+            ghost += nr
+            p2 = _route(R2, u, v, segs + ghost, dict(TREE))
+            if len(_sf_near(p2, segs, u)) < len(nr):
+                pts = p2
+        pts = _sf_ellipse_ends(pts, E.get(u), RR[u], E.get(v), RR[v])
+        segs += [(p, q, u) for p, q in zip(pts, pts[1:])]
+        EDGES.append((u, v, "#000000", pts, r))
+
+    # ------------------------------------------------ dich ve origin, xuat
+    allx = [o[0] for o in RECT.values()] + [gx0] + [p[0] for e in EDGES for p in e[3]]
+    ally = [o[1] for o in RECT.values()] + [gy0] + [p[1] for e in EDGES for p in e[3]]
+    dx, dy = origin[0] - min(allx), origin[1] - min(ally)
+    out = Out()
+    out.ids |= set(S)
+    gel = Elem(S[grp])
+    gel.box(gw, gy1 - gy0)
+    gel.ax, gel.ay = gx0 + dx, gy0 + dy
+    E[grp] = gel
+    out.vertex(grp, esc(S[grp].get("name", grp)),
+               "rounded=0;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;"
+               "verticalAlign=top;spacingTop=6;container=1;collapsible=0;", gel.ax, gel.ay, gw, gy1 - gy0)
+    for k in [h for h in hubs] + [k for k in RECT if k not in hubset]:
+        el, o = E[k], RECT[k]
+        el.ax, el.ay = o[0] + dx, o[1] + dy
+        if k in hubset:
+            out.vertex(k, el.value, el.style, el.ax - gel.ax, el.ay - gel.ay, el.w, el.h, grp, el.ax, el.ay)
+        else:
+            out.vertex(k, el.value, el.style, el.ax, el.ay, el.w, el.h)
+        for suf, val, st, sx, sy, sw_, sh_ in el.sub:
+            out.vertex(out.uid("%s__%s" % (k, suf)), val, st, sx, sy, sw_, sh_, k, el.ax + sx, el.ay + sy)
+    for u, v, color, pts, r in EDGES:
+        tp = [(x + dx, y + dy) for x, y in pts]
+        st = (SF_EDGE + "strokeColor=%s;" % color + _constraint(tp[0], E[u], "exit")
+              + _constraint(tp[-1], E[v], "entry"))
+        out.edge(out.uid(r["_id"] if r else "nav_%s_%s" % (u, v)), "", st, u, v, tp[1:-1])
+        for x, y in tp:
+            out.maxx, out.maxy = max(out.maxx, x), max(out.maxy, y)
+    return out
+
+
+def _sf_simplify(pts):
+    out = []
+    for p in pts:
+        if out and abs(out[-1][0] - p[0]) < 0.01 and abs(out[-1][1] - p[1]) < 0.01:
+            continue
+        out.append(p)
+    i = 1
+    while i < len(out) - 1:
+        a, b, c = out[i - 1], out[i], out[i + 1]
+        if (abs(a[0] - b[0]) < 0.01 and abs(b[0] - c[0]) < 0.01) or (abs(a[1] - b[1]) < 0.01 and abs(b[1] - c[1]) < 0.01):
+            out.pop(i)
+        else:
+            i += 1
+    return out
+
+
+def _sf_near(pts, segs, u, d=8.0):
+    """Doan cua canh khac nguon chay song song cach pts < d px (nhin nhu net doi) -> ban sao lech 0..d px cua
+    chung, dung lam "bong" cho _route phat nhu chong khit."""
+    res = []
+    for p, q in zip(pts, pts[1:]):
+        hz = abs(p[1] - q[1]) < 0.01
+        for a, b, src in segs:
+            if src == u or (abs(a[1] - b[1]) < 0.01) != hz:
+                continue
+            k = 1 if hz else 0
+            off = abs(a[k] - p[k])
+            lo, hi = sorted((p[1 - k], q[1 - k]))
+            alo, ahi = sorted((a[1 - k], b[1 - k]))
+            if 1.0 <= off < d and min(hi, ahi) - max(lo, alo) > 4:
+                for s in range(-int(d), int(d) + 1):
+                    a2, b2 = list(a), list(b)
+                    a2[k] += s
+                    b2[k] += s
+                    res.append((tuple(a2), tuple(b2), src))
+    return res
+
+
+def _sf_ellipse_ends(pts, eu, ru, ev, rv):
+    """Duong dinh tuyen cham khung bao; dau nao la ellipse (popup) thi keo diem cuoi doc doan cuoi toi vien ellipse."""
+    pts = list(pts)
+
+    def fix(i, j, el, r):
+        if el is None or el.perim != "ellipse" or len(pts) < 2:
+            return
+        x, y, w, h = r
+        a, b, cx, cy = w / 2, h / 2, x + w / 2, y + h / 2
+        p, q = pts[i], pts[j]
+        if abs(p[0] - q[0]) < 0.01:      # doan doc
+            t = (p[0] - cx) / a
+            if abs(t) < 0.98:
+                d = b * math.sqrt(1 - t * t)
+                pts[i] = (p[0], cy - d if q[1] < cy else cy + d)
+        elif abs(p[1] - q[1]) < 0.01:    # doan ngang
+            t = (p[1] - cy) / b
+            if abs(t) < 0.98:
+                d = a * math.sqrt(1 - t * t)
+                pts[i] = (cx - d if q[0] < cx else cx + d, p[1])
+    fix(0, 1, eu, ru)
+    fix(len(pts) - 1, len(pts) - 2, ev, rv)
+    return pts
+
+
 # =============================================================== document assembly
 def build_page(spec, warns):
     diagram = str(spec.get("diagram", "class")).lower()
@@ -2159,6 +2835,10 @@ def build_page(spec, warns):
         out = build_sequence(spec, warns, origin)
     elif diagram == "bizcontext":
         out = build_bizcontext(spec, warns, origin)
+    elif sitemap_mode(spec):
+        src = sitemap_expand(spec, warns)
+        out = (build_screenflow(src, warns, origin) if screenflow_group(src)
+               else build_graph(sf_annotate(src, warns), warns, origin))
     else:
         src = chen_expand(spec, warns) if chen_mode(spec) else crowfoot_expand(spec, warns) if crowfoot_mode(spec)             else sitemap_expand(spec, warns) if sitemap_mode(spec)             else spec
         out = build_graph(src, warns, origin)

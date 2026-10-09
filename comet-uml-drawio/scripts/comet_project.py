@@ -53,7 +53,7 @@ DEFAULT_REL = {"activity": "flow", "state": "transition", "erd": "relationship",
 
 LOCAL_TYPES = {"note", "text", "initial", "final", "activityfinal", "flowfinal", "choice", "decision", "merge",
                "junction", "fork", "join", "history", "deephistory", "shallowhistory", "state", "action",
-               "frame", "fragment"}
+               "frame", "fragment", "group"}
 # Truong semantic dung chung cua concept -> nhom so do ma truong do duoc chieu vao.
 PROJECTED = {
     "stereotype": {"class", "package", "communication", "sequence", "component", "deployment"},
