@@ -201,14 +201,66 @@ def sitemap_expand(spec, warns=None):
 CHEN_REL = {"relationship", "diamond", "relation"}
 
 
+def chen_mode(spec):
+    """ERD mac dinh ve theo ky hieu Chen (muc khai niem): thuc the = o chi ghi ten, quan he = hinh thoi,
+    ban so 1/N/M o dau noi phia thuc the. `"notation": "crowfoot"` -> xem crowfoot_expand."""
+    return str(spec.get("diagram", "")).lower() == "erd" and not crowfoot_mode(spec)
+
+
+def crowfoot_mode(spec):
+    return str(spec.get("diagram", "")).lower() == "erd" and norm_key(spec.get("notation")) in ("crowfoot", "crowsfoot", "ie")
+
+
+# ban so crow's foot -> dau mui ten draw.io
+CROWFOOT_END = {
+    "1": "ERmandOne", "1..1": "ERmandOne", "one": "ERmandOne",
+    "0..1": "ERzeroToOne", "zero or one": "ERzeroToOne",
+    "1..n": "ERoneToMany", "1..*": "ERoneToMany", "1..m": "ERoneToMany", "one or many": "ERoneToMany",
+    "0..n": "ERzeroToMany", "0..*": "ERzeroToMany", "0..m": "ERzeroToMany", "zero or many": "ERzeroToMany",
+    "n": "ERmany", "m": "ERmany", "*": "ERmany", "many": "ERmany",
+}
+
+
 def norm_key(v):
     return re.sub(r"\s+", " ", str(v or "").strip().lower())
 
 
-def chen_mode(spec):
-    """ERD luon ve theo ky hieu Chen (muc khai niem): thuc the = o chi ghi ten, quan he = hinh thoi,
-    ban so 1/N/M o dau noi phia thuc the."""
-    return str(spec.get("diagram", "")).lower() == "erd"
+def crowfoot_column(c):
+    """Cot bang vat ly {"name","type","pk","fk","nullable"} -> 1 dong: 'PK id: bigserial NOT NULL'."""
+    if not isinstance(c, dict):
+        return str(c)
+    keys = [k for k in ("pk", "fk") if c.get(k)]
+    head = ("/".join(k.upper() for k in keys) + " ") if keys else ""
+    typ = str(c.get("type") or "").strip()
+    nn = " NOT NULL" if (c.get("pk") or c.get("nullable") is False or c.get("notNull")) and typ else ""
+    return "%s%s%s%s" % (head, c.get("name", "?"), (": " + typ) if typ else "", nn)
+
+
+def crowfoot_expand(spec, warns=None):
+    """ERD crow's foot (IE): entity/table = hop co ngan thuoc tinh (`attributes` chuoi, hoac `columns` cho bang
+    vat ly); relationship = duong noi, ban so o 2 dau (fromCard/toCard: 1, 0..1, 1..N, 0..N), nhan = `name`."""
+    sp = dict(spec)
+    els = []
+    for e in spec.get("elements", []):
+        e = dict(e)
+        if norm_key(e.get("type")) in ("entity", "table"):
+            cols = e.get("columns")
+            attrs = [crowfoot_column(c) for c in cols] if cols else list(e.get("attributes") or [])
+            e.update(type="entity", attributes=attrs, compartments=True)
+        els.append(e)
+    rels = []
+    for i, r in enumerate(spec.get("relations", [])):
+        r = dict(r)
+        fc, tc = r.get("fromCard", r.get("fromMult")), r.get("toCard", r.get("toMult"))
+        for c in (fc, tc):
+            if c not in (None, "") and norm_key(c) not in CROWFOOT_END and warns is not None:
+                warns.append("ERD crow's foot: ban so '%s' khong hop le (1, 0..1, 1..N, 0..N)." % c)
+        r.update(type="crowfoot", _fc=fc, _tc=tc)
+        r.pop("fromMult", None); r.pop("toMult", None)
+        rels.append(r)
+    sp["elements"], sp["relations"] = els, rels
+    sp.setdefault("direction", "LR")
+    return sp
 
 
 def chen_expand(spec, warns=None):
@@ -670,6 +722,10 @@ def rel_style(rel, diagram, to_ball=False):
     d_lab = "\n".join(str(x) for x in (rel.get("toRole"), rel.get("toMult")) if x)
     lrev = False
     nav = rel.get("navigable")
+    if t == "crowfoot":   # ERD IE: dau crow's foot theo ban so, nhan dong tu o giua
+        ends = [CROWFOOT_END.get(norm_key(c), "none") for c in (rel.get("_fc"), rel.get("_tc"))]
+        return ("startArrow=%s;endArrow=%s;startFill=0;endFill=0;startSize=12;endSize=12;" % tuple(ends),
+                ("\n".join(wrap(str(label), 200)) if label else None), None, None, False)
     if t == "chenlink":   # ERD Chen: duong lien khong mui ten, ban so o dau phia entity
         sc, dc = rel.get("_sc"), rel.get("_dc")
         return ("endArrow=none;startArrow=none;", None, (str(sc) if sc not in (None, "") else None),
@@ -1245,8 +1301,10 @@ def build_graph(spec, warns, origin):
                     _widen(el, need)
 
     results = {}
+    # use case: canh actor -> UC duoc «include» va UC goc -> actor phai hay ket o thu tu cat nhau
+    # -> cho phep chen lai ca chuoi canh dai (cac loai so do khac giu thu tu cu)
     # cot UC dai hon 6 -> gap thanh nhieu cot (~2.5 hang moi cot, toi da 4 cot) thay vi mot cot dai hep
-    level_cfg = {"fold": {1: (2.5, 4, 6)}} if diagram == "usecase" else None
+    level_cfg = {"chain_reinsert": True, "fold": {1: (2.5, 4, 6)}} if diagram == "usecase" else None
     if diagram == "activity":   # decision/merge: mui ten chi ra/vao tai dinh hinh thoi
         level_cfg = {"rhombus_tips": True}
         if direction == "LR":   # ngang: canh ngan lai de so do khong qua dai
@@ -1676,6 +1734,56 @@ def build_sequence(spec, warns, origin):
     def ry(pid, yy):
         return (yy - LL[pid][1]) / LL[pid][3]
 
+    # --- activation bars (spec "activations": true): sync call mo thanh tren lifeline nhan, reply dong lai;
+    # goi long nhau lech phai 5px/tang; self-call = thanh ngan long ben trong. Actor khong co thanh.
+    bars = defaultdict(list)          # pid -> [(y0, y1, depth)]
+    if spec.get("activations"):
+        stack = defaultdict(list)     # pid -> [(y bat dau, lifeline goi)]
+        last = defaultdict(int)       # pid -> y message cuoi cham lifeline
+        is_actor = lambda pid: heads[pid]["kind"] == "actor"
+
+        def ret(caller, y, since):
+            """Tra ve ngam: loi goi dong bo `caller` gui tu y `since` ma khong co reply -> dong thanh truoc y
+            (caller da gui message tiep = loi goi truoc da xong), thay vi keo thanh toi day so do."""
+            for pid in order:
+                st_ = stack[pid]
+                k = next((i for i, (y0, c) in enumerate(st_) if c == caller and y0 >= since), None)
+                while pid != caller and k is not None and len(st_) > k:
+                    y0, _ = st_.pop()
+                    ret(pid, y, y0)
+                    bars[pid].append((y0, max(last[pid], y0) + 12, len(st_)))
+
+        for m in msgs:
+            t = str(m.get("type", "sync")).lower()
+            a, b, yy = m["from"], m["to"], m["_y"]
+            ret(a, yy, stack[a][-1][0] if stack[a] else -1)
+            if t in ("sync", "call") and not is_actor(a) and not stack[a]:
+                stack[a].append((yy - 6, None))
+            if m["_self"]:
+                if t in ("sync", "call") and not is_actor(a):
+                    bars[a].append((yy + SEQ["self_h"] - 6, yy + SEQ["self_h"] + 14, len(stack[a])))
+                last[a] = yy + SEQ["self_h"] + 2
+                continue
+            if t in ("sync", "call") and not is_actor(b):
+                stack[b].append((yy, a))
+            elif t in ("reply", "return") and stack[a]:
+                bars[a].append((stack[a].pop()[0], yy, len(stack[a])))
+            last[a] = last[b] = yy
+        for pid, st_ in stack.items():
+            while st_:
+                bars[pid].append((st_.pop()[0], bottom - 20, len(st_)))
+        for pid in order:
+            for y0, y1, d in sorted(bars[pid], key=lambda r: r[2]):
+                out.vertex(out.uid(pid + "_act"), "", "html=1;points=[];perimeter=orthogonalPerimeter;"
+                           "fillColor=#ffffff;", X[pid] - 5 + 5 * d, y0, 10, max(12, y1 - y0))
+
+    def dx_at(pid, yy, right):
+        """Do lech ngang tu tam lifeline toi mep thanh kich hoat trong cung tai yy (0 neu khong co thanh)."""
+        ds = [d for y0, y1, d in bars.get(pid, []) if y0 - 0.5 <= yy <= y1 + 0.5]
+        if not ds:
+            return 0
+        return (5 if right else -5) + 5 * max(ds)
+
     for m in msgs:
         t = str(m.get("type", "sync")).lower()
         a, b, yy = m["from"], m["to"], m["_y"]
@@ -1692,8 +1800,9 @@ def build_sequence(spec, warns, origin):
         if m["_self"]:
             x = X[a]
             st = base + "verticalAlign=middle;align=center;" + \
-                "exitX=0.5;exitY=%s;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=%s;entryDx=0;entryDy=0;entryPerimeter=0;" % (
-                    _n(ry(a, yy), 4), _n(ry(a, yy + SEQ["self_h"]), 4))
+                "exitX=0.5;exitY=%s;exitDx=%s;exitDy=0;exitPerimeter=0;entryX=0.5;entryY=%s;entryDx=%s;entryDy=0;entryPerimeter=0;" % (
+                    _n(ry(a, yy), 4), _n(dx_at(a, yy, True)), _n(ry(a, yy + SEQ["self_h"]), 4),
+                    _n(dx_at(a, yy + SEQ["self_h"], True)))
             out.edge(eid, esc(m["_text"]), st, a, a, [(x + 30, yy), (x + 30, yy + SEQ["self_h"])],
                      gx=0, offset=(m["_lw"] / 2 + 8, 0))
             out.maxx = max(out.maxx, x + 40 + m["_lw"])
@@ -1706,7 +1815,8 @@ def build_sequence(spec, warns, origin):
             if not m["_text"]:
                 m["_text"] = "«create»"
         else:
-            entry = "entryX=0.5;entryY=%s;entryDx=0;entryDy=0;entryPerimeter=0;" % _n(ry(b, yy), 4)
+            entry = "entryX=0.5;entryY=%s;entryDx=%s;entryDy=0;entryPerimeter=0;" % (
+                _n(ry(b, yy), 4), _n(dx_at(b, yy, X[a] > X[b])))
         # dat nhan vao khoang trong rong nhat giua cac lifeline ma message cat qua (khong de len duong lifeline)
         xa, xb = X[a], X[b]
         lo, hi = min(xa, xb), max(xa, xb)
@@ -1719,7 +1829,7 @@ def build_sequence(spec, warns, origin):
             else:
                 base = base.replace("labelBackgroundColor=none;", "labelBackgroundColor=#ffffff;")
         st = base + "verticalAlign=bottom;" + \
-            "exitX=0.5;exitY=%s;exitDx=0;exitDy=0;exitPerimeter=0;" % _n(ry(a, yy), 4) + entry
+            "exitX=0.5;exitY=%s;exitDx=%s;exitDy=0;exitPerimeter=0;" % (_n(ry(a, yy), 4), _n(dx_at(a, yy, X[b] > X[a]))) + entry
         out.edge(eid, esc(m["_text"]), st, a, b, [], gx=gx if gx else None)
 
     # fragments
@@ -2730,7 +2840,7 @@ def build_page(spec, warns):
         out = (build_screenflow(src, warns, origin) if screenflow_group(src)
                else build_graph(sf_annotate(src, warns), warns, origin))
     else:
-        src = chen_expand(spec, warns) if chen_mode(spec) else sitemap_expand(spec, warns) if sitemap_mode(spec)             else spec
+        src = chen_expand(spec, warns) if chen_mode(spec) else crowfoot_expand(spec, warns) if crowfoot_mode(spec)             else sitemap_expand(spec, warns) if sitemap_mode(spec)             else spec
         out = build_graph(src, warns, origin)
     if use_frame:
         x0, y0 = 40, 40
@@ -2786,11 +2896,20 @@ def expand(paths):
     return out
 
 
+def is_artifact(data):
+    """Artifact do cac script sinh ra (model/consistency/repair/manifest...) nam cung thu muc voi spec:
+    co "kind" dang "comet-..." va khong co "diagram"/"diagrams" -> bo qua khi mo rong glob "./uml/*.json"."""
+    return (isinstance(data, dict) and str(data.get("kind", "")).startswith("comet-")
+            and "diagram" not in data and "diagrams" not in data)
+
+
 def load_specs(paths):
     specs = []
     for p in paths:
         with open(p, encoding="utf-8") as f:
             data = json.load(f)
+        if is_artifact(data):
+            continue
         if isinstance(data, dict) and "diagrams" in data:
             specs += data["diagrams"]
         elif isinstance(data, list):

@@ -47,6 +47,11 @@ SCRIPTS, EXAMPLES, REFS = ENGINE / "scripts", ENGINE / "examples", ENGINE / "ref
 sys.path[:0] = [str(SCRIPTS), str(ENGINE / "tests")]
 
 import comet_check as C          # noqa: E402
+import comet_model as M           # noqa: E402
+import comet_plan as CP       # noqa: E402
+import comet_manifest as CM   # noqa: E402
+import comet_reconcile as CR # noqa: E402
+import comet_project as PJ    # noqa: E402
 import install as INST           # noqa: E402
 import preview_svg as P          # noqa: E402
 import uml2drawio as U           # noqa: E402
@@ -67,7 +72,7 @@ EXPECTED_COMMANDS = {"uml-usecase", "uml-context", "uml-class", "uml-communicati
                      "uml-comet", "uml-erd", "uml-screenflow", "uml-bizcontext"}
 FUZZ_SEEDS = int(os.environ.get("COMET_FUZZ_SEEDS", "80"))
 # bo cuc fuzz da biet con WARN (nhan multiplicity bi canh song song cung cap lop cat qua) - van 0 ERROR
-FUZZ_KNOWN_WARN = {("class", 52), ("class", 63), ("class", 64), ("state", 299)}
+FUZZ_KNOWN_WARN = {("class", 63), ("state", 299)}
 
 
 # ============================================================ helpers
@@ -136,11 +141,11 @@ def end_labels(cs, eid):
     return {text(c) for c in cs.values() if c.get("parent") == eid}
 
 
-def check(*specs, partial=False):
+def check(*specs, partial=False, profile=None):
     specs = copy.deepcopy(list(specs))
     for i, s in enumerate(specs):
         s.setdefault("_src", "%s#%d" % (s.get("diagram"), i + 1))
-    return C.check(specs, partial)
+    return C.check(specs, partial, profile=profile)
 
 
 def codes(msgs, code=None):
@@ -566,6 +571,22 @@ DEPLOY_SPEC = {"diagram": "deployment", "title": "Deployment", "elements": [
     {"type": "communicationpath", "from": "atm", "to": "srv", "stereotype": "WAN", "fromMult": "1..*", "toMult": "1"}]}
 
 
+UC_INCLUDE_SPEC = {"diagram": "usecase", "title": "UCs for Patient", "system": "ClinicCare System", "elements": [
+    {"id": "patient", "type": "actor", "name": "Patient"}] + [
+    {"id": i, "type": "usecase", "name": n} for i, n in (
+        ("uc_login", "Login"), ("uc_book", "Book Appointment"), ("uc_pay", "Make Deposit Payment"),
+        ("uc_cancel", "Cancel Appointment"), ("uc_hist", "View Medical History"),
+        ("uc_presc", "View Prescriptions"), ("uc_rev", "Review Doctor"))] + [
+    {"id": "vnpay", "type": "actor", "name": "VNPay", "side": "right"},
+    {"id": "email_service", "type": "actor", "name": "Email Service", "side": "right"}], "relations": [
+    {"type": "association", "from": "patient", "to": u}
+    for u in ("uc_login", "uc_book", "uc_pay", "uc_cancel", "uc_hist", "uc_presc", "uc_rev")] + [
+    {"type": "include", "from": "uc_book", "to": "uc_pay"},
+    {"type": "association", "from": "uc_pay", "to": "vnpay"},
+    {"type": "association", "from": "uc_book", "to": "email_service"},
+    {"type": "association", "from": "uc_cancel", "to": "email_service"}]}
+
+
 def edge_crossings(G):
     """Cac cap canh cat nhau thuc su (giao diem nam trong ca hai doan; cham dau mut/trung nhau khong tinh)."""
     def cr(o, a, b):
@@ -608,16 +629,32 @@ class TestGenerator(unittest.TestCase):
         self.assertNotIn("diagram_frame", cs)      # mac dinh khong khung ngoai
         self.assertEqual(text(cells(gen(dict(UC_SPEC, frame=True))[0])["diagram_frame"]), "uc ATM")
 
+    def test_usecase_include_and_right_actors_do_not_cross(self):
+        # SEP490: actor chinh trai, actor phu phai (UC -> actor), «include» day UC duoc include sang cot 2.
+        # Truoc day Book Appointment -> Email Service chui duoi Make Deposit Payment va cat Patient -> Make Deposit Payment.
+        xml, cs, G = self.clean(UC_INCLUDE_SPEC)
+        self.assertEqual(edge_crossings(G), [])
+        self.assertEqual(gen(UC_INCLUDE_SPEC)[0], xml)      # tat dinh
+        R = rects(G)
+        # canh Patient -> Make Deposit Payment vuot cot Book Appointment o phia tren no, khong vong qua duoi
+        _, pts = G.edges[edge_between(cs, "patient", "uc_pay").get("id")]
+        x0, y0, x1, _ = R["uc_book"]
+        over = [p[1] for p, q in zip(pts, pts[1:]) if min(p[0], q[0]) < x0 and max(p[0], q[0]) > x1]
+        self.assertEqual(len(over), 1, pts)
+        self.assertLess(over[0], y0)
+
     def test_usecase_edges_are_straight(self):
-        # canh use case la doan thang (toi da mot goc khi phai vong qua hinh), khong be vuong
+        # canh use case la doan thang (toi da mot goc khi phai vong qua hinh), khong be vuong; khong cat, khong de hinh
+        # ATM: Query Account nam giua Withdraw/Transfer, ca ba «include» Validate PIN -> canh Query Account -> Bank
+        # Server buoc phai cat mot «include» (vong tren hay duoi Validate PIN deu vay)
         atm = json.loads((EXAMPLES / "atm_usecase.json").read_text(encoding="utf-8"))
-        for sp in (UC_SPEC, atm):
+        for sp, max_cross in ((UC_INCLUDE_SPEC, 0), (UC_SPEC, 0), (atm, 1)):
             with self.subTest(title=sp["title"]):
                 xml, cs, G = self.clean(sp)
                 bends = sorted(len(pts) - 2 for _, pts in G.edges.values())
                 self.assertLessEqual(bends[-1], 1, bends)
                 self.assertLessEqual(sum(bends), 2, bends)
-                self.assertLessEqual(len(edge_crossings(G)), 1)
+                self.assertLessEqual(len(edge_crossings(G)), max_cross)
                 self.assertEqual(gen(sp)[0], xml)      # tat dinh
 
     def test_usecase_many_ucs_fold_into_columns(self):
@@ -990,6 +1027,50 @@ class TestGenerator(unittest.TestCase):
         attr["elements"][0]["attributes"] = ["PK id: INT"]
         warns = gen(attr)[1]
         self.assertTrue(any("khong ve thuoc tinh" in w for w in warns), warns)         # thuoc tinh bi bo qua
+
+    def test_erd_crowfoot(self):
+        for f in ("talenthub_erd_conceptual", "talenthub_erd_physical"):
+            sp = json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
+            xml, cs, G = self.clean(sp)
+            self.assertFalse(any(style(c).get("_base") == "rhombus" for c in cs.values()), f)   # khong hinh thoi
+            for e in edges(cs):                                                                 # chan chim 2 dau
+                st = style(e)
+                self.assertTrue(st.get("startArrow", "").startswith("ER") and st.get("endArrow", "").startswith("ER"),
+                                (f, st))
+        sp = {"diagram": "erd", "notation": "crowfoot", "title": "DB", "elements": [
+            {"id": "u", "type": "table", "name": "users", "columns": [
+                {"name": "id", "type": "bigserial", "pk": True}, {"name": "email", "type": "varchar", "nullable": False}]},
+            {"id": "j", "type": "table", "name": "jobs", "columns": [
+                {"name": "id", "type": "bigserial", "pk": True}, {"name": "created_by", "type": "bigint", "fk": True}]}],
+            "relations": [{"from": "u", "to": "j", "fromCard": "1", "toCard": "0..N"}]}
+        xml, cs, G = self.clean(sp)
+        st = style(edge_between(cs, "u", "j"))
+        self.assertEqual((st.get("startArrow"), st.get("endArrow")), ("ERmandOne", "ERzeroToMany"))
+        body = " ".join(text(c) for c in cs.values())
+        for s in ("PK id: bigserial NOT NULL", "email: varchar NOT NULL", "FK created_by: bigint"):
+            self.assertIn(s, body)
+        bad = copy.deepcopy(sp)
+        bad["relations"][0]["toCard"] = "lots"
+        self.assertTrue(any("lots" in w for w in gen(bad)[1]))                                # ban so sai -> canh bao
+        for k in ("ERmandOne", "ERzeroToOne", "ERoneToMany", "ERzeroToMany", "ERmany"):      # preview ve chan chim
+            self.assertTrue(P.marker(k, "#fff", (0, 0), (100, 0)), k)
+
+    def test_sequence_activations(self):
+        sp = {"diagram": "sequence", "title": "Act", "activations": True, "autonumber": True, "elements": [
+            {"id": "u", "type": "actor", "name": "User"},
+            {"id": "c", "type": "object", "class": "Web"}, {"id": "s", "type": "object", "class": "Svc"}],
+            "messages": [{"id": "m1", "from": "u", "to": "c", "name": "open"},
+                         {"id": "m2", "from": "c", "to": "s", "name": "load"},
+                         {"id": "m3", "from": "s", "to": "s", "name": "check"},
+                         {"id": "m4", "from": "s", "to": "c", "name": "data", "type": "reply"},
+                         {"id": "m5", "from": "c", "to": "u", "name": "page", "type": "reply"}],
+            "fragments": [{"type": "opt", "guard": "cached", "from": "m3", "to": "m4"}]}
+        xml, cs, G = self.clean(sp)   # thanh kich hoat cat khung fragment / message: khong ERROR
+        bars = {k for k, c in cs.items() if style(c).get("perimeter") == "orthogonalPerimeter"}
+        self.assertTrue(any(k.startswith("c_") for k in bars) and any(k.startswith("s_") for k in bars), bars)
+        self.assertFalse(any(k.startswith("u_") for k in bars))                               # actor khong co thanh
+        self.assertEqual(sum(k.startswith("s_") for k in bars), 2)                             # self-call: thanh long
+        self.assertNotIn("orthogonalPerimeter", gen(dict(sp, activations=False))[0])
 
     def test_screenflow_legacy_flow_spec(self):
         # spec kieu luong chi tiet cu (initial/decision/items/trigger) -> van ve thanh site map, kem canh bao
@@ -1409,6 +1490,242 @@ class TestCometCheck(unittest.TestCase):
             s["uc"]["relations"].append({"type": "association", "from": "aud", "to": "vo"})
         self.expect(f, "I", "R14", "Auditor")
 
+    def test_X1_cross_usecase_reference(self):
+        def f(s):
+            s["comm"]["useCase"] = "Ghost Use Case"
+        self.expect(f, "W", "X1", "Ghost Use Case")
+
+    def test_X2_actor_participation(self):
+        def f(s):
+            s["uc"]["elements"].append({"id": "aud", "type": "actor", "name": "Auditor"})
+            s["uc"]["relations"].append({"type": "association", "from": "aud", "to": "po"})
+        self.expect(f, "W", "X2", "Auditor")
+
+    def test_X2_interaction_without_actor_lifeline(self):
+        def f(s):
+            for k in ("comm", "seq"):
+                for e in s[k]["elements"]:
+                    if e.get("type") == "actor":
+                        e.update(type="object", **{"class": e.pop("name")})
+        self.expect(f, "W", "X2", "Customer")
+
+    def test_X3_statechart_reverse_traceability(self):
+        s = shop()
+        el(s["comm"], "ctl")["stereotype"] = "control"
+        el(s["seq"], "ctl")["stereotype"] = "control"
+        E, W, I = check(*s.values())
+        self.assertTrue(codes(W, "X3"), "thieu X3. E=%s W=%s I=%s" % (E, W, I))
+
+    def test_X4_erd_entity_class_traceability(self):
+        s = shop()
+        erd = {"diagram": "erd", "title": "Shop - ERD", "elements": [
+            {"id": "ord", "type": "entity", "name": "Order"},
+            {"id": "inv", "type": "entity", "name": "Invoice"},
+        ], "relations": []}
+        E, W, I = check(*s.values(), erd)
+        self.assertTrue(codes(W, "X4"), "thieu X4. E=%s W=%s I=%s" % (E, W, I))
+
+    def test_X5_component_deployment_traceability(self):
+        comp = {"diagram": "component", "title": "Shop - Components", "system": "Shop", "bundle": "shop-bundle",
+                "elements": [{"id": "svc", "type": "component", "name": "Order Service"},
+                             {"id": "pay", "type": "component", "name": "Payment Service"},
+                             {"id": "dao", "type": "component", "name": "Order DAO", "in": "svc"}],
+                "relations": []}
+        dep = {"diagram": "deployment", "title": "Shop - Deployment", "system": "Different Metadata Name", "bundle": "shop-bundle",
+               "elements": [{"id": "srv", "type": "node", "name": "Server"},
+                             {"id": "svc", "type": "component", "name": "Order Service"},
+                             {"id": "ghost", "type": "component", "name": "Ghost Service"}],
+               "relations": []}
+        E, W, I = check(comp, dep)
+        self.assertTrue(codes(W, "X5"), "thieu X5. E=%s W=%s I=%s" % (E, W, I))
+        self.assertFalse(any("Order DAO" in x for x in W + I), "component con khong nen bi bat X5: %s %s" % (W, I))
+
+    def test_X6_role_collision(self):
+        s = shop()
+        el(s["comm"], "ord")["stereotype"] = "control"
+        E, W, I = check(*s.values())
+        self.assertTrue(codes(W, "X6"), "thieu X6. E=%s W=%s I=%s" % (E, W, I))
+
+    def test_R2_R5_R14_scoped_to_bundle(self):
+        # Bundle co use case/entity model/context khong duoc ap R2/R5/R14 len bundle khac chua co cac so do do.
+        a = shop()
+        for sp in a.values():
+            sp["bundle"] = "shop-a"
+        b_comm = copy.deepcopy(SHOP_COMM)
+        b_comm["bundle"] = "shop-b"
+        b_comm["elements"].append({"id": "aud", "type": "actor", "name": "Auditor"})
+        b_comm["elements"].append({"id": "inv", "type": "object", "class": "Invoice", "stereotype": "entity"})
+        b_uc = copy.deepcopy(SHOP_UC)
+        b_uc["bundle"] = "shop-b"
+        b_uc["elements"].append({"id": "aud2", "type": "actor", "name": "Auditor"})
+        E, W, I = check(*a.values(), b_comm)
+        self.assertFalse([x for x in codes(W, "R2") + codes(W, "R5") if "Auditor" in x or "Invoice" in x], W)
+        E, W, I = check(*a.values(), b_uc)
+        self.assertFalse([x for x in I if x.startswith("R14") and "Auditor" in x], I)
+        # Cung bundle van kiem nhu cu.
+        b_ctx = copy.deepcopy(a["ctx"])
+        b_ctx["bundle"] = "shop-b"
+        b_cls = copy.deepcopy(a["cls"])
+        b_cls["bundle"] = "shop-b"
+        E, W, I = check(b_uc, b_comm, b_ctx, b_cls)
+        self.assertTrue(any("Invoice" in x for x in codes(W, "R5")), W)
+        self.assertTrue(any("Auditor" in x for x in codes(I, "R14")), I)
+        b_uc2 = copy.deepcopy(SHOP_UC)
+        b_uc2["bundle"] = "shop-b"
+        E, W, I = check(b_uc2, b_comm)
+        self.assertTrue(any("Auditor" in x for x in codes(W, "R2")), W)
+
+    def test_bundle_isolation(self):
+        # Cùng tên use case nhưng khác bundle không được trộn coverage/actors.
+        a = shop()
+        for sp in a.values():
+            sp["bundle"] = "shop-a"
+
+        b_uc = copy.deepcopy(SHOP_UC)
+        b_uc["bundle"] = "shop-b"
+        b_uc["elements"].append({"id": "aud2", "type": "actor", "name": "Auditor"})
+        b_uc["relations"].append({"type": "association", "from": "aud2", "to": "po"})
+        E, W, I = check(a["uc"], a["comm"], a["seq"], b_uc)
+        self.assertTrue(codes(W, "R1"), "bundle-b phai tu kiem R1 rieng: %s" % W)
+
+        b_comm = copy.deepcopy(SHOP_COMM)
+        b_comm["bundle"] = "shop-b"
+        b_seq = copy.deepcopy(SHOP_SEQ)
+        b_seq["bundle"] = "shop-b"
+        E, W, I = check(a["uc"], a["comm"], a["seq"], b_uc, b_comm, b_seq)
+        self.assertTrue(codes(W, "X2"), "bundle-b phai tu kiem actor rieng: %s" % W)
+        self.assertFalse(any("shop-a" in x and "X2" in x for x in W), "khong duoc trộn bundle: %s" % W)
+
+        # X1 không được "mượn" use case trùng tên ở bundle khác.
+        ghost = copy.deepcopy(SHOP_COMM)
+        ghost["bundle"] = "shop-c"
+        E, W, I = check(a["uc"], a["comm"], a["seq"], ghost)
+        self.assertTrue(codes(W, "X1"), "tham chieu use case sang bundle khac phai bi bat: %s" % W)
+
+        # X3 không được "mượn" control từ bundle khác.
+        st = {
+            "diagram": "state", "title": "Order Control - State", "stateMachineOf": "Order Control",
+            "bundle": "shop-c",
+            "elements": [{"id": "i", "type": "initial"}, {"id": "a", "type": "state", "name": "Idle"}],
+            "relations": [{"from": "i", "to": "a"}],
+        }
+        E, W, I = check(a["uc"], a["comm"], a["seq"], st)
+        self.assertTrue(codes(W, "X3"), "statechart phai trace control cung bundle: %s" % W)
+
+        # R12 không được so sánh communication/sequence ở hai bundle khác nhau.
+        c2 = copy.deepcopy(SHOP_COMM)
+        q2 = copy.deepcopy(SHOP_SEQ)
+        c2["bundle"], q2["bundle"] = "shop-b", "shop-c"
+        c2["messages"] = c2["messages"][:-1]
+        E, W, I = check(c2, q2)
+        self.assertFalse(codes(W, "R12"), "R12 khong duoc tron bundle: %s" % W)
+
+        # X6 role collision cũng chỉ có ý nghĩa trong cùng bundle.
+        role_cls = copy.deepcopy(SHOP_CLS)
+        role_cls["bundle"] = "shop-c"
+        role_comm = copy.deepcopy(SHOP_COMM)
+        role_comm["bundle"] = "shop-b"
+        el(role_comm, "ord")["stereotype"] = "control"
+        E, W, I = check(role_cls, role_comm)
+        self.assertFalse(codes(W, "X6"), "X6 khong duoc tron role khac bundle: %s" % W)
+
+    def test_R8_messages_show_class_name_not_scope_tuple(self):
+        E, W, I = C.check(C.load([str(p) for p in EXAMPLES.glob("atm_*.json")]))
+        r8 = [x for x in W + I if x.startswith("R8")]
+        self.assertTrue(r8)
+        self.assertFalse(any("__default__" in x or "('" in x for x in r8), r8)
+        # Ten goc nhu tac gia viet, khong phai khoa da chuan hoa 'atm control'.
+        self.assertTrue(all("'ATM Control'" in x for x in r8), r8)
+
+    def test_X1_X3_partial_bundle_without_model_is_info(self):
+        a = shop()
+        for sp in a.values():
+            sp["bundle"] = "shop-a"
+        ghost = copy.deepcopy(SHOP_COMM)
+        ghost["bundle"] = "shop-c"
+        ghost["useCase"] = "Ship Order"
+        st = {"diagram": "state", "title": "Ship Control", "stateMachineOf": "Ship Control", "bundle": "shop-c",
+              "elements": [{"id": "i", "type": "initial"}, {"id": "a", "type": "state", "name": "Idle"}],
+              "relations": [{"from": "i", "to": "a"}]}
+        E, W, I = check(a["uc"], a["comm"], a["seq"], ghost, st, partial=True)
+        self.assertFalse(codes(W, "X1") or codes(W, "X3"), "bundle chua co model -> chi INFO khi --partial: %s" % W)
+        self.assertTrue(codes(I, "X1") and codes(I, "X3"), I)
+        # Bundle co use case model nhung khong co ten nay -> van la tham chieu treo (WARN) ca khi --partial.
+        dangling = copy.deepcopy(a["comm"])
+        dangling["useCase"] = "Ghost Use Case"
+        E, W, I = check(a["uc"], a["comm"], a["seq"], dangling, partial=True)
+        self.assertTrue(codes(W, "X1"), W)
+
+    def test_X4_X5_scope_ignores_system_field_and_notes_unmatched_pair(self):
+        erd = {"diagram": "erd", "title": "Shop - ERD", "elements": [
+            {"id": "ord", "type": "entity", "name": "Order"}, {"id": "inv", "type": "entity", "name": "Invoice"}]}
+        cls = copy.deepcopy(SHOP_CLS)
+        cls["system"] = "Shop System"   # ten he thong, khong phai namespace -> khong duoc tat X4
+        E, W, I = check(erd, cls)
+        self.assertTrue(codes(W, "X4"), "system khong phai scope key: W=%s I=%s" % (W, I))
+        # Cap duy nhat, khong bundle, title khac, khong chung ten -> ghi chu thay vi im lang.
+        other = {"diagram": "erd", "title": "Warehouse ERD", "elements": [
+            {"id": "b", "type": "entity", "name": "Bin"}]}
+        E, W, I = check(other, copy.deepcopy(SHOP_CLS))
+        self.assertFalse(codes(W, "X4"), W)
+        self.assertTrue(any(x.startswith("X4") and "bundle" in x for x in I), I)
+
+    def test_semantic_model(self):
+        specs = C.load([str(EXAMPLES / "atm_usecase.json"),
+                        str(EXAMPLES / "atm_context.json"),
+                        str(EXAMPLES / "atm_comm_validate_pin.json"),
+                        str(EXAMPLES / "atm_seq_validate_pin.json"),
+                        str(EXAMPLES / "atm_statechart.json"),
+                        str(EXAMPLES / "atm_entity.json"),
+                        str(EXAMPLES / "banking_component.json"),
+                        str(EXAMPLES / "atm_deployment.json")])
+        for sp in specs:
+            sp["bundle"] = "atm-banking"
+        model = M.build_model(specs)
+        self.assertEqual(model["schemaVersion"], 2)
+        self.assertEqual(model["kind"], "comet-semantic-model")
+        self.assertEqual(model["stats"]["bundles"], 1)
+        names = {n["name"] for n in model["nodes"].values()}
+        for expected in ("Validate PIN", "ATM Customer", "ATM Control", "Banking System"):
+            self.assertIn(expected, names)
+        kinds = {n["kind"] for n in model["nodes"].values()}
+        self.assertIn("usecase", kinds)
+        self.assertIn("control", kinds)
+        self.assertIn("entity", kinds)
+        self.assertTrue(model["fingerprint"])
+        plan_specs = copy.deepcopy(specs)
+        plan_specs[2]["elements"][1]["stereotype"] = "invalid stereotype"
+        plan = CP.build_plan(plan_specs)
+        self.assertEqual(plan["kind"], "comet-repair-plan")
+        self.assertGreaterEqual(plan["summary"]["warnings"], 1)
+        self.assertTrue(any(x["rule"] == "R4" for x in plan["steps"]))
+        self.assertTrue(any(x["action"] for x in plan["steps"]))
+        borrow = next(v for v in model["coverage"]["atm-banking"]["useCases"].values()
+                      if v["name"] == "Validate PIN")
+        self.assertTrue(borrow["interactionSources"])
+        ctl = next(n for n in model["nodes"].values() if n["name"] == "ATM Control" and n["kind"] == "control")
+        self.assertIn("communication", ctl["diagramKinds"])
+        self.assertIn("state", ctl["diagramKinds"])
+        self.assertIn("impactMap", model)
+        self.assertTrue(model["impactMap"][ctl["id"]]["relatedLinkIds"])
+        alias_links = [x for x in model["links"].values() if x["kind"] == "actor-external-alias"]
+        self.assertTrue(any(x["semanticIdentity"] == "atm customer" for x in alias_links))
+
+    def test_json_report(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            warn = copy.deepcopy(SHOP_COMM)
+            warn["elements"][1]["stereotype"] = "invalid stereotype"
+            (d / "warn.json").write_text(json.dumps(warn), encoding="utf-8")
+            r = run("comet_check.py", "--json", d / "warn.json")
+            self.assertEqual(r.returncode, 0, r.stdout)
+            payload = json.loads(r.stdout)
+            self.assertIn("summary", payload)
+            self.assertGreaterEqual(payload["summary"]["warnings"], 1)
+            self.assertTrue(any("R4" in x for x in payload["warnings"]))
+            self.assertEqual(payload["model"]["kind"], "comet-semantic-model")
+            self.assertIn("fingerprint", payload["model"])
+
     def test_statechart_rules(self):
         self.assertEqual(check(stm(*STM_OK)), ([], [], []))
         self.expect_one(stm({"from": "i", "to": "a", "event": "Go"}, *STM_OK[1:]), "E", "S1", "event 'go'")
@@ -1556,7 +1873,953 @@ class TestCometCheck(unittest.TestCase):
                                              "messages": [{"from": "a", "to": "b"}]})), ["a", "b"])
 
 
+
+
+    @staticmethod
+    def sep490():
+        """Bo so do SEP490 toi thieu nhung du: SRS 5 muc + SDS 5 muc, 2 bo code design + auth flow."""
+        ex = lambda f: json.loads((EXAMPLES / (f + ".json")).read_text(encoding="utf-8"))
+        uc = lambda a, ucs: {"diagram": "usecase", "title": "UCs for " + a, "elements": [
+            {"id": "a", "type": "actor", "name": a}] + [{"id": "u%d" % i, "type": "usecase", "name": n}
+                                                        for i, n in enumerate(ucs)],
+            "relations": [{"from": "a", "to": "u%d" % i} for i in range(len(ucs))]}
+
+        def design(name, cls):
+            c = {"diagram": "class", "level": "design", "useCase": name, "title": name + " - Class",
+                 "elements": [{"id": "k", "type": "class", "name": cls, "operations": ["+handle(req: Request): Response"]}]}
+            s = {"diagram": "sequence", "level": "design", "useCase": name, "title": name + " - Seq", "elements": [
+                {"id": "cl", "type": "object", "name": "Client", "external": True},
+                {"id": "k", "type": "object", "class": cls}],
+                "messages": [{"from": "cl", "to": "k", "name": "handle(Request)"},
+                             {"from": "k", "to": "cl", "name": "page", "type": "reply"}]}
+            return c, s
+        specs = {
+            "ctx": {"diagram": "bizcontext", "title": "Ctx", "elements": [
+                {"id": "s", "type": "system", "name": "TalentHub"}, {"id": "c", "type": "external", "name": "Candidate"}],
+                "relations": [{"from": "c", "to": "s", "label": "Application"}]},
+            "bf": {"diagram": "activity", "title": "BF-01", "direction": "LR", "partitions": ["Candidate", "System"],
+                   "elements": [{"id": "i", "type": "initial", "partition": "Candidate"},
+                                {"id": "a", "type": "action", "name": "Apply", "partition": "Candidate"},
+                                {"id": "b", "type": "action", "name": "Save", "partition": "System"},
+                                {"id": "f", "type": "final", "partition": "System"}],
+                   "relations": [{"from": "i", "to": "a"}, {"from": "a", "to": "b"}, {"from": "b", "to": "f"}]},
+            "erd": ex("talenthub_erd_conceptual"), "db": ex("talenthub_erd_physical"),
+            "ucc": uc("Candidate", ["Login", "Submit Application"]), "uch": uc("HR Manager", ["Login", "Create Job"]),
+            "sf": {"diagram": "screenflow", "title": "SF", "elements": [
+                {"id": "h", "type": "screen", "name": "Home"}, {"id": "l", "type": "screen", "name": "Login"}],
+                "relations": [{"from": "h", "to": "l"}]},
+            "arch": {"diagram": "component", "title": "Arch", "elements": [
+                {"id": "w", "type": "component", "name": "Web"}, {"id": "d", "type": "component", "name": "DB"}],
+                "relations": [{"type": "usage", "from": "w", "to": "d"}]},
+            "pkg": {"diagram": "package", "title": "Pkg", "elements": [
+                {"id": "c", "type": "package", "name": "controller"}, {"id": "s", "type": "package", "name": "service"}],
+                "relations": [{"type": "dependency", "from": "c", "to": "s"}]},
+        }
+        specs["c1"], specs["s1"] = design("Submit Application", "ApplicationController")
+        specs["c2"], specs["s2"] = design("Create Job", "JobController")
+        specs["auth"] = design("Login", "AuthController")[1]
+        specs["st"] = {"diagram": "state", "stateMachineOf": "Application", "title": "Application - State Diagram",
+                       "elements": [{"id": "i", "type": "initial"}, {"id": "p", "type": "state", "name": "Pending"},
+                                    {"id": "d", "type": "state", "name": "Reviewed"}, {"id": "f", "type": "final"}],
+                       "relations": [{"from": "i", "to": "p"}, {"from": "p", "to": "d", "event": "review"},
+                                     {"from": "d", "to": "f", "event": "close"}]}
+        for tb in specs["db"]["elements"]:
+            if tb.get("name") == "applications":
+                for c in tb["columns"]:
+                    if c["name"] == "status":
+                        c["values"] = ["PENDING", "REVIEWED"]
+        for s in specs.values():
+            s["bundle"] = "th"
+        return specs
+
+    def test_profile_sep490(self):
+        base = self.sep490()
+        E, W, I = check(*base.values(), profile="sep490")
+        self.assertEqual((E, W), ([], []))
+        self.assertEqual(check(*base.values())[1], [])                   # khong profile: khong luat P
+
+        def warns(drop=(), change=None):
+            sp = copy.deepcopy(base)
+            for k in drop:
+                del sp[k]
+            if change:
+                change(sp)
+            return check(*sp.values(), profile="sep490")[1]
+        for key, needle in (("ctx", "SRS I.1"), ("bf", "SRS I.2"), ("erd", "SRS I.3.1"), ("sf", "SRS I.5.1a")):
+            self.assertTrue(any(needle in w for w in codes(warns([key]), "P1")), key)
+        for key, needle in (("arch", "SDS I.1"), ("pkg", "SDS I.2"), ("db", "SDS I.3")):
+            self.assertTrue(any(needle in w for w in codes(warns([key]), "P2")), key)
+        self.assertTrue(codes(warns(["c1", "c2"]), "P2"))                  # khong class thiet ke nao
+        # P3: gop 2 actor vao 1 so do chung
+        def merge(sp):
+            sp["ucc"]["elements"].append({"id": "h", "type": "actor", "name": "HR Manager"})
+            sp["ucc"]["title"] = "All UCs"
+            del sp["uch"]
+        w = codes(warns(change=merge), "P3")
+        self.assertTrue(w and "'Candidate'" in w[0] and "'HR Manager'" in w[0], w)
+        self.assertTrue(codes(warns(change=lambda sp: sp["bf"].pop("partitions")), "P4"))
+        # P5: con 1 bo; class khong co sequence; useCase la
+        self.assertTrue(any("hien co 1" in x for x in codes(warns(["c2", "s2"]), "P5")))
+        self.assertTrue(any("chua co sequence" in x for x in codes(warns(["s2"]), "P5")))
+        self.assertTrue(any("'Ghost'" in x for x in codes(warns(change=lambda sp: sp["c2"].update(useCase="Ghost")), "P5")))
+        self.assertTrue(codes(warns(["auth"]), "P6"))
+        # P7: bo "entity" o bang dau tien -> entity do chua co bang; thay cho ghi chu X7
+        sp = copy.deepcopy(base)
+        sp["db"]["elements"][0].pop("entity")
+        E, W, I = check(*sp.values(), profile="sep490")
+        self.assertTrue(codes(W, "P7"), W)
+        self.assertFalse([x for x in I if x.startswith("X7 [bundle")])
+        # --partial: P chi la INFO
+        E, W, I = check(*[v for k, v in base.items() if k != "ctx"], partial=True, profile="sep490")
+        self.assertEqual(codes(W, "P1"), [])
+        self.assertTrue(codes(I, "P1"))
+        # P8: bang co cot status ma khong co statechart nao
+        w = codes(warns(["st"]), "P8")
+        self.assertTrue(w and "'Application'" in w[0], w)
+        self.assertFalse(codes(warns(change=lambda sp: sp["st"].update(stateMachineOf="JobPosting")), "P8"))
+        # P9: stereotype COMET trong kien truc phan tang
+        def comet_arch(sp):
+            sp["arch"]["elements"][1]["stereotype"] = "database wrapper"
+        w = codes(warns(change=comet_arch), "P9")
+        self.assertTrue(w and "'DB' «database wrapper»" in w[0], w)
+        # P10: dashboard toi duoc tu Home khong qua Login; qua Login thi sach
+        def dash(frm):
+            def f(sp):
+                sp["sf"]["elements"].append({"id": "d", "type": "screen", "name": "Admin Dashboard"})
+                sp["sf"]["relations"].append({"from": frm, "to": "d"})
+            return f
+        w = codes(warns(change=dash("h")), "P10")
+        self.assertTrue(w and "'Admin Dashboard'" in w[0], w)
+        self.assertFalse(codes(warns(change=dash("l")), "P10"))
+        def no_login(sp):
+            dash("h")(sp)
+            sp["sf"]["elements"][1]["name"] = "About"
+        self.assertTrue(any("khong co man Login" in x for x in codes(warns(change=no_login), "P10")))
+
+    def test_X9_X10_entity_columns_and_packages(self):
+        phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+        cls = {"diagram": "class", "level": "design", "useCase": "Login", "title": "C", "elements": [
+            {"id": "u", "type": "class", "name": "User", "attributes": [
+                "-id: Long", "-passwordHash: String", "-createdAt: LocalDateTime", "-patientEmail: String",
+                "-applications: List<Application>"]},
+            {"id": "a", "type": "class", "name": "Application", "attributes": ["-job: JobPosting", "-cvFilePath: String"]},
+            {"id": "s", "type": "interface", "name": "UserService"},
+            {"id": "j", "type": "interface", "name": "JpaRepository<User, Long>"}]}
+        pkg = {"diagram": "package", "title": "P", "elements": [
+            {"id": "e", "type": "package", "name": "entity"},
+            {"id": "u", "type": "class", "name": "User", "in": "e"},
+            {"id": "a", "type": "class", "name": "Application", "in": "e"}]}
+        w = codes(check(phy, cls, pkg)[1], "X9")
+        self.assertEqual(len(w), 1, w)                                   # Application: job ~ job_id, cv_file_path
+        self.assertIn("'patientEmail'", w[0])
+        self.assertNotIn("passwordHash", w[0])
+        self.assertNotIn("applications", w[0])                           # collection bo qua
+        w = codes(check(phy, cls, pkg)[1], "X10")
+        self.assertTrue(w and "'UserService'" in w[0] and "JpaRepository" not in w[0], w)
+        pkg_only = dict(pkg, elements=pkg["elements"][:1])               # package diagram chi co package
+        self.assertFalse(codes(check(phy, cls, pkg_only)[1], "X10"))
+        self.assertFalse(codes(check(phy, dict(cls, level="analysis"), pkg)[1], "X9"))
+        other = dict(cls, bundle="other")                                # khac bundle -> khong so
+        self.assertFalse(codes(check(phy, other, pkg)[1], "X9"))
+
+    def test_X11_message_is_operation(self):
+        cls = {"diagram": "class", "level": "design", "useCase": "Book", "title": "C", "elements": [
+            {"id": "c", "type": "class", "name": "BookController", "operations": ["+book(req: BookRequest): Response"]},
+            {"id": "s", "type": "interface", "name": "BookService", "operations": ["+book(req: BookRequest): Long"]},
+            {"id": "si", "type": "class", "name": "BookServiceImpl", "operations": ["-buildUrl(id: Long): String"]},
+            {"id": "r", "type": "interface", "name": "SlotRepository", "operations": ["+findFreeSlot(id: Long): Slot"]},
+            {"id": "j", "type": "interface", "name": "JpaRepository<Slot, Long>"},
+            {"id": "e", "type": "class", "name": "Slot", "attributes": ["-status: SlotStatus"]}],
+            "relations": [{"type": "realization", "from": "si", "to": "s"},
+                          {"type": "generalization", "from": "r", "to": "j"}]}
+        msgs = [("cl", "c", "book(BookRequest)"), ("c", "si", "book(BookRequest)"),       # op ke thua tu interface
+                ("si", "r", "findFreeSlot(Long)"), ("si", "r", "save(Slot)"),              # save tu JpaRepository
+                ("si", "e", "setStatus(LOCKED)"), ("si", "si", "buildUrl(id)"),            # setter; self private
+                ("si", "r", "lockSlot(Long)"), ("si", "r", "lockSlot(Long)"),              # khong co -> 1 lan
+                ("si", "c", "notify()")]
+        seq = {"diagram": "sequence", "level": "design", "useCase": "Book", "title": "S", "elements": [
+            {"id": "cl", "type": "object", "name": "Client", "external": True},
+            {"id": "c", "type": "object", "class": "BookController"}, {"id": "si", "type": "object", "class": "BookServiceImpl"},
+            {"id": "r", "type": "object", "class": "SlotRepository"}, {"id": "e", "type": "object", "class": "Slot"}],
+            "messages": [{"from": a, "to": b, "name": n, "type": "async"} for a, b, n in msgs] +
+                        [{"from": "si", "to": "e", "name": "«create»", "type": "create"}]}
+        w = codes(check(cls, seq)[1], "X11")
+        self.assertEqual(len(w), 2, w)
+        self.assertTrue(any("'SlotRepository'" in x and x.count("lockSlot") == 1 for x in w), w)
+        self.assertTrue(any("'BookController'" in x and "'notify()'" in x for x in w), w)
+        self.assertFalse(any("findFreeSlot" in x or "save(" in x or "setStatus" in x or "buildUrl" in x for x in w), w)
+        other = dict(seq, useCase="Other")                                   # khong co class rieng -> INFO
+        E, W, I = check(cls, other)
+        self.assertEqual(codes(W, "X11"), [])
+        self.assertEqual(len(codes(I, "X11")), 2)
+
+    def test_X12_fk_has_attribute(self):
+        phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+        cls = {"diagram": "class", "level": "design", "useCase": "Apply", "title": "C", "elements": [
+            {"id": "a", "type": "class", "name": "Application", "attributes": [
+                "-id: Long", "-job: JobPosting", "-status: String"]},
+            {"id": "n", "type": "class", "name": "Internal Note", "attributes": ["-applicationId: Long", "-author: User"]},
+            {"id": "i", "type": "class", "name": "Interview"}]}                 # khong ve thuoc tinh -> bo qua
+        w = codes(check(phy, cls)[1], "X12")
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("'applications'", w[0])
+        self.assertIn("'candidate_id'", w[0])
+        self.assertIn("candidate: <Entity>", w[0])
+        self.assertNotIn("job_id", w[0])
+        self.assertFalse(codes(check(phy, dict(cls, bundle="x"))[1], "X12"))  # khac bundle
+
+    @staticmethod
+    def order_bundle():
+        """Bundle SEP490 nho cho P12-P14: Order (status) 1..N Order Item, statechart Order, BF, 2 sequence thiet ke."""
+        act = lambda i, n, p="System": {"id": i, "type": "action", "name": n, "partition": p}
+        specs = {
+            "ctx": {"diagram": "bizcontext", "title": "Ctx", "elements": [
+                {"id": "s", "type": "system", "name": "Shop"}, {"id": "c", "type": "external", "name": "Customer"},
+                {"id": "p", "type": "external", "name": "Stripe Gateway"}],
+                "relations": [{"from": "c", "to": "s", "label": "Order"}, {"from": "s", "to": "p", "label": "Charge"}]},
+            "uc": {"diagram": "usecase", "title": "UCs for Customer", "elements": [
+                {"id": "a", "type": "actor", "name": "Customer"}, {"id": "po", "type": "usecase", "name": "Place Order"},
+                {"id": "pay", "type": "usecase", "name": "Pay Order"}, {"id": "cc", "type": "usecase", "name": "Cancel Order"},
+                {"id": "sh", "type": "usecase", "name": "Ship Order"}],
+                "relations": [{"from": "a", "to": "po"}, {"from": "a", "to": "cc"}, {"from": "a", "to": "sh"},
+                              {"type": "include", "from": "po", "to": "pay"}]},
+            "erd": {"diagram": "erd", "notation": "crowfoot", "title": "ERD", "elements": [
+                {"id": "o", "type": "entity", "name": "Order", "attributes": ["+ Order Code", "+ Status"]},
+                {"id": "i", "type": "entity", "name": "Order Item", "attributes": ["+ Quantity"]}],
+                "relations": [{"from": "o", "to": "i", "name": "containing", "fromCard": "1", "toCard": "1..N"}]},
+            "st": {"diagram": "state", "stateMachineOf": "Order", "title": "Order - State Diagram", "elements": [
+                {"id": "i", "type": "initial"}, {"id": "n", "type": "state", "name": "NEW"},
+                {"id": "p", "type": "state", "name": "PAID"}, {"id": "s", "type": "state", "name": "SHIPPED"},
+                {"id": "c", "type": "state", "name": "CANCELLED"}, {"id": "f", "type": "final"}],
+                "relations": [{"from": "i", "to": "n"}, {"from": "n", "to": "p", "event": "payOrder"},
+                              {"from": "n", "to": "c", "event": "cancelOrder"},
+                              {"from": "p", "to": "s", "event": "shipOrder"}, {"from": "s", "to": "f"}]},
+            "bf": {"diagram": "activity", "title": "BF-01 Order", "partitions": ["Customer", "System"], "elements": [
+                {"id": "i", "type": "initial", "partition": "Customer"}, act("a", "Place Order", "Customer"),
+                act("b", "Create Order in NEW Status"), act("c", "Pay Order", "Customer"),
+                act("d", "Update Status to PAID"), act("e", "Cancel Order", "Customer"),
+                act("g", "Update Status to CANCELLED"), {"id": "f", "type": "final", "partition": "System"}],
+                "relations": [{"from": "i", "to": "a"}, {"from": "a", "to": "b"}, {"from": "b", "to": "c"},
+                              {"from": "c", "to": "d"}, {"from": "b", "to": "e"}, {"from": "e", "to": "g"},
+                              {"from": "d", "to": "f"}, {"from": "g", "to": "f"}]},
+            "place": {"diagram": "sequence", "level": "design", "useCase": "Place Order", "title": "Place - Seq",
+                      "elements": [{"id": "cl", "type": "object", "name": "Web App", "external": True},
+                                   {"id": "s", "type": "object", "class": "OrderServiceImpl"},
+                                   {"id": "o", "type": "object", "class": "Order"},
+                                   {"id": "r", "type": "object", "class": "OrderRepository"},
+                                   {"id": "pg", "type": "object", "class": "StripePaymentClient"}],
+                      "messages": [{"from": "cl", "to": "s", "name": "placeOrder(req)"},
+                                   {"from": "s", "to": "o", "name": "addItem(item)"},
+                                   {"from": "o", "to": "s", "name": "ok", "type": "reply"},
+                                   {"from": "s", "to": "o", "name": "setStatus(\"NEW\")"},
+                                   {"from": "o", "to": "s", "name": "ok", "type": "reply"},
+                                   {"from": "s", "to": "r", "name": "save(order)"},
+                                   {"from": "r", "to": "s", "name": "order", "type": "reply"},
+                                   {"from": "s", "to": "pg", "name": "createPayment(order)"},
+                                   {"from": "pg", "to": "s", "name": "url", "type": "reply"},
+                                   {"from": "s", "to": "cl", "name": "url", "type": "reply"}]},
+            "ship": {"diagram": "sequence", "level": "design", "useCase": "Ship Order", "title": "Ship - Seq",
+                     "elements": [{"id": "cl", "type": "object", "name": "Web App", "external": True},
+                                  {"id": "s", "type": "object", "class": "OrderServiceImpl"},
+                                  {"id": "o", "type": "object", "class": "Order"}],
+                     "messages": [{"id": "m1", "from": "cl", "to": "s", "name": "shipOrder(id)"},
+                                  {"id": "m2", "from": "s", "to": "o", "name": "setStatus(\"SHIPPED\")"},
+                                  {"id": "m3", "from": "o", "to": "s", "name": "ok", "type": "reply"},
+                                  {"id": "m4", "from": "s", "to": "cl", "name": "ok", "type": "reply"}],
+                     "fragments": [{"type": "alt", "operands": [{"guard": "status == PAID", "from": "m2", "to": "m3"}]}]},
+        }
+        for s in specs.values():
+            s["bundle"] = "shop"
+        return specs
+
+    def test_P12_P13_P14_state_and_design_logic(self):
+        base = self.order_bundle()
+
+        def run_(change=None, drop=(), partial=False):
+            sp = copy.deepcopy(base)
+            for k in drop:
+                del sp[k]
+            if change:
+                change(sp)
+            return check(*sp.values(), partial=partial, profile="sep490")
+        E, W, I = run_()
+        self.assertEqual(codes(W, "P12") + codes(W, "P13"), [], W)
+        i = codes(I, "P12")                                                  # Ship Order chua co trong BF
+        self.assertTrue(len(i) == 1 and "'shipOrder'" in i[0] and "payOrder" not in i[0], i)
+        self.assertEqual(codes(I, "P14"), [], I)
+        self.assertFalse([x for x in I if x.startswith("R8 [")], I)          # statechart vong doi entity: khong R8
+
+        def bf_name(i, n):
+            return lambda sp: next(e for e in sp["bf"]["elements"] if e["id"] == i).update(name=n)
+        # P12a: state khong co tren statechart
+        w = codes(run_(bf_name("d", "Update Status to REFUNDED"))[1], "P12")
+        self.assertTrue(w and "'REFUNDED'" in w[0], w)
+        # P12b: nhanh vao CANCELLED khong co buoc ung voi event cancelOrder (vd thanh toan that bai)
+        w = codes(run_(bf_name("e", "Payment Failed"))[1], "P12")
+        self.assertTrue(w and "'CANCELLED'" in w[0] and "cancelOrder" in w[0], w)
+        # buoc dung ten nhung chi co tan ngu 1 tu -> khong tinh la use case ('Verify Confirmed Order')
+        w = codes(run_(bf_name("e", "Verify Cancelled Order"))[1], "P12")
+        self.assertTrue(w, w)
+        self.assertFalse(codes(run_(bf_name("e", "Customer Cancels Order"))[1], "P12"))
+        # P12c: sequence dat state cua use case khac; dat state khong co; khong kiem trang thai nguon
+        def ship_uc(sp):
+            sp["ship"].update(useCase="Cancel Order", title="Cancel Order")
+            sp["ship"]["messages"][0]["name"] = "cancelOrder(id)"
+        w = codes(run_(ship_uc)[1], "P12")
+        self.assertTrue(any("'SHIPPED'" in x and "shipOrder" in x for x in w), w)
+        def ship_msg(n):
+            return lambda sp: sp["ship"]["messages"][1].update(name=n)
+        w = codes(run_(ship_msg("setStatus(\"LOST\")"))[1], "P12")
+        self.assertTrue(w and "'LOST'" in w[0], w)
+        w = codes(run_(lambda sp: sp["ship"].pop("fragments"))[1], "P12")
+        self.assertTrue(w and "trang thai nguon (PAID)" in w[0], w)
+        def get_first(sp):
+            sp["ship"].pop("fragments")
+            sp["ship"]["messages"][1:1] = [{"from": "s", "to": "o", "name": "getStatus()"},
+                                           {"from": "o", "to": "s", "name": "PAID", "type": "reply"}]
+        self.assertFalse(codes(run_(get_first)[1], "P12"))
+        # P12 van WARN khi --partial (mau thuan, khong phai thieu so do)
+        self.assertTrue(codes(run_(bf_name("d", "Update Status to REFUNDED"), partial=True)[1], "P12"))
+        # P12 INFO: event khong la use case; use case doi trang thai khong co trong BF
+        def expire(sp):
+            sp["st"]["relations"].append({"from": "n", "to": "c", "event": "expireOrder"})
+        self.assertTrue(any("'expireOrder'" in x for x in codes(run_(expire)[2], "P12")))
+        # P13: use case include khong co buoc; entity con 1..N khong duoc tao
+        def no_pay(sp):
+            sp["place"]["elements"][4]["class"] = "AuditLogger"
+            sp["place"]["messages"][7]["name"] = "log(order)"
+        w = codes(run_(no_pay)[1], "P13")
+        self.assertTrue(w and "'Pay Order'" in w[0], w)
+        w = codes(run_(lambda sp: sp["place"]["messages"][1].update(name="validate(req)"))[1], "P13")
+        self.assertTrue(w and "'Order Item'" in w[0], w)
+        # P14 (INFO): he thong ngoai khong co lop tich hop; package thieu lop entity
+        i = codes(run_(no_pay)[2], "P14")
+        self.assertTrue(i and "'Stripe Gateway'" in i[0] and "Customer" not in i[0], i)
+        def pkg(sp):
+            sp["pkg"] = {"diagram": "package", "title": "Pkg", "bundle": "shop", "elements": [
+                {"id": "e", "type": "package", "name": "entity"}, {"id": "o", "type": "class", "name": "Order", "in": "e"}]}
+        i = codes(run_(pkg)[2], "P14")
+        self.assertTrue(i and "'Order Item'" in i[0], i)
+        # P15: lop ngoai context phai la actor use case; actor phu (use case -> actor) khong can "UCs for" rieng (P3)
+        w = codes(run_()[1], "P15")
+        self.assertTrue(w and "'Stripe Gateway'" in w[0] and "Customer" not in w[0], w)
+        self.assertTrue(codes(run_(partial=True)[1], "P15"))
+        def secondary(sp):
+            sp["uc"]["elements"].append({"id": "sg", "type": "actor", "name": "Stripe Gateway", "side": "right"})
+            sp["uc"]["relations"].append({"from": "pay", "to": "sg"})
+        W2, I2 = run_(secondary)[1:]
+        self.assertEqual(codes(W2, "P15") + codes(W2, "P3"), [], W2)
+        def secondary_no_pay(sp):
+            secondary(sp)
+            no_pay(sp)
+        i = codes(run_(secondary_no_pay)[2], "P14")                           # actor phu van can lop tich hop
+        self.assertTrue(i and "'Stripe Gateway'" in i[0], i)
+        def initiates(sp):
+            secondary(sp)
+            sp["uc"]["relations"][-1] = {"from": "sg", "to": "pay"}
+        self.assertTrue(codes(run_(initiates)[1], "P3"))                      # actor khoi tao -> can so do rieng
+
+    def test_P11_statechart_matches_status_values(self):
+        def run_(values=None, enum=None, states=("Pending", "Under Review", "Accepted")):
+            phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+            for tb in phy["elements"]:
+                for c in tb.get("columns", []):
+                    if tb["name"] == "applications" and c["name"] == "status" and values:
+                        c["values"] = values
+            els = [{"id": "i", "type": "initial"}] + [{"id": "s%d" % k, "type": "state", "name": n}
+                                                     for k, n in enumerate(states)]
+            st = {"diagram": "state", "stateMachineOf": "Application", "title": "Application - State", "elements": els,
+                  "relations": [{"from": "i", "to": "s0"}] + [{"from": "s%d" % k, "to": "s%d" % (k + 1), "event": "e%d" % k}
+                                                              for k in range(len(states) - 1)]}
+            specs = [phy, st]
+            if enum:
+                specs.append({"diagram": "class", "level": "design", "title": "C", "elements": [
+                    {"id": "a", "type": "class", "name": "Application", "attributes": ["-status: ApplicationStatus"]},
+                    {"id": "e", "type": "enumeration", "name": "ApplicationStatus", "literals": enum}]})
+            out = []
+            M_ = __import__("comet_check")
+            by = __import__("collections").defaultdict(list)
+            for k, s in enumerate(specs):
+                s = dict(s, _src="%s#%d" % (s["diagram"], k))
+                by[s["diagram"]].append(s)
+            M_.check_profile_sep490([], by, out)
+            return [x for x in out if x.startswith("P11")]
+        self.assertIn("chua khai bao tap gia tri", run_()[0])
+        self.assertEqual(run_(["PENDING", "UNDER_REVIEW", "ACCEPTED"]), [])
+        p = run_(["PENDING", "UNDER_REVIEW", "REJECTED"])
+        self.assertTrue(p and "'Accepted'" in p[0] and "'REJECTED'" in p[0], p)
+        self.assertEqual(run_(enum=["PENDING", "UNDER_REVIEW", "ACCEPTED"]), [])           # enumeration cua lop
+        sv = __import__("comet_check").status_values                                    # literal trong kieu cot
+        self.assertEqual(sv({"type": "varchar(20) check (status in ('A','B'))"}), ["A", "B"])
+        self.assertEqual(sv({"type": "varchar(20)"}), [])
+
+    def test_R15_sync_without_reply(self):
+        seq = {"diagram": "sequence", "level": "design", "useCase": "Book", "title": "S", "elements": [
+            {"id": "cl", "type": "object", "name": "Client", "external": True},
+            {"id": "c", "type": "object", "class": "Ctl"}, {"id": "s", "type": "object", "class": "Svc"},
+            {"id": "r", "type": "object", "class": "Repo"}, {"id": "m", "type": "object", "class": "Mail"}],
+            "messages": [{"from": "cl", "to": "c", "name": "book(Req)"},
+                         {"from": "c", "to": "s", "name": "book(Req)"},
+                         {"from": "s", "to": "r", "name": "lockSlot(Long)"},
+                         {"from": "s", "to": "m", "name": "send(Mail)", "type": "async"},
+                         {"from": "s", "to": "r", "name": "save(Appt)"},
+                         {"from": "r", "to": "s", "name": "Appt", "type": "reply"},
+                         {"from": "s", "to": "c", "name": "Resp", "type": "reply"},
+                         {"from": "c", "to": "cl", "name": "201", "type": "reply"},
+                         {"from": "c", "to": "cl", "name": "409", "type": "reply"}]}
+        w = codes(check(seq)[1], "R15")
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("'lockSlot(Long)' (Svc -> Repo)", w[0])
+        self.assertFalse(codes(check(dict(seq, level="analysis"))[1], "R15"))
+
+    def test_datadict_from_physical_erd(self):
+        src = EXAMPLES / "talenthub_erd_physical.json"
+        r = run("comet_datadict.py", src)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        md = r.stdout
+        self.assertIn("# TalentHub - Data Dictionary", md)
+        self.assertIn("## 1. `users` - Entity: User", md)
+        self.assertIn("| 1 | `id` | bigserial | x |  | x |  |", md)
+        self.assertIn("| 2 | `job_id` | int8 |  | jobs | x |  |", md)            # ten cot -> bang
+        self.assertIn("| 3 | `candidate_id` | int8 |  | users | x |  |", md)      # bang cha con lai
+        self.assertIn("| 6 | `created_by` | int8 |  | users | x |  |", md)
+        self.assertIn("| `users` | 1 | `jobs` | 0..N |", md)
+        self.assertNotIn("| ? |", md)
+        self.assertEqual(md, run("comet_datadict.py", src).stdout)                 # tat dinh
+        self.assertNotEqual(run("comet_datadict.py", EXAMPLES / "atm_entity.json").returncode, 0)
+
+    def test_activation_closes_on_unreplied_call(self):
+        sp = {"diagram": "sequence", "title": "Act", "activations": True, "elements": [
+            {"id": "c", "type": "object", "class": "Ctl"}, {"id": "s", "type": "object", "class": "Svc"},
+            {"id": "r", "type": "object", "class": "Repo"}],
+            "messages": [{"from": "c", "to": "s", "name": "book"},
+                         {"from": "s", "to": "r", "name": "lock"},
+                         {"from": "s", "to": "r", "name": "save"},
+                         {"from": "r", "to": "s", "name": "ok", "type": "reply"},
+                         {"from": "s", "to": "c", "name": "done", "type": "reply"},
+                         {"from": "c", "to": "c", "name": "render"},
+                         {"from": "c", "to": "c", "name": "log"}]}
+        xml, _ = gen(sp)
+        G = geo(xml)
+        cs = cells(xml)
+        bars = sorted((r for k, r in rects(G).items() if style(cs[k]).get("perimeter") == "orthogonalPerimeter"
+                       and k.startswith("r_")), key=lambda r: r[1])
+        self.assertEqual(len(bars), 2, bars)                           # lock (tra ve ngam) + save
+        self.assertLess(bars[0][3], bars[1][1])            # thanh lock dong truoc message save
+        self.assertEqual(report(xml)[0], [])
+        # callback: B goi lai A roi A reply -> thanh cua B khong bi dong som
+        cb = {"diagram": "sequence", "title": "Cb", "activations": True, "elements": [
+            {"id": "a", "type": "object", "class": "A"}, {"id": "b", "type": "object", "class": "B"}],
+            "messages": [{"from": "a", "to": "b", "name": "go"}, {"from": "b", "to": "a", "name": "ask"},
+                         {"from": "a", "to": "b", "name": "answer", "type": "reply"},
+                         {"from": "b", "to": "a", "name": "done", "type": "reply"}]}
+        xml, _ = gen(cb)
+        G, cs = geo(xml), cells(xml)
+        bb = [r for k, r in rects(G).items() if style(cs[k]).get("perimeter") == "orthogonalPerimeter" and k.startswith("b_")]
+        self.assertEqual(len(bb), 1, bb)
+        self.assertGreater(bb[0][3] - bb[0][1], 60)                               # keo tu "go" toi "done"
+
+    def test_crowfoot_erd_rules_and_x7(self):
+        con = json.loads((EXAMPLES / "talenthub_erd_conceptual.json").read_text(encoding="utf-8"))
+        phy = json.loads((EXAMPLES / "talenthub_erd_physical.json").read_text(encoding="utf-8"))
+        self.assertEqual(check(con, phy), ([], [], []))
+        erd = {"diagram": "erd", "notation": "crowfoot", "title": "E", "elements": [
+            {"id": "a", "type": "entity", "name": "A"}, {"id": "b", "type": "entity", "name": "B"},
+            {"id": "t", "type": "table", "name": "t", "columns": [{"name": "x", "type": "int"}]}], "relations": [
+            {"from": "a", "to": "b", "fromCard": "1", "toCard": "0..N"},
+            {"from": "a", "to": "b", "fromCard": "1", "toCard": "many-ish", "name": "having"},
+            {"from": "a", "to": "zz", "fromCard": "1", "toCard": "1", "name": "x"}]}
+        self.expect_one(erd, "E", "E1", "zz")
+        self.expect_one(erd, "W", "E2", "many-ish")
+        self.expect_one(erd, "W", "E3", "'A' - 'B'")
+        self.expect_one(erd, "W", "E4", "'t'")
+        for s in (con, phy):
+            s["bundle"] = "th"
+        phy2 = copy.deepcopy(phy)
+        phy2["elements"][0]["entity"] = "Account"
+        E, W, I = check(con, phy2)
+        self.assertTrue(any("'Account'" in w for w in codes(W, "X7")), W)
+        self.assertTrue(codes(I, "X7"), I)                                        # 'User' chua co bang tro toi
+        other = dict(copy.deepcopy(phy2), bundle="other")                        # bundle khac: khong so
+        self.assertEqual(codes(check(con, other)[1], "X7"), [])
+
+    def test_design_level_and_x8(self):
+        uc = {"diagram": "usecase", "bundle": "d", "title": "UCs", "elements": [
+            {"id": "g", "type": "actor", "name": "Guest"}, {"id": "r", "type": "usecase", "name": "Register"},
+            {"id": "v", "type": "usecase", "name": "View Jobs"}], "relations": [
+            {"from": "g", "to": "r"}, {"from": "g", "to": "v"}]}
+        cls = {"diagram": "class", "level": "design", "bundle": "d", "useCase": "Register", "title": "Register - Class",
+               "elements": [{"id": "srv", "type": "class", "name": "UserController", "operations": ["+handle(req: Request): Response"]},
+                            {"id": "svc", "type": "class", "name": "UserService",
+                             "operations": ["+addUser(f: UserForm): long"]}],
+               "relations": [{"type": "composition", "from": "srv", "to": "svc"}]}
+        seq = {"diagram": "sequence", "level": "design", "bundle": "d", "useCase": "Register", "title": "Register - Seq",
+               "elements": [{"id": "cl", "type": "object", "name": "React Web App", "external": True},
+                            {"id": "srv", "type": "object", "class": "UserController"},
+                            {"id": "svc", "type": "object", "class": "UserService"}],
+               "messages": [{"from": "cl", "to": "srv", "name": "handle(Request)"},
+                            {"from": "srv", "to": "svc", "name": "addUser(UserForm)"},
+                            {"from": "svc", "to": "srv", "name": "id", "type": "reply"},
+                            {"from": "srv", "to": "cl", "name": "page", "type": "reply"}]}
+        E, W, I = check(uc, cls, seq)
+        self.assertEqual((E, W), ([], []))                                   # khong R3/R4/C2/R1/X2 WARN
+        self.assertTrue(codes(I, "R1") and codes(I, "C2"), I)
+        self.assertEqual(codes(I, "X2"), [])                                  # client "external" dai dien actor
+        self.assertEqual(codes(I, "X8"), [])
+        noclient = copy.deepcopy(seq)
+        del noclient["elements"][0]["external"]
+        self.assertTrue(codes(check(uc, cls, noclient)[2], "X2"))
+        analysis = copy.deepcopy(seq)
+        del analysis["level"]
+        W2 = check(uc, cls, analysis)[1]
+        self.assertTrue(codes(W2, "R4") and codes(W2, "R1"), W2)             # muc phan tich van kiem nhu cu
+        bad = copy.deepcopy(seq)
+        bad["elements"][2]["class"] = "AccountService"
+        bad["messages"][0]["name"] = "deleteUser(Long)"
+        E, W, I = check(uc, cls, bad)
+        self.assertTrue(any("AccountService" in w for w in codes(W, "X8")), W)
+        self.assertTrue(any("deleteUser(Long)" in w for w in codes(W, "X11")), W)   # use case co class rieng -> WARN
+        nocls = dict(copy.deepcopy(bad), useCase="View Jobs")                 # use case khong co class rieng -> INFO
+        E, W, I = check(uc, cls, nocls)
+        self.assertEqual(codes(W, "X8"), [])
+        self.assertTrue(any("AccountService" in i for i in codes(I, "X8")), I)
+        m = M.build_model([dict(s, _src=s["title"]) for s in (uc, cls, seq)])
+        kinds = {(n["kind"], n["name"]) for n in m["nodes"].values()}
+        self.assertIn(("class", "UserService"), kinds)                          # lifeline thiet ke = node lop
+        self.assertNotIn(("application-logic", "UserService"), kinds)
+
+
+class TestSemanticModelV2(unittest.TestCase):
+    @staticmethod
+    def specs():
+        return [
+            {
+                "diagram": "usecase",
+                "bundle": "shop-v2",
+                "_src": "usecase.json",
+                "elements": [
+                    {"id": "customer", "type": "actor", "name": "Client", "conceptId": "customer.party"},
+                    {"id": "place", "type": "usecase", "name": "Place Order"},
+                ],
+                "relations": [{"from": "customer", "to": "place", "type": "association"}],
+            },
+            {
+                "diagram": "context",
+                "bundle": "shop-v2",
+                "_src": "context.json",
+                "elements": [
+                    {"id": "shop", "type": "system", "name": "Shop System", "stereotype": "software system"},
+                    {"id": "customer", "type": "external", "name": "Customer",
+                     "conceptId": "customer.party", "aliases": ["Buyer"]},
+                ],
+                "relations": [{"from": "shop", "to": "customer", "label": "orders"}],
+            },
+            {
+                "diagram": "class",
+                "bundle": "shop-v2",
+                "_src": "class.json",
+                "elements": [
+                    {"id": "customer", "type": "class", "name": "Customer",
+                     "conceptId": "customer.party", "stereotype": "entity", "attributes": ["id: String"]},
+                    {"id": "order", "type": "class", "name": "Order",
+                     "stereotype": "entity", "attributes": ["id: String"]},
+                ],
+                "relations": [{"from": "customer", "to": "order", "type": "association", "label": "places",
+                               "fromMult": "1", "toMult": "*"}],
+            },
+            {
+                "diagram": "communication",
+                "bundle": "shop-v2",
+                "_src": "communication.json",
+                "useCase": "Place Order",
+                "elements": [
+                    {"id": "actor", "type": "actor", "name": "Client", "conceptId": "customer.party"},
+                    {"id": "control", "type": "object", "class": "Order Control", "stereotype": "control"},
+                    {"id": "order", "type": "object", "class": "Order", "conceptId": "order.entity",
+                     "stereotype": "entity"},
+                ],
+                "messages": [
+                    {"from": "actor", "to": "control", "name": "placeOrder", "seq": "1"},
+                    {"from": "control", "to": "order", "name": "saveOrder", "seq": "2"},
+                ],
+            },
+        ]
+
+    def test_canonical_identity_aliases_and_provenance(self):
+        model = M.build_model(copy.deepcopy(self.specs()))
+        customer = next(c for c in model["concepts"].values() if c["id"].endswith(
+            M.canonical_concept_id("shop-v2", "id:customer.party").split(":")[-1]))
+        self.assertEqual(customer["kind"], "canonical-concept")
+        self.assertIn("entity", customer["semanticKinds"])
+        self.assertIn("party", customer["semanticKinds"])
+        self.assertIn("Customer", customer["aliases"])
+        self.assertGreaterEqual(len(customer["representations"]), 3)
+        self.assertTrue(all("source" in p and "diagram" in p for p in customer["provenance"]))
+
+    def test_bundle_isolation_and_deterministic_fingerprint(self):
+        specs = self.specs()
+        first = M.build_model(copy.deepcopy(specs))
+        second = M.build_model(list(reversed(copy.deepcopy(specs))))
+        self.assertEqual(first["fingerprint"], second["fingerprint"])
+
+        isolated = copy.deepcopy(specs[0])
+        isolated["bundle"] = "other-system"
+        other = M.build_model(specs + [isolated])
+        shop_id = M.canonical_concept_id("shop-v2", "id:customer.party")
+        other_id = M.canonical_concept_id("other-system", "id:customer.party")
+        self.assertIn(shop_id, other["concepts"])
+        self.assertIn(other_id, other["concepts"])
+        self.assertNotEqual(shop_id, other_id)
+
+    def test_dependency_impact_propagation(self):
+        model = M.build_model(copy.deepcopy(self.specs()))
+        customer = next(c for c in model["concepts"].values() if c["nameKey"] == "client")
+        order = next(c for c in model["concepts"].values() if c["nameKey"] == "order")
+        impact = model["conceptImpactMap"][customer["id"]]
+        self.assertIn(order["id"], impact["impactedConceptIds"])
+        self.assertIn("class", impact["impactedDiagramKinds"])
+        self.assertIn("class.json", impact["impactedSources"])
+        self.assertTrue(model["dependencyGraph"]["edges"])
+
+    def test_v1_backward_compatibility(self):
+        v1 = M.build_model_v1(copy.deepcopy(self.specs()))
+        self.assertEqual(v1["schemaVersion"], 1)
+        v2 = M.upgrade_v1_model(v1)
+        self.assertEqual(v2["schemaVersion"], 2)
+        self.assertEqual(v2["nodes"], v1["nodes"])
+        self.assertEqual(v2["links"], v1["links"])
+
+        legacy = M.model_for_schema(M.build_model(copy.deepcopy(self.specs())), 1)
+        self.assertEqual(legacy["schemaVersion"], 1)
+        self.assertIn("nodes", legacy)
+        self.assertNotIn("concepts", legacy)
+        self.assertNotIn("sourceOfTruth", legacy)
+        self.assertNotIn("conceptImpactMap", legacy)
+        legacy_again = M.model_for_schema(M.build_model(copy.deepcopy(self.specs())), 1)
+        self.assertEqual(legacy["fingerprint"], legacy_again["fingerprint"])
+
+    def test_repair_plan_carries_canonical_impact(self):
+        specs = self.specs()
+        bad = copy.deepcopy(specs[-1])
+        bad["elements"][1]["stereotype"] = "invalid stereotype"
+        plan = CP.build_plan(specs[:-1] + [bad])
+        self.assertTrue(plan["steps"])
+        self.assertTrue(any(step["affectedConceptIds"] for step in plan["steps"]))
+
+    def test_authoritative_reconcile_detects_drift(self):
+        specs = self.specs()
+        canonical = M.build_model(copy.deepcopy(specs))
+        changed = copy.deepcopy(canonical)
+        customer = next(c for c in changed["concepts"].values() if c["nameKey"] == "client")
+        customer["name"] = "Buyer"
+        customer["nameKey"] = "buyer"
+        result = CR.reconcile(changed, M.build_model(copy.deepcopy(specs)))
+        self.assertEqual(result["status"], "drift")
+        self.assertTrue(any(x["rule"] == "M3" for x in result["drift"]))
+
+    def test_reconcile_missing_alias_is_M6_warning(self):
+        specs = self.specs()
+        canonical = M.build_model(copy.deepcopy(specs))
+        next(iter(canonical["concepts"].values()))["aliases"].append("Declared Alias")
+        result = CR.reconcile(canonical, M.build_model(copy.deepcopy(specs)))
+        self.assertEqual([(x["rule"], x["severity"]) for x in result["drift"]], [("M6", "warning")])
+        self.assertEqual(result["summary"]["errors"], 0)
+
+    def atm_specs(self):
+        return C.load([str(p) for p in sorted(EXAMPLES.glob("atm_*.json"))])
+
+    def test_representation_ids_ignore_element_order(self):
+        specs = self.atm_specs()
+        shuffled = copy.deepcopy(specs)
+        for s in shuffled:
+            s["elements"] = list(reversed(s.get("elements", [])))
+        a, b = M.build_model(specs), M.build_model(shuffled)
+        self.assertEqual(sorted(a["representations"]), sorted(b["representations"]))
+        self.assertEqual(a["fingerprint"], b["fingerprint"])
+
+    def test_default_bundle_has_one_concept_per_name_and_no_object_nodes(self):
+        model = M.build_model(self.atm_specs())
+        names = [c["nameKey"] for c in model["concepts"].values()]
+        self.assertEqual(len(names), len(set(names)), "concept trung ten trong bundle mac dinh")
+        self.assertFalse([n for n in model["nodes"].values() if n["kind"] == "object"])
+        ctl = next(n["id"] for n in model["nodes"].values() if n["kind"] == "control" and n["nameKey"] == "atm control")
+        self.assertTrue(any(l["kind"] == "message" and ctl in (l["source"], l["target"]) for l in model["links"].values()))
+
+    def test_repair_plan_targets_named_concept(self):
+        specs = self.atm_specs()
+        model = M.build_model(specs)
+        plan = CP.build_plan(specs, model=model)
+        names = lambda step: {model["concepts"][c]["name"] for c in step["affectedConceptIds"]}
+        r8 = [s for s in plan["steps"] if s["rule"] == "R8"]
+        self.assertTrue(r8)
+        self.assertTrue(all(names(s) == {"ATM Control"} for s in r8), [names(s) for s in r8])
+        query = next(s for s in plan["steps"] if s["rule"] == "R1" and "Query Account" in s["message"])
+        self.assertEqual(names(query), {"Query Account"})
+        self.assertTrue(all("directlyImpactedConceptIds" in s for s in plan["steps"]))
+
+    def test_manifest_builds_model_once(self):
+        calls = []
+        real = CM.build_model
+
+        def counting(*a, **k):
+            calls.append(1)
+            return real(*a, **k)
+        CM.build_model, CP.build_model = counting, counting
+        try:
+            CM.build_manifests(self.atm_specs())
+        finally:
+            CM.build_model, CP.build_model = real, real
+        self.assertEqual(len(calls), 1)
+
+    def test_activity_coverage_default_bundle(self):
+        specs = C.load([str(EXAMPLES / "atm_usecase.json"), str(EXAMPLES / "atm_activity_withdraw.json")])
+        model = M.build_model(specs, schema_version=1)
+        withdraw = next(u for u in model["coverage"]["default"]["useCases"].values() if u["name"] == "Withdraw Funds")
+        self.assertTrue(any("atm_activity_withdraw.json" in s for s in withdraw["activitySources"]), withdraw)
+
+    def test_manifest_binds_authoritative_fingerprint(self):
+        specs = self.specs()
+        canonical = M.build_model(copy.deepcopy(specs))
+        model, consistency, repair = CM.build_manifests(copy.deepcopy(specs), canonical_model=canonical)
+        self.assertEqual(model["fingerprint"], canonical["fingerprint"])
+        self.assertEqual(consistency["modelFingerprint"], canonical["fingerprint"])
+        self.assertEqual(repair["modelFingerprint"], canonical["fingerprint"])
+        self.assertTrue(consistency["canonicalSourceOfTruth"])
+
+
+
 # ============================================================ 6. dong lenh
+class TestCanonicalProjection(TmpMixin, unittest.TestCase):
+    """comet_project: file canonical -> spec (canonical-first) va bootstrap nguoc lai."""
+
+    @staticmethod
+    def examples():
+        return C.load([str(p) for p in EXAMPLE_FILES])
+
+    def doc(self):
+        return PJ.bootstrap_canonical(self.examples())
+
+    @staticmethod
+    def by_diagram(specs, diagram):
+        return [s for s in specs if s["diagram"] == diagram]
+
+    def test_bootstrap_roundtrip_all_examples(self):
+        specs = self.examples()
+        doc = PJ.bootstrap_canonical(specs)
+        self.assertEqual(PJ.validate_canonical(doc), [])
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+        compiled = PJ.compile_projections(doc)
+        self.assertEqual(len(compiled), len(EXAMPLE_FILES))
+        # conceptId chi phat cho concept, khong cho phan tu hanh vi cuc bo.
+        act = self.by_diagram(compiled, "activity")[0]
+        self.assertFalse(any("conceptId" in e for e in act["elements"]))
+        self.assertIn("useCaseConceptId", act)
+
+    def test_compiled_specs_have_check_and_semantic_parity(self):
+        compiled = PJ.compile_projections(self.doc(), base=str(EXAMPLES))
+        self.assertEqual(C.check(compiled), C.check(self.examples()))
+        model = M.build_model(compiled)
+        self.assertEqual(model["fingerprint"], M.build_model(self.examples())["fingerprint"])
+        self.assertEqual([c for c in model["constraints"] if c["kind"] == "identity-ambiguity"], [])
+
+    def test_bootstrap_roundtrip_fuzz_specs(self):
+        # Nhieu class diagram chung ten lop nhung khac attributes/stereotype -> override/omit theo view.
+        specs = [dict(GENERATORS["class"](seed), _src="class%02d.json" % seed) for seed in range(FUZZ_SEEDS)]
+        specs += [dict(GENERATORS[k](seed), _src="%s%02d.json" % (k, seed))
+                  for k in ("activity", "state") for seed in range(FUZZ_SEEDS)]
+        doc = PJ.bootstrap_canonical(copy.deepcopy(specs))
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+
+    def test_bootstrap_deterministic_and_order_independent(self):
+        a = PJ.bootstrap_canonical(self.examples())
+        b = PJ.bootstrap_canonical(list(reversed(self.examples())))
+        self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
+        self.assertEqual(PJ.canonical_semantic_model(a)["fingerprint"], PJ.canonical_semantic_model(b)["fingerprint"])
+
+    def test_comm_and_seq_share_one_interaction(self):
+        doc = self.doc()
+        views = [v for v in doc["views"] if v["diagram"] in ("communication", "sequence")]
+        self.assertEqual({v["interaction"] for v in views}, {"validate-pin"})
+        comm = next(v for v in views if v["diagram"] == "communication")
+        self.assertEqual(comm["messageOmit"], ["id", "type"])
+        doc["interactions"]["validate-pin"]["messages"][0]["name"] = "Insert Card"
+        compiled = PJ.compile_projections(doc)
+        first = [s["messages"][0]["name"] for s in compiled if s["diagram"] in ("communication", "sequence")]
+        self.assertEqual(first, ["Insert Card", "Insert Card"])
+        self.assertNotIn("R12", codes(C.check(compiled)[1]))
+
+    def test_rename_concept_propagates_everywhere(self):
+        doc = self.doc()
+        doc["concepts"]["atm-customer"]["name"] = "Bank Customer"
+        compiled = PJ.compile_projections(doc)
+        self.assertNotIn("ATM Customer", json.dumps(compiled, ensure_ascii=False))
+        for diagram in ("usecase", "communication", "sequence", "context"):
+            names = {e.get("name") for s in self.by_diagram(compiled, diagram) for e in s["elements"]}
+            self.assertIn("Bank Customer", names, diagram)
+        act = self.by_diagram(compiled, "activity")[0]
+        self.assertIn("Bank Customer", act["partitions"])
+        self.assertEqual(act["elements"][0]["partition"], "Bank Customer")
+        base = C.check(PJ.compile_projections(self.doc()))
+        self.assertEqual([len(x) for x in C.check(compiled)], [len(x) for x in base])
+        # Identity semantic on dinh: cung concept id, khong co concept "ma" theo ten moi.
+        after = M.build_model(compiled)
+        self.assertEqual(set(PJ.canonical_semantic_model(self.doc())["concepts"]), set(after["concepts"]))
+        self.assertEqual([c for c in after["constraints"] if c["kind"] == "identity-ambiguity"], [])
+
+    def test_rename_use_case_keeps_anchor_identity(self):
+        doc = self.doc()
+        key = next(k for k, c in doc["concepts"].items() if c["name"] == "Validate PIN")
+        doc["concepts"][key]["name"] = "Verify PIN"
+        compiled = PJ.compile_projections(doc)
+        comm = self.by_diagram(compiled, "communication")[0]
+        self.assertEqual((comm["useCase"], comm["title"]), ("Verify PIN", "Verify PIN"))
+        self.assertEqual(C.check(compiled)[1], [w.replace("Validate PIN", "Verify PIN")
+                                                 for w in C.check(PJ.compile_projections(self.doc()))[1]])
+        model = M.build_model(compiled)
+        self.assertEqual([c for c in model["constraints"] if c["kind"] == "identity-ambiguity"], [])
+
+    def test_new_use_case_auto_included_without_invented_interaction(self):
+        doc = self.doc()
+        doc["concepts"]["change-pin"] = {"name": "Change PIN", "kind": "usecase"}
+        doc["relationships"]["association:atm-customer->change-pin"] = {
+            "type": "association", "from": "atm-customer", "to": "change-pin"}
+        compiled = PJ.compile_projections(doc)
+        uc = self.by_diagram(compiled, "usecase")[0]
+        self.assertEqual(uc["elements"][-1]["name"], "Change PIN")
+        self.assertEqual(uc["relations"][-1], {"type": "association", "from": "cust", "to": "change-pin"})
+        self.assertEqual(len(self.by_diagram(compiled, "communication")), 1)
+        self.assertTrue(any(w.startswith("R1") and "Change PIN" in w for w in C.check(compiled)[1]))
+
+    def test_reconcile_canonical_doc(self):
+        doc = self.doc()
+        canonical = PJ.canonical_semantic_model(doc)
+        self.assertEqual(canonical["sourceOfTruth"]["mode"], "canonical")
+        compiled = PJ.compile_projections(doc)
+        self.assertEqual(CR.reconcile(canonical, M.build_model(compiled))["status"], "clean")
+        # Sua tay ten trong spec da compile (giu conceptId) -> M3 drift, khong phai M1/M2.
+        comm = self.by_diagram(compiled, "communication")[0]
+        next(e for e in comm["elements"] if e.get("name") == "ATM Customer")["name"] = "ATM Client"
+        rules = {d["rule"] for d in CR.reconcile(canonical, M.build_model(compiled))["drift"]}
+        self.assertIn("M3", rules)
+        self.assertFalse({"M1", "M2"} & rules)
+        # Concept khai bao nhung khong view nao chieu -> M1.
+        doc["concepts"]["orphan"] = {"name": "Orphan Concept", "kind": "class"}
+        result = CR.reconcile(PJ.canonical_semantic_model(doc), M.build_model(PJ.compile_projections(doc)))
+        self.assertEqual([d["rule"] for d in result["drift"]], ["M1"])
+
+    def test_validation_errors(self):
+        doc = self.doc()
+        doc["views"][0]["elements"].append({"ref": "missing"})
+        doc["relationships"]["bad"] = {"type": "association", "from": "atm-customer", "to": "nope"}
+        self.assertIn("K9", {i["rule"] for i in PJ.validate_canonical(doc)})
+        del doc["relationships"]["bad"]
+        self.assertIn("K4", {i["rule"] for i in PJ.validate_canonical(doc)})
+        with self.assertRaises(PJ.CanonicalError):
+            PJ.compile_projections(doc)
+        doc = self.doc()
+        uc = next(v for v in doc["views"] if v["diagram"] == "usecase")
+        uc["elements"].append(dict(uc["elements"][0]))   # concept xuat hien 2 lan -> quan he mo ho
+        self.assertTrue({"K5", "K6"} <= {i["rule"] for i in PJ.validate_canonical(doc)})
+        doc = self.doc()
+        doc["views"][0]["diagram"] = "gantt"
+        self.assertIn("K7", {i["rule"] for i in PJ.validate_canonical(doc)})
+        self.assertEqual(PJ.validate_canonical({"kind": "x"})[0]["rule"], "K1")
+
+    def test_unprojected_declarations_warn(self):
+        doc = self.doc()
+        doc["concepts"]["orphan"] = {"name": "Orphan Concept", "kind": "class"}
+        doc["relationships"]["association:bank->orphan"] = {"type": "association", "from": "bank", "to": "orphan"}
+        issues = PJ.validate_canonical(doc)
+        self.assertEqual([(i["rule"], i["severity"]) for i in issues], [("K10", "warning"), ("K11", "warning")])
+        PJ.compile_projections(doc)   # canh bao khong chan compile
+        # Da duoc chieu (ref hoac autoInclude) -> het canh bao.
+        doc = self.doc()
+        doc["concepts"]["change-pin"] = {"name": "Change PIN", "kind": "usecase"}
+        doc["relationships"]["association:atm-customer->change-pin"] = {
+            "type": "association", "from": "atm-customer", "to": "change-pin"}
+        self.assertEqual(PJ.validate_canonical(doc), [])
+
+    def test_auto_include_one_view_per_family(self):
+        specs = C.load([str(EXAMPLES / n) for n in ("atm_usecase.json", "atm_context.json", "atm_entity.json")])
+        doc = PJ.bootstrap_canonical(specs)
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+        ctx = next(v for v in doc["views"] if v["diagram"] == "context")
+        self.assertEqual(ctx["autoInclude"]["kinds"], ["external"])
+        self.assertNotIn("autoInclude", next(v for v in doc["views"] if v["diagram"] == "class"))
+        doc["concepts"]["fraud-monitor"] = {"name": "Fraud Monitor", "kind": "external"}
+        compiled = {s["diagram"]: s for s in PJ.compile_projections(doc)}
+        self.assertIn("Fraud Monitor", {e.get("name") for e in compiled["context"]["elements"]})
+        self.assertNotIn("Fraud Monitor", {e.get("name") for e in compiled["class"]["elements"]})
+        # Hai view cung nhom -> khong bat autoInclude (khong doan concept moi thuoc view nao).
+        both = self.examples()
+        doc = PJ.bootstrap_canonical(both)
+        self.assertFalse([v["id"] for v in doc["views"] if v["diagram"] in ("context", "bizcontext")
+                          and v.get("autoInclude")])
+        erd = C.load([str(EXAMPLES / "elearn_erd.json")])
+        doc = PJ.bootstrap_canonical(erd)
+        doc["concepts"]["badge"] = {"name": "Badge", "kind": "entity"}
+        self.assertIn("Badge", {e.get("name") for e in PJ.compile_projections(doc)[0]["elements"]})
+
+    def test_rename_system_keeps_identity(self):
+        specs = C.load([str(p) for p in EXAMPLE_FILES if p.name.startswith("atm_")])
+        doc = PJ.bootstrap_canonical(specs)
+        before = M.build_model(PJ.compile_projections(doc))
+        doc["concepts"]["banking-system"]["name"] = "Bank ATM System"
+        compiled = PJ.compile_projections(doc)
+        self.assertEqual(self.by_diagram(compiled, "usecase")[0]["system"], "Bank ATM System")
+        after = M.build_model(compiled)
+        self.assertEqual(set(before["concepts"]), set(after["concepts"]))
+        self.assertEqual(CR.reconcile(PJ.canonical_semantic_model(doc), after)["status"], "clean")
+
+    def test_bundle_preserved_and_mixed_bundles_rejected(self):
+        a = dict(copy.deepcopy(SHOP_UC), bundle="Shop", _src="uc.json")
+        b = dict(copy.deepcopy(SHOP_CTX), bundle="Shop", _src="ctx.json")
+        doc = PJ.bootstrap_canonical([a, b])
+        self.assertEqual(doc["bundle"], "Shop")
+        self.assertTrue(all(s["bundle"] == "Shop" for s in PJ.compile_projections(doc)))
+        self.assertEqual(PJ.verify_roundtrip([a, b], doc), [])
+        c = dict(copy.deepcopy(SHOP_CLS), bundle="Other", _src="cls.json")
+        with self.assertRaises(ValueError):
+            PJ.bootstrap_canonical([a, b, c])
+        self.assertEqual(len(PJ.bootstrap_canonical([a, b, c], bundle="shop")["views"]), 2)
+
+    def test_explicit_concept_id_preserved(self):
+        specs = TestSemanticModelV2.specs()
+        doc = PJ.bootstrap_canonical(specs)
+        self.assertIn("customer.party", {c.get("conceptId") for c in doc["concepts"].values()})
+        self.assertEqual(PJ.verify_roundtrip(specs, doc), [])
+        self.assertEqual(set(M.build_model(PJ.compile_projections(doc))["concepts"]),
+                         set(M.build_model(TestSemanticModelV2.specs())["concepts"]))
+
+    def test_cli_bootstrap_compile_check_model_reconcile(self):
+        d = self.tmpdir()
+        canon = d / "system.canonical.json"
+        r = run("comet_project.py", "bootstrap", *EXAMPLE_FILES, "-o", canon)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["roundTrip"], "exact")
+        self.assertEqual(run("comet_project.py", "validate", canon).returncode, 0)
+        out = d / "specs"
+        self.assertEqual(run("comet_project.py", "compile", canon, "-o", out).returncode, 0)
+        self.assertEqual(len(list(out.glob("*.json"))), len(EXAMPLE_FILES))
+        self.assertEqual(run("comet_project.py", "compile", canon, "-o", out, "--check").returncode, 0)
+        seq = out / "atm_seq_validate_pin.json"
+        seq.write_text(seq.read_text(encoding="utf-8").replace("PIN Prompt", "Enter PIN"), encoding="utf-8")
+        r = run("comet_project.py", "compile", canon, "-o", out, "--check")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("atm_seq_validate_pin.json", r.stdout)
+        run("comet_project.py", "compile", canon, "-o", out)
+        r = run("comet_project.py", "model", canon, "-o", d / "system.model.json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        model = json.loads((d / "system.model.json").read_text(encoding="utf-8"))
+        self.assertEqual(model["sourceOfTruth"]["mode"], "canonical")
+        r = run("comet_reconcile.py", canon, *sorted(out.glob("*.json")))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "clean")
+        r = run("comet_manifest.py", *sorted(out.glob("*.json")), "-o", d / "system", "--canonical-model", canon)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotEqual(run("comet_project.py", "compile", d / "missing.json", "-o", out).returncode, 0)
+
+
 class TestCLI(TmpMixin, unittest.TestCase):
     def test_uml2drawio(self):
         d = self.tmpdir()
@@ -1575,10 +2838,24 @@ class TestCLI(TmpMixin, unittest.TestCase):
         self.assertEqual(run("uml2drawio.py", d / "ctx.json").returncode, 0)             # mac dinh: canh spec
         self.assertEqual(sorted(p.name for p in d.iterdir()), ["all.drawio", "ctx.drawio", "ctx.json", "stm.drawio"])
 
+    def test_generated_artifacts_skipped_by_spec_glob(self):
+        # Quy trinh ghi model/consistency/repair vao ./uml/ roi glob "./uml/*.json": artifact khong duoc thanh so do.
+        d = self.tmpdir()
+        for p in EXAMPLES.glob("atm_*.json"):
+            shutil.copy(p, d / p.name)
+        n = len(list(EXAMPLES.glob("atm_*.json")))
+        self.assertEqual(run("comet_manifest.py", d / "*.json", "-o", d / "sys").returncode, 0)
+        self.assertEqual(len(list(d.glob("sys.*.json"))), 3)
+        r = run("uml2drawio.py", d / "*.json", "-o", d / "all.drawio")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(pages(str(d / "all.drawio"))), n)
+        self.assertEqual(len(C.load([str(d / "*.json")])), n)
+
     def test_comet_check(self):
         r = run("comet_check.py", "--partial", EXAMPLES / "*.json")
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertIn("0 loi, 0 canh bao", r.stdout)
+
         d = self.tmpdir()
         bad = copy.deepcopy(SHOP_COMM)
         bad["messages"][2]["seq"] = "2"
@@ -1586,6 +2863,57 @@ class TestCLI(TmpMixin, unittest.TestCase):
         r = run("comet_check.py", d / "bad.json")
         self.assertEqual(r.returncode, 1)
         self.assertIn("ERROR: R9", r.stdout)
+
+        warn = copy.deepcopy(SHOP_COMM)
+        warn["useCase"] = "Ghost Use Case"
+        (d / "warn.json").write_text(json.dumps(warn), encoding="utf-8")
+        r = run("comet_check.py", d / "warn.json")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        r = run("comet_check.py", "--strict", d / "warn.json")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("WARN", r.stdout)
+
+        model_file = d / "model.json"
+        r = run("comet_model.py", EXAMPLES / "atm_usecase.json", EXAMPLES / "atm_context.json",
+                "-o", model_file)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        payload = json.loads(model_file.read_text(encoding="utf-8"))
+        self.assertEqual(payload["kind"], "comet-semantic-model")
+        self.assertIn("fingerprint", payload)
+
+        repair_input = copy.deepcopy(SHOP_COMM)
+        repair_input["elements"][1]["stereotype"] = "invalid stereotype"
+        repair_json = d / "repair-input.json"
+        repair_json.write_text(json.dumps(repair_input), encoding="utf-8")
+        canonical_file = d / "canonical.json"
+        canonical_file.write_text(json.dumps(CM.build_manifests(
+            [copy.deepcopy(SHOP_COMM)])[0], ensure_ascii=False), encoding="utf-8")
+        r = run("comet_reconcile.py", canonical_file, repair_json)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        reconciliation = json.loads(r.stdout)
+        self.assertEqual(reconciliation["kind"], "comet-canonical-reconciliation")
+        self.assertEqual(reconciliation["status"], "clean")
+        plan_file = d / "repair.json"
+        r = run("comet_plan.py", repair_json, "-o", plan_file)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        repair = json.loads(plan_file.read_text(encoding="utf-8"))
+        self.assertEqual(repair["kind"], "comet-repair-plan")
+        self.assertTrue(any(step["rule"] == "R4" for step in repair["steps"]))
+
+        canonical_manifest = d / "canonical-manifest.json"
+        canonical_specs = [str(EXAMPLES / "atm_usecase.json"), str(EXAMPLES / "atm_context.json")]
+        canonical_model = CM.build_manifests(C.load(canonical_specs))[0]
+        canonical_manifest.write_text(json.dumps(canonical_model, ensure_ascii=False), encoding="utf-8")
+        prefix = d / "system"
+        r = run("comet_manifest.py", *canonical_specs, "--canonical-model", canonical_manifest, "-o", prefix)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        model_payload = json.loads((d / "system.model.json").read_text(encoding="utf-8"))
+        consistency_payload = json.loads((d / "system.consistency.json").read_text(encoding="utf-8"))
+        repair_payload = json.loads((d / "system.repair.json").read_text(encoding="utf-8"))
+        self.assertEqual(model_payload["fingerprint"], consistency_payload["modelFingerprint"])
+        self.assertEqual(model_payload["fingerprint"], repair_payload["modelFingerprint"])
+        self.assertTrue(consistency_payload["canonicalSourceOfTruth"])
+        self.assertIn("canonicalReconciliation", consistency_payload)
 
     def test_preview_svg(self):
         for p in EXAMPLE_FILES:
@@ -1721,10 +3049,10 @@ class TestDocs(unittest.TestCase):
                     self.assertTrue((ENGINE / rel).is_file())
 
     def test_rule_codes_documented(self):
-        emitted = set(re.findall(r'"([RSACEFBL]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
+        emitted = set(re.findall(r'"([RSACEFBLXP]\d{1,2}) ', (SCRIPTS / "comet_check.py").read_text(encoding="utf-8")))
         documented = set()
         doc = (REFS / "comet-method.md").read_text(encoding="utf-8")
-        for a, b in re.findall(r"(?m)^\| ([RSACEFBL]\d{1,2})(?:–([RSACEFBL]\d{1,2}))? \|", doc):
+        for a, b in re.findall(r"(?m)^\| ([RSACEFBLXP]\d{1,2})(?:–([RSACEFBLXP]\d{1,2}))? \|", doc):
             documented |= {"%s%d" % (a[0], k) for k in range(int(a[1:]), int((b or a)[1:]) + 1)}
         self.assertEqual(emitted, documented)
 

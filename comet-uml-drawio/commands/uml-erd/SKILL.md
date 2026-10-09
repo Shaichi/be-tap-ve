@@ -1,6 +1,6 @@
 ---
 name: uml-erd
-description: Vẽ ERD (sơ đồ thực thể – quan hệ) ký pháp Chen ra draw.io – thực thể là ô chữ nhật chỉ ghi tên, quan hệ là hình thoi có tên, bản số 1 / N / M ở đầu nối phía thực thể, quan hệ đệ quy và bậc 3 – bố cục tự động không chồng hình. Dùng khi người dùng gọi /uml-erd hoặc cần mô hình dữ liệu mức khái niệm.
+description: Vẽ ERD (sơ đồ thực thể – quan hệ) ra draw.io – ký pháp Chen (thực thể chỉ ghi tên, hình thoi quan hệ, bản số 1 / N / M) hoặc crow's foot (ERD khái niệm có thuộc tính nghiệp vụ, Database Design vật lý có cột kiểu/PK/FK/NOT NULL) – bố cục tự động không chồng hình. Dùng khi người dùng gọi /uml-erd hoặc cần mô hình dữ liệu mức khái niệm.
 argument-hint: "<miền nghiệp vụ / danh sách thực thể cần mô hình hoá>"
 user-invocable: true
 ---
@@ -28,6 +28,9 @@ bằng ngôn ngữ của họ.
   Comment –replies– Comment).
 - `<ENGINE>/references/spec-format.md` — mục *ERD*; `<ENGINE>/references/uml-notation.md` — mục *ERD – ký pháp
   Chen*.
+- Crow's foot (SRS/SDS, người dùng nói "crow's foot", "Database Design", "ERD có thuộc tính/cột"):
+  `<ENGINE>/examples/talenthub_erd_conceptual.json` (khái niệm) và `<ENGINE>/examples/talenthub_erd_physical.json`
+  (vật lý); `spec-format.md` mục *ERD crow's foot*.
 - Class diagram «entity» đã có (vd `./uml/*class*.json`) → dùng lại tên lớp làm tên thực thể.
 
 ## 2. Quy tắc
@@ -44,6 +47,16 @@ bằng ngôn ngữ của họ.
   từng thực thể `{"from": "student", "to": "r", "card": "N"}`.
 - Không khung, không tiêu đề (bật lại bằng `"frame": true`).
 
+### Crow's foot (`"notation": "crowfoot"`)
+- **Khái niệm** (SRS): `{"type": "entity", "name": "Job Posting", "attributes": ["+ Title", "+ Status"]}` – thuộc
+  tính nghiệp vụ, chưa có kiểu/khoá. Quan hệ `{"from", "to", "name": "creating (HR Manager)", "fromCard": "1",
+  "toCard": "0..N"}` – tên là **động từ -ing** (+ vai trò trong ngoặc nếu cần) (E3).
+- **Vật lý** (SDS Database Design): `{"type": "table", "name": "jobs", "entity": "Job Posting", "columns": [{"name":
+  "id", "type": "bigserial", "pk": true}, {"name": "created_by", "type": "bigint", "fk": true, "nullable": false}]}`.
+  Mỗi bảng có cột `pk` (E4); `entity` = tên entity khái niệm **y hệt** (X7, cùng `"bundle"`); bảng trung gian M–N
+  trỏ `entity` tới cả hai (mảng). Quan hệ giữa hai bảng không cần tên.
+- Bản số: `1`, `0..1`, `1..N`, `0..N` – đủ cả 2 đầu (E2). Mặc định bố cục `LR`.
+
 ## 3. Chạy – sửa đến sạch
 ```bash
 python "<ENGINE>/scripts/uml2drawio.py" ./uml/erd_<ten>.json -o ./uml/erd_<ten>.drawio
@@ -51,10 +64,10 @@ python "<ENGINE>/scripts/comet_check.py" --partial ./uml/erd_<ten>.json
 python "<ENGINE>/scripts/preview_svg.py" ./uml/erd_<ten>.drawio -o ./uml/erd_<ten>.html --png
 ```
 1. `uml2drawio.py` tự chạy validator hình học → phải **0 ERROR** (mã thoát 2 = còn lỗi: sửa spec, chạy lại).
-2. `comet_check.py` → 0 ERROR và **sửa hết WARN** (E1–E3, E5) trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó
+2. `comet_check.py` → 0 ERROR và **sửa hết WARN** (E1–E5, X7) trong spec rồi chạy lại. Chỉ giữ một WARN khi chắc chắn nó
    không đúng ngữ cảnh — khi đó nêu mã luật + lý do cho người dùng.
-3. **Mở ảnh** `./uml/erd_<ten>.png` bằng công cụ đọc file (xem như ảnh) và tự soát: mỗi quan hệ có hình thoi ghi tên,
-   bản số đúng phía thực thể, không hình/nhãn chồng nhau.
+3. **Mở ảnh** `./uml/erd_<ten>.png` bằng công cụ đọc file (xem như ảnh) và tự soát: mỗi quan hệ có hình thoi ghi tên (Chen) /
+   ký hiệu chân chim đúng bản số (crow's foot), bản số đúng phía thực thể, không hình/nhãn chồng nhau.
 
 ## 4. Giao
 - Có tool draw.io MCP `open_drawio_xml` → đọc file `.drawio` vừa sinh, truyền **nguyên văn** vào `content`;

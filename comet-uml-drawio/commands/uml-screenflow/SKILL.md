@@ -73,7 +73,8 @@ bằng ngôn ngữ của họ.
 - Điều hướng tới một dashboard trong nhóm = vào nhóm; **không** cần relation nhóm → dashboard.
 - **Không** dùng `initial` / `final` / `decision`, **không** `items`, mũi tên **không** `trigger` / `guard` /
   `label` (F2). Không khung, không tiêu đề trên hình (bật bằng `"frame": true` nếu người dùng muốn).
-- Mọi màn hình phải tới được từ gốc (F1); chỉ 1 nhóm, `"in"` phải trỏ tới nhóm (F3).
+- Mọi màn hình phải tới được từ gốc (F1); chỉ 1 nhóm, `"in"` phải trỏ tới nhóm (F3). Dashboard / màn quản trị
+  chỉ tới được qua Login (`--profile sep490` báo P10).
 
 ## 4. Chạy – sửa đến sạch
 ```bash

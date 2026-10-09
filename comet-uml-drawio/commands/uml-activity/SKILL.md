@@ -51,6 +51,18 @@ bằng ngôn ngữ của họ.
   action.
 - Fork/join cân nhau: mỗi nhánh của fork kết thúc ở join (hoặc flowFinal) (A2). Initial/final đúng số luồng (A3);
   không để action ngõ cụt (A5).
+- Business flow SEP490 có entity mang trạng thái (statechart vòng đời) – `--profile sep490` báo P12:
+  - Bước đổi trạng thái ghi **đúng tên state** của statechart: "Update Status to CONFIRMED",
+    "Create Appointment in PENDING_PAYMENT Status" – không tự đặt trạng thái mới.
+  - Trước bước đó phải có bước ứng với **event** của transition vào state đó (use case kích hoạt: "Confirm
+    Appointment" → CONFIRMED). Nhánh lỗi/hết hạn (thanh toán thất bại → CANCELLED) cần event riêng trên statechart
+    (`paymentFailed`, `paymentTimeout`), không mượn event của use case khác (`cancelAppointment`).
+  - Mỗi use case đổi trạng thái (event của statechart) xuất hiện trong ít nhất một business flow – thêm BF riêng
+    (BF-03 Appointment Confirmation…) khi luồng chính không chứa nó.
+  - Danh từ nghiệp vụ trong action (Time Slot, Deposit…) phải là entity/thuộc tính có trên ERD; chưa có thì bổ sung
+    ERD (và quan hệ) hoặc đổi chữ cho khớp.
+  - Thông báo/email mang đúng nghĩa trạng thái hiện tại (PENDING_CONFIRM → "Booking Received", không phải
+    "Booking Confirmed").
 
 ## 3. Chạy – sửa đến sạch
 ```bash

@@ -11,7 +11,7 @@ Bộ skill này tách việc vẽ sơ đồ thành 3 bước để AI **không b
 2. **Bố cục + sinh XML** (việc của script): `scripts/uml2drawio.py` tự tính vị trí (Sugiyama layered layout),
    định tuyến đường nối vuông góc theo làn riêng (use case: đường thẳng), chừa chỗ cho nhãn → không hình nào chồng/dính nhau,
    không đường nào đi xuyên hình hoặc đè khít lên đường khác.
-3. **Kiểm tra + giao**: `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`
+3. **Lập canonical semantic model + kiểm tra**: `scripts/comet_model.py` tạo semantic model v2 (canonical concept + diagram-local representation + provenance + impact graph), sau đó `scripts/validate_drawio.py` (hình học + UML lint) và `scripts/comet_check.py`; khi đã có canonical model thì dùng `scripts/comet_reconcile.py` để kiểm tra projection drift
    (nhất quán COMET giữa các sơ đồ) → mở bằng draw.io MCP hoặc giao file `.drawio`.
 
 > Quy tắc vàng: KHÔNG viết mxGraph XML bằng tay, KHÔNG dùng `postLayout`/ELK/auto-layout của MCP
@@ -50,6 +50,13 @@ integrated communication diagram, subsystem/component/deployment.
 
 ### Bước 1 – Viết spec
 - Định dạng đầy đủ: `references/spec-format.md`. Ví dụ mẫu (hệ ATM/Banking của Gomaa): `examples/*.json`
+- Semantic model: `references/comet-model.md` mô tả schema v2, canonical identity, alias/provenance, dependency graph và impact propagation.
+- Manifest: `references/comet-manifest.md` mô tả `system.model.json`, `system.consistency.json`, `system.repair.json` và shared fingerprint.
+- Reconciliation: `references/comet-reconcile.md` mô tả cách canonical model làm authority và specs trở thành projections.
+- Canonical-first: `references/comet-project.md` — một file `system.canonical.json` là nguồn sự thật; `scripts/comet_project.py compile`
+  sinh lại mọi spec. Khi dự án đã có file canonical: sửa file đó (đổi tên concept, thêm quan hệ…), `validate` → `compile` →
+  `uml2drawio.py`, KHÔNG sửa tay spec đã compile.
+- Repair plan: `references/comet-repair.md` mô tả cách chuyển violation thành bước sửa/regenerate machine-readable.
   – mỗi loại sơ đồ có 1 file; **bắt buộc** mở file cùng loại làm khuôn trước khi viết spec mới.
 - Activity: chia làn bằng `partitions` (cấp spec) + `partition` (mỗi phần tử); luồng ra khỏi decision
   luôn có `guard`. Component: interface cung cấp/yêu cầu dùng `notation: "lollipop"` + `provides`/`requires`.
@@ -91,6 +98,9 @@ python <skill>/scripts/preview_svg.py diagram.drawio -o preview.html --png   # �
 - `--png`: chụp mỗi trang thành `preview.png` / `preview_p<N>.png` bằng Chrome/Edge headless → **mở ảnh xem**
   trước khi giao (không có trình duyệt thì script báo và bỏ qua; xem `preview.html`).
 - Kiểm thử hồi quy của chính skill: `python <skill>/tests/run_tests.py` (chạy sau khi sửa script).
+- **Kỷ luật đọc file:** chỉ đọc output lệnh + spec JSON đang sửa; **cấm mở toàn bộ** file sinh ra (`*.model.json`
+  – vài MB, `*.canonical.json`, `*.repair.json`, `*.drawio`, `*.html`) – cần tra thì `grep`. PNG: mỗi trang xem một
+  lần, sửa trang nào xem lại trang đó.
 
 ### Bước 4 – Giao cho người dùng qua draw.io MCP
 Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
@@ -118,3 +128,16 @@ Xem chi tiết `references/drawio-mcp.md`. Tóm tắt:
       nêu mã luật + lý do).
 - [ ] Đã mở ảnh `--png` từng trang và tự soát (chữ đọc được, không chồng hình/nhãn).
 - [ ] Đã mở qua MCP hoặc đưa đường dẫn file `.drawio`.
+
+- Traceability chéo mở rộng: **X1–X12** (use case, actor, statechart, ERD/entity, component/deployment, role consistency,
+  X7 bảng vật lý ↔ entity ERD khái niệm, X8 lifeline sequence thiết kế ↔ class diagram thiết kế, X9 thuộc tính lớp
+  entity ↔ cột bảng, X10 lớp thiết kế ↔ package diagram, X11 message ↔ operation của lớp, X12 cột FK ↔ thuộc tính quan hệ); R15 sync mức thiết kế phải có reply.
+- ERD có 2 ký pháp: Chen (mặc định) và `"notation": "crowfoot"` (entity/table + cột PK/FK, luật E1–E4).
+- Spec `"level": "design"` (class/sequence mức SDS: mặc định Spring Boot Controller/Service/Repository + React/Flutter + PostgreSQL, `activations`) bỏ qua luật phân tích
+  R3/R4/R10; hồ sơ SEP490 (Report 3 SRS + Report 4 SDS) xem mục 2b của `commands/uml-comet/SKILL.md`.
+  Kiểm độ đủ theo template: `comet_check.py --strict --profile sep490` (luật P1–P15, P15: hệ thống ngoài của context là actor phụ trong sơ đồ use case, P11: state của statechart entity = `values` của cột status; P12: trạng thái trong BF/sequence ↔ statechart; P13: sequence thiết kế đủ «include» + entity con 1..N). Data dictionary: sinh bằng
+  `scripts/comet_datadict.py` từ ERD vật lý, không viết tay tài liệu song song với spec. Bộ SEP490 đầy đủ làm
+  **hai phiên**: SRS (`--partial` trên `srs_*.json`, ghi `./uml/NOTES.md`) → phiên mới làm SDS, kiểm cả bộ không
+  `--partial` (mục "Chia phiên" trong 2b).
+- [ ] Nếu bộ sơ đồ có nhiều hệ thống: tất cả spec của cùng hệ thống đã đặt cùng `"bundle"`; không trộn namespace giữa các bundle.
+- [ ] Semantic model v2 đã được sinh; khi làm full COMET nên có thêm bộ manifest `model + consistency + repair` dùng cùng fingerprint.

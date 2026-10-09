@@ -41,6 +41,9 @@ bằng ngôn ngữ của họ.
 - **Association** actor – use case (nét liền, không mũi tên):
   - actor chính (khởi tạo use case): `"from"` actor → `"to"` use case (tự xếp bên trái);
   - actor phụ / hệ thống ngoài tham gia: `"from"` use case → `"to"` actor, actor đặt `"side": "right"`.
+  - Mọi hệ thống ngoài trên context diagram (cổng thanh toán, email/SMS, bản đồ…) phải xuất hiện làm actor phụ ở
+    use case dùng nó (Make Deposit Payment → VNPay, Book Appointment → Email Service), tên y hệt context (P15).
+    SEP490 "UCs for <Actor>": actor chính + actor phụ của các use case trong sơ đồ; actor phụ không cần sơ đồ riêng.
 - **«include»**: `"from"` use case cơ sở → `"to"` use case được bao gồm (đoạn chung dùng lại ở ≥ 2 use case).
   **«extend»**: `"from"` use case mở rộng → `"to"` use case cơ sở, kèm `"condition"`. Không dùng include/extend để
   diễn tả thứ tự các bước.
