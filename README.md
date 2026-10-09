@@ -47,7 +47,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
 | `/uml-component` | Component | provided/required interface dạng lollipop |
 | `/uml-deployment` | Deployment | node, device, execution environment, artifact |
 | `/uml-erd` | **ERD (ký pháp Chen)** | thực thể chữ nhật + hình thoi quan hệ có tên, bản số `1` / `N` / `M`, quan hệ đệ quy, bậc 3 |
-| `/uml-screenflow` | **Screen flow (sơ đồ trang / site map)** | cây điều hướng từ Home, ô chỉ ghi tên màn hình, popup bo góc, mũi tên không nhãn |
+| `/uml-screenflow` | **Screen flow theo vai trò** | Login → nhóm Post-Login nét đứt chứa các dashboard, mỗi dashboard toả dải màn hình (List → Detail thẳng hàng), màu theo vai trò, popup ellipse, mũi tên đặc không nhãn (không có nhóm → cây site map) |
 | `/uml-bizcontext` | **Context diagram nghiệp vụ** | hình tròn trung tâm, các bên liên quan xếp 2 cột trái/phải, mỗi luồng dữ liệu một mũi tên vuông góc, tên luồng nằm ngang |
 | `/uml-comet` | Trọn bộ COMET | use case → context → class → communication + sequence → statechart → (activity, package, component, deployment) |
 
@@ -58,7 +58,7 @@ Mỗi loại sơ đồ có một lệnh riêng. Lệnh `/uml-comet` vẽ trọn 
   <img src="docs/img/order_design_class.png" width="70%" alt="Design class diagram">
 </p>
 <p align="center">
-  <img src="docs/img/lms_screenflow_sitemap.png" width="90%" alt="Screen flow - site map">
+  <img src="docs/img/lms_screenflow_roles.png" width="90%" alt="Screen flow theo vai tro">
 </p>
 <p align="center">
   <img src="docs/img/atm_comm_validate_pin.png" width="48%" alt="Communication diagram">
@@ -128,7 +128,7 @@ Mở phiên mới sau khi cài để Claude nạp skill, rồi gõ lệnh kèm m
 /uml-usecase Hệ thống thư viện: độc giả mượn/trả sách, thủ thư quản lý sách, hệ thống email gửi nhắc hạn
 /uml-activity Quy trình rút tiền ATM, 3 làn: Khách hàng, ATM, Ngân hàng
 /uml-erd App học tiếng Anh: User, Role, Topic, Question, Comment (bình luận trả lời nhau), File đính kèm
-/uml-screenflow Hệ thống học trực tuyến: Home, đăng nhập, khoá học, bài viết, quản trị
+/uml-screenflow Hệ thống học trực tuyến: đăng nhập, Admin / Manager / Teacher / Student dashboard, khoá học, quiz, bài tập
 /uml-bizcontext Cửa hàng trực tuyến: khách hàng, nhà cung cấp, ngân hàng, đơn vị vận chuyển, cơ quan thuế
 /uml-comet Hệ thống ATM của ngân hàng (đủ 10 bước)
 ```
@@ -307,7 +307,7 @@ Nhóm luật của `comet_check.py`:
 | A1–A6 | Activity hợp lệ (guard, fork/join, không join ngầm trên action…) |
 | C1–C2 | Class diagram (kiểu thuộc tính, multiplicity) |
 | E1–E3, E5 | ERD (quan hệ nối đúng thực thể, đủ bản số 2 đầu và đúng giá trị `1`/`N`/`M`/`P`/`(min,max)`, hình thoi có tên, thực thể yếu có quan hệ xác định) |
-| F1–F2 | Screen flow (mọi màn hình tới được từ gốc; chỉ màn hình/popup + mũi tên không nhãn) |
+| F1–F3 | Screen flow (mọi màn hình tới được từ gốc; chỉ màn hình/popup + mũi tên không nhãn; tối đa 1 nhóm Post-Login) |
 | B1–B3 | Context nghiệp vụ (1 trung tâm, luồng có tên, không luồng giữa hai bên ngoài) |
 | L1 | Mọi sơ đồ: chữ mặc định tiếng Anh (có chữ có dấu mà chưa đặt `"lang"`) |
 

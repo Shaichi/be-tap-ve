@@ -647,6 +647,34 @@ class TestGenerator(unittest.TestCase):
         R = rects(self.clean(few)[2])
         self.assertEqual(len({round((R["u%d" % i][0] + R["u%d" % i][2]) / 2) for i in range(5)}), 1)
 
+    def test_usecase_generalization_children_fold_into_fan(self):
+        # 4 UC cha (actor noi), moi cha 4-6 UC con generalization: truoc day ca 20 UC con don mot cot rat cao,
+        # duong toi con xa cheo dai gay khuc -> con gap quat nhieu cot, cha nam giua nhom con, canh thang
+        groups = {"p0": 6, "p1": 5, "p2": 4, "p3": 5}
+        els = [{"id": "a", "type": "actor", "name": "Officer"}]
+        rel = []
+        for p, n in groups.items():
+            els.append({"id": p, "type": "usecase", "name": "Manage Group %s" % p[1]})
+            rel.append({"from": "a", "to": p})
+            for j in range(n):
+                els.append({"id": "%s_%d" % (p, j), "type": "usecase", "name": "Child Action %s %d" % (p[1], j)})
+                rel.append({"from": "%s_%d" % (p, j), "to": p, "type": "generalization"})
+        sp = {"diagram": "usecase", "title": "Gen fan", "system": "Sys", "elements": els, "relations": rel}
+        xml, cs, G = self.clean(sp)
+        R = rects(G)
+        bnd = R["system_boundary"]
+        kids = [k for k in R if "_" in k and k[0] == "p"]
+        self.assertGreaterEqual(len({round((R[k][0] + R[k][2]) / 2) for k in kids}), 2)
+        self.assertLess(bnd[3] - bnd[1], 1600, bnd)
+        for p, n in groups.items():   # cha nam trong dai doc cua nhom con
+            cy = (R[p][1] + R[p][3]) / 2
+            ys = [(R["%s_%d" % (p, j)][1] + R["%s_%d" % (p, j)][3]) / 2 for j in range(n)]
+            self.assertTrue(min(ys) <= cy <= max(ys), (p, cy, ys))
+        bends = [len(pts) - 2 for k, (_, pts) in G.edges.items()]
+        self.assertLessEqual(sum(bends), 2, bends)
+        self.assertEqual(edge_crossings(G), [])
+        self.assertEqual(gen(sp)[0], xml)      # tat dinh
+
     def test_class_notation(self):
         xml, cs, G = self.clean(CLASS_SPEC)
         gz, rz = style(edge_between(cs, "chk", "acct")), style(edge_between(cs, "acct", "ifc"))
@@ -985,7 +1013,7 @@ class TestGenerator(unittest.TestCase):
         self.assertNotIn("d", cs)
         self.assertNotIn("a__ui", cs)
         self.assertEqual(text(cs["a"]), "Login")
-        self.assertEqual(style(cs["e"]).get("rounded"), "1")                           # dialog bo goc
+        self.assertEqual(style(cs["e"]).get("_base"), "ellipse")                       # dialog = ellipse
         self.assertIsNotNone(edge_between(cs, "a", "h"))                              # noi thang qua decision
         self.assertIsNotNone(edge_between(cs, "a", "e"))
         for e in edges(cs):
@@ -1004,11 +1032,13 @@ class TestGenerator(unittest.TestCase):
         self.assertFalse(any("umlFrame" in (c.get("style") or "") for c in cs.values()))   # khong khung
         self.assertEqual(text(cs["home"]), "Home")                                     # o chi ghi ten
         self.assertEqual(style(cs["home"]).get("rounded"), "0")
-        self.assertEqual(style(cs["login"]).get("rounded"), "1")                       # popup bo goc
+        self.assertEqual(style(cs["login"]).get("_base"), "ellipse")                   # popup = ellipse
+        self.assertEqual((style(cs["home"]).get("fillColor"), style(cs["home"]).get("strokeColor")),
+                         ("#ffffff", "#000000"))                                       # khong role: trang vien den
         for e in edges(cs):
             self.assertEqual(text(e), "")                                              # khong nhan
-            self.assertEqual(style(e).get("rounded"), "1")
-            self.assertEqual(style(e).get("endArrow"), "open")
+            self.assertEqual(style(e).get("rounded"), "0")                             # goc vuong, mui ten dac
+            self.assertEqual((style(e).get("endArrow"), style(e).get("endFill")), ("classic", "1"))
         for a, b in (("posts", "post"), ("blogs", "blog"), ("subject", "price"), ("home", "myreg")):
             self.assertAlmostEqual(cy[a], cy[b], delta=0.5)                            # same: cung hang
             self.assertLess(R[a][2], R[b][0])
@@ -1027,6 +1057,123 @@ class TestGenerator(unittest.TestCase):
         self.assertEqual(float(style(edge_between(cs, "posts", "addpost")).get("exitY", -1)), 1.0)
         self.assertTrue(U.sitemap_mode(sp))
         self.assertEqual(check(sp, partial=True)[:2], ([], []))
+
+    def test_screenflow_roles_group(self):
+        sp = json.loads((EXAMPLES / "lms_screenflow_roles.json").read_text(encoding="utf-8"))
+        xml, cs, G = self.clean(sp)
+        R = rects(G)
+        cy = {k: (r[1] + r[3]) / 2 for k, r in R.items()}
+        cx = {k: (r[0] + r[2]) / 2 for k, r in R.items()}
+        g = style(cs["post"])                                                          # nhom Post-Login net dut
+        self.assertEqual((g.get("dashed"), g.get("container"), g.get("fillColor")), ("1", "1", "#f5f5f5"))
+        self.assertEqual(text(cs["post"]), "Post-Login")
+        hubs = ("adash", "mdash", "cdash")
+        for h in hubs:
+            self.assertEqual(cs[h].get("parent"), "post")
+            self.assertAlmostEqual(cx[h], cx["adash"], delta=0.5)                      # dashboard xep doc
+        self.assertLess(cy["adash"], cy["mdash"])
+        self.assertLess(cy["mdash"], cy["cdash"])
+        fill = lambda k: (style(cs[k]).get("fillColor"), style(cs[k]).get("strokeColor"))
+        for k, c in (("adash", "#ffe6cc"), ("setting", "#ffe6cc"), ("newacc", "#ffe6cc"), ("mdash", "#e1d5e7"),
+                     ("rubric", "#e1d5e7"), ("cdash", "#d5e8d4"), ("tclass", "#d5e8d4"), ("grading", "#d5e8d4"),
+                     ("mypack", "#ffccf2"), ("checkout", "#ffccf2"), ("qrev", "#ffccf2")):
+            self.assertEqual(fill(k)[0], c, k)                                         # mau theo vai tro (ke thua)
+        for k in ("login", "reset", "profile", "pwchange"):
+            self.assertEqual(fill(k), ("#ffffff", "#000000"), k)                       # cong khai: trang vien den
+        self.assertEqual(style(cs["profile"]).get("fontColor"), "#b20000")             # highlight -> chu do
+        for k in ("pwchange", "newacc", "rubric", "student"):
+            self.assertEqual(style(cs[k]).get("_base"), "ellipse", k)                  # popup = ellipse
+        tabs = [c for c in cs.values() if c.get("parent") == "tclass"]
+        self.assertEqual(sorted(text(c) for c in tabs), ["Class Detail", "Evals", "Materials", "Students"])
+        P = R["post"]
+        self.assertLess(R["login"][2], P[0])                                           # cot trai
+        self.assertAlmostEqual(cx["reset"], cx["login"], delta=0.5)
+        self.assertGreater(cy["reset"], cy["login"])
+        self.assertLess(R["pubpack"][2], P[0])                                         # side left cua dashboard
+        self.assertAlmostEqual(cy["pubpack"], cy["cdash"], delta=0.5)
+        self.assertLess(cy["pwchange"], cy["profile"])                                 # side up
+        for k in ("settings", "audit", "subjects", "classes", "tclass", "mypack", "wtext"):
+            self.assertGreater(R[k][0], P[2], k)                                       # dai ben phai nhom
+        for k in ("settings", "accounts", "packages", "payments", "audit"):
+            self.assertLess(R[k][3], cy["adash"], k)                                   # admin: hang tren truc
+        self.assertLess(cy["setting"], cy["settings"])                                 # Detail ngay tren List
+        self.assertAlmostEqual(cx["setting"], cx["settings"], delta=0.5)
+        self.assertLess(R["newacc"][2], R["accounts"][0])                              # side left: cung hang
+        self.assertAlmostEqual(cy["newacc"], cy["accounts"], delta=0.5)
+        for k in ("subjects", "questions", "quizzes", "materials", "assignments"):
+            self.assertGreater(R[k][1], cy["mdash"], k)                                # manager: hang duoi truc
+        self.assertLess(R["classes"][3], cy["mdash"])                                  # side up
+        self.assertAlmostEqual(cy["subject"], cy["subjects"], delta=0.5)               # side right
+        self.assertLess(R["subjects"][2], R["subject"][0])
+        es = edges(cs)
+        self.assertEqual(len(es), len(sp["relations"]))                                # moi dieu huong 1 mui ten
+        for e in es:
+            s = style(e)
+            self.assertEqual(text(e), "")
+            self.assertEqual((s.get("rounded"), s.get("endArrow"), s.get("endFill")), ("0", "classic", "1"))
+        self.assertEqual(style(edge_between(cs, "settings", "setting")).get("strokeColor"), "#d6b656")
+        self.assertEqual(style(edge_between(cs, "subjects", "subject")).get("strokeColor"), "#9673a6")
+        self.assertEqual(style(edge_between(cs, "adash", "settings")).get("strokeColor"), "#000000")
+        self.assertEqual(float(style(edge_between(cs, "adash", "settings")).get("exitX", -1)), 1.0)   # truc ra phai
+        self.assertIsNotNone(edge_between(cs, "login", "post"))
+        self.assertTrue(U.screenflow_group(sp))
+        self.assertEqual(check(sp, partial=True)[:2], ([], []))
+
+    def test_screenflow_roles_warnings(self):
+        base = {"diagram": "screenflow", "roles": {"admin": "nocolor"}, "elements": [
+            {"id": "login", "type": "screen", "name": "Login"},
+            {"id": "g", "type": "group", "name": "Post-Login"},
+            {"id": "g2", "type": "group", "name": "Other"},
+            {"id": "a", "type": "screen", "name": "Admin Dashboard", "in": "g", "role": "admin"},
+            {"id": "b", "type": "screen", "name": "Orphan", "in": "login", "role": "guest"},
+            {"id": "c", "type": "screen", "name": "Setting List"}],
+            "relations": [{"from": "login", "to": "g"}, {"from": "a", "to": "c"}, {"from": "g", "to": "a"},
+                          {"from": "c", "to": "c"}]}
+        xml, warns = gen(base)
+        self.assertEqual(report(xml)[:2], ([], []))
+        for k in ("chi ve 1 nhom", "in='login'", "role 'admin' khong hop le"):
+            self.assertTrue(any(k in w for w in warns), (k, warns))
+        cs = cells(xml)
+        self.assertEqual(cs["a"].get("parent"), "g")
+        self.assertFalse([e for e in edges(cs) if (e.get("source"), e.get("target")) == ("g", "a")])   # bo
+        self.assertEqual(style(cs["c"]).get("fillColor"), style(cs["a"]).get("fillColor"))   # ke thua role
+        W = check(base, partial=True)[1]
+        self.assertTrue(codes(W, "F3"))
+        # khong co nhom -> cay site map cu, van to mau theo role
+        tree = {"diagram": "screenflow", "roles": {"student": "pink"}, "elements": [
+            {"id": "h", "type": "page", "name": "Home"},
+            {"id": "m", "type": "screen", "name": "My Courses", "role": "student"},
+            {"id": "d", "type": "screen", "name": "Course Detail"}],
+            "relations": [{"from": "h", "to": "m"}, {"from": "m", "to": "d"}]}
+        xml, warns = gen(tree)
+        self.assertEqual((warns, report(xml)[:2]), ([], ([], [])))
+        cs = cells(xml)
+        self.assertEqual(style(cs["h"]).get("fillColor"), "#ffffff")
+        self.assertEqual(style(cs["d"]).get("fillColor"), "#ffccf2")
+
+    def test_screenflow_dashboard_auto_color_and_side_links(self):
+        """Dashboard khong ghi role van co mau rieng (con ke thua); man hinh cot trai noi voi ca nhom lan
+        dashboard, hai chieu, khong thang hang -> moi duong mot y / mot lan rieng, khong chong khit."""
+        sp = {"diagram": "screenflow", "root": "login", "elements": [
+            {"id": "login", "type": "screen", "name": "User Login"},
+            {"id": "g", "type": "group", "name": "Post-Login"},
+            {"id": "a", "type": "screen", "name": "Admin Dashboard", "in": "g"},
+            {"id": "m", "type": "screen", "name": "Manager Dashboard", "in": "g"},
+            {"id": "s", "type": "screen", "name": "Setting List"},
+            {"id": "pub", "type": "screen", "name": "Public Page"},
+            {"id": "prof", "type": "screen", "name": "User Profile"}],
+            "relations": [{"from": "login", "to": "g"}, {"from": "a", "to": "s"},
+                          {"from": "a", "to": "pub", "side": "left"}, {"from": "pub", "to": "a"},
+                          {"from": "g", "to": "prof"}, {"from": "m", "to": "prof"}, {"from": "prof", "to": "m"}]}
+        xml, warns = gen(sp)
+        self.assertEqual((warns, report(xml)[:2]), ([], ([], [])))
+        cs = cells(xml)
+        fa, fm = style(cs["a"]).get("fillColor"), style(cs["m"]).get("fillColor")
+        self.assertNotIn(fa, (None, "#ffffff"))
+        self.assertNotIn(fm, (None, "#ffffff", fa))
+        self.assertEqual(style(cs["s"]).get("fillColor"), fa)   # ke thua mau dashboard
+        self.assertEqual(style(cs["login"]).get("fillColor"), "#ffffff")
+        self.assertEqual(len(edges(cs)), len(sp["relations"]))
 
     def test_bizcontext_orthogonal(self):
         sp = json.loads((EXAMPLES / "shop_bizcontext.json").read_text(encoding="utf-8"))

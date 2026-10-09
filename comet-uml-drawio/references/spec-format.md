@@ -52,7 +52,8 @@ Trường chung: `id` (mặc định = `name`; dùng trong `from`/`to`/`in`), `t
 | `package`, `subsystem` | chứa phần tử con qua `in` |
 | `entity`, `table` (ERD) | chỉ `name`; `weak`: true (viền kép). Không vẽ thuộc tính |
 | `relationship` (ERD) | hình thoi quan hệ bậc 3+, `name`; nối bằng relation có `card` |
-| `screen`, `page`, `dialog`, `popup` (screen flow) | chỉ `name`: màn hình = ô chữ nhật, popup/dialog = ô bo góc; `branch: "side"` (con toả từ cạnh phải), `side` (vị trí so với cha) |
+| `screen`, `page`, `dialog`, `popup` (screen flow) | chỉ `name`: màn hình = ô chữ nhật góc vuông, popup/dialog = ellipse; `role` (màu theo vai trò, kế thừa từ màn cha), `highlight: true` (chữ đỏ), `tabs: [...]` (màn ghép nhiều tab), `in` (dashboard trong nhóm), `side` (vị trí so với cha) |
+| `group` (screen flow) | nhóm sau đăng nhập (vd `Post-Login`): khung nét đứt nền xám chứa các dashboard `"in": "<id>"` – tối đa 1 |
 | `system` (bizcontext) | hình tròn trung tâm – đúng 1 |
 
 Context diagram: đúng 1 `{"type": "system", "stereotype": "software system"}` và các lớp ngoài
@@ -85,7 +86,7 @@ Trường chung: `type`, `from`, `to`, `label`/`name`, `id`. Bỏ trống `type`
 | `communicationpath`, `connector` | `stereotype`, mult | node ↔ node |
 | `link` | – | (communication – thường tự sinh từ messages) |
 | (ERD) quan hệ | `name` (chữ trong hình thoi, bắt buộc), `fromCard`, `toCard`: `1` · `N` · `M`; `identifying: true` → hình thoi viền kép; nối vào phần tử hình thoi thì dùng `card` | thực thể → thực thể (hoặc thực thể ↔ hình thoi) |
-| `navigate` (screen flow) | `side` (vị trí màn đích so với màn nguồn); không nhãn | màn nguồn → màn đích |
+| `navigate` (screen flow) | `side` (vị trí màn đích so với màn nguồn), `tree: false` (luôn là liên kết chéo); không nhãn | màn nguồn → màn đích |
 | (bizcontext) luồng | `label` / `data`: tên dữ liệu trao đổi; `type` bỏ trống hoặc `flow` | một đầu phải là `system` |
 
 Quan hệ có thể nối phần tử ở các cấp lồng khác nhau (vd component trong node A → artifact trong node B).
@@ -207,9 +208,56 @@ Thực thể chỉ có tên, quan hệ là hình thoi có tên, bản số `1` /
   nhất một quan hệ `identifying: true` tới thực thể chủ (E5).
 - Ví dụ đầy đủ: `examples/elearn_erd.json`. comet_check E1–E3, E5.
 
-### Screen flow (sơ đồ trang / site map)
+### Screen flow theo vai trò
 
-Cây điều hướng toàn hệ thống từ Home: ô chỉ ghi tên màn hình, popup bo góc, mũi tên mở không nhãn, không khung:
+Cột trái màn hình công khai, nhóm `Post-Login` chứa các dashboard theo vai trò xếp dọc, mỗi dashboard toả một dải
+màn hình sang phải; màu theo vai trò, popup ellipse, mũi tên đặc góc vuông không nhãn, không khung:
+```json
+{"diagram": "screenflow", "title": "LMS", "root": "login",
+ "roles": {"admin": "orange", "manager": "purple", "student": "pink"},
+ "elements": [
+  {"id": "login", "type": "screen", "name": "User Login"},
+  {"id": "reset", "type": "screen", "name": "Password Reset"},
+  {"id": "post", "type": "group", "name": "Post-Login"},
+  {"id": "profile", "type": "screen", "name": "User Profile", "highlight": true},
+  {"id": "adash", "type": "screen", "name": "Admin Dashboard", "in": "post", "role": "admin"},
+  {"id": "mdash", "type": "screen", "name": "Manager Dashboard", "in": "post", "role": "manager"},
+  {"id": "accounts", "type": "screen", "name": "Account List"},
+  {"id": "account", "type": "screen", "name": "Account Detail"},
+  {"id": "newacc", "type": "popup", "name": "New Account"},
+  {"id": "subjects", "type": "screen", "name": "Subject List"},
+  {"id": "subject", "type": "screen", "name": "Subject Detail"},
+  {"id": "classd", "type": "screen", "name": "Class Detail", "tabs": ["Students", "Materials"]}],
+ "relations": [
+  {"from": "login", "to": "reset", "side": "down"},
+  {"from": "login", "to": "post"},
+  {"from": "post", "to": "profile"},
+  {"from": "adash", "to": "accounts", "side": "up"},
+  {"from": "accounts", "to": "account"},
+  {"from": "accounts", "to": "newacc", "side": "left"},
+  {"from": "mdash", "to": "subjects", "side": "down"},
+  {"from": "subjects", "to": "subject", "side": "right"},
+  {"from": "mdash", "to": "classd", "side": "down"}]}
+```
+- `group` (đúng 1): các dashboard khai `"in": "<id nhóm>"`, xếp dọc trong nhóm theo thứ tự spec. Điều hướng tới
+  nhóm hoặc tới một dashboard trong nhóm đều tính là "vào nhóm"; không cần relation nhóm → dashboard.
+- Cột trái: gốc `root` + con cháu của nó, con của nhóm, con `"side": "left"` của dashboard (đặt ngang dashboard);
+  con xếp dọc dưới cha (`"side": "up"` → phía trên cha).
+- Dải của dashboard: trục ngang ra từ cạnh phải; con `"side": "up"` ở hàng trên trục, `"down"` hàng dưới (không
+  ghi → chia đều). Con của các màn trong dải đi tiếp ra xa trục: 1 con → thẳng hàng (List → Detail), nhiều con →
+  lược, `"side": "right"` / `"left"` → cùng hàng bên cạnh (tối đa 1 mỗi bên).
+- Cây lấy theo thứ tự relations; relation còn lại (hoặc `"tree": false`) là liên kết chéo, tự đi vòng tránh hình.
+- `roles`: `{"<role>": "orange" | "purple" | "green" | "pink" | "blue" | "yellow" | "red" | "grey" | "#rrggbb" |
+  {"fill", "stroke"}}`; role chưa khai → tự cấp màu. Dashboard trong nhóm không ghi `role` → mỗi dashboard tự nhận
+  một màu riêng theo thứ tự bảng (cam, tím, xanh lá, hồng…). Element khác không ghi `role` kế thừa màn cha trên cây
+  (nhóm không truyền); `"role": "public"` hoặc màn ngoài nhóm không có role → trắng viền đen. Mũi tên thẳng hàng/cùng hàng mang màu viền của màn đích,
+  trục/lược/liên kết chéo màu đen.
+- `highlight: true` → chữ đỏ; `tabs: [...]` → màn ghép (tên ở trên, các tab ô trắng 2 cột bên trong).
+- Ví dụ đầy đủ: `examples/lms_screenflow_roles.json`. comet_check F1–F3.
+
+### Screen flow dạng cây (site map, không có nhóm)
+
+Không khai `group` → cây điều hướng toàn hệ thống từ Home (màu `role` vẫn áp dụng):
 ```json
 {"diagram": "screenflow", "title": "LMS", "root": "home", "elements": [
   {"id": "home", "type": "screen", "name": "Home"},
@@ -223,7 +271,7 @@ Cây điều hướng toàn hệ thống từ Home: ô chỉ ghi tên màn hình
   {"from": "posts", "to": "post"},
   {"from": "posts", "to": "addpost"}]}
 ```
-- Chỉ có `screen`/`page` (ô chữ nhật) và `popup`/`dialog` (ô bo góc). Không có initial/final/decision, không
+- Chỉ có `screen`/`page` (ô chữ nhật) và `popup`/`dialog` (ellipse). Không có initial/final/decision, không
   `items`, mũi tên không `trigger`/`guard`/`label` — nếu có sẽ bị bỏ qua kèm cảnh báo (comet_check F2).
 - `root`: gốc (mặc định nút đầu tiên không có mũi tên vào). Cạnh cây = lần đầu một nút được trỏ tới theo thứ tự
   relations; cạnh còn lại (vd. Course Details → Course Register) tự đi vòng tránh hình.

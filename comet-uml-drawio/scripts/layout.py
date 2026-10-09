@@ -84,6 +84,30 @@ def _fold(mem, c, base, rank, preds, succs, V, spec):
     return set(free)
 
 
+def _fold_leaves(mem, c, rank, preds, succs, V, spec, done):
+    """Tang sau cung cua category c qua dai vi toan hinh "la" (chi noi ve hinh cung category o tang truoc, vd
+    UC con «generalization» / UC duoc «include» cua UC cha) -> rai cac la ra k cot ke tiep, moi nhom con chung cha
+    xep hinh quat nhu _fold (con giua ra cot xa, hai dau o cot gan) -> khung khong con mot cot dai, duong van thang.
+    Tra ve tap hinh da dat."""
+    ratio, kmax, rows = spec
+    top = max(rank[x] for x in mem)
+    at = [x for x in mem if rank[x] == top]
+    leaves = [x for x in at if x not in done and not succs[x] and preds[x]
+              and all(V[p].cat == c and rank[p] == top - 1 for p in preds[x])]
+    k = min(kmax, int(round(math.sqrt(len(at) / ratio))))
+    if len(at) <= rows or k < 2 or len(leaves) < 2:
+        return set()
+    groups = defaultdict(list)
+    for x in leaves:
+        groups[tuple(sorted(preds[x]))].append(x)
+    for G in groups.values():
+        g = len(G)
+        mid = sorted(range(g), key=lambda i: (abs(i - (g - 1) / 2), i))
+        for j, i in enumerate(mid):
+            rank[G[i]] = top + (0 if g <= 2 else k - 1 - (j * k + k - 1) // g)
+    return set(leaves)
+
+
 class LV:
     """Dinh trong do thi bo cuc (hinh that hoac dummy)."""
 
@@ -262,7 +286,7 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
     catbase, catmax = {}, {}
     cats = sorted(set(V[x].cat for x in order))
     base = 0
-    folded = set()
+    folded, leafset = set(), set()
     for c in cats:
         mem = [x for x in topo if V[x].cat == c]
         catbase[c] = base
@@ -270,6 +294,9 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             rank[x] = max([base] + [rank[p] + 1 for p in preds[x] if p in rank])
         if c in (C["fold"] or {}):
             folded |= _fold(mem, c, base, rank, preds, succs, V, C["fold"][c])
+            lf = _fold_leaves(mem, c, rank, preds, succs, V, C["fold"][c], folded)
+            folded |= lf
+            leafset |= lf
         base = max(rank[x] for x in mem) + 1
     for i, c in enumerate(cats):
         catmax[c] = (catbase[cats[i + 1]] - 1) if i + 1 < len(cats) else 10 ** 9
@@ -328,6 +355,8 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
         e = V[x].edge
         if not V[x].dummy or e is None:
             return idx[x]
+        if e._lv in folded:
+            return idx[e._lv]
         return idx[e._lv if V[e._lu].cat not in C["fold"] else e._lu]
 
     for r in range(R + 1):
@@ -542,6 +571,44 @@ def layered_layout(elems, ledges, direction="TB", cat_margin=None, cfg=None, lan
             for x in X:
                 if X[x] - V[x].w / 2 >= c:
                     X[x] -= d
+
+    if leafset and not LANES:
+        # UC cha cua quat UC con: keo ve giua nhom con (pass "up" cuoi da ep cha sat actor -> duong toi con xa bi
+        # cheo dai, gay khuc); giu thu tu + khoang cach trong tang (PAVA), roi can lai actor theo cha
+        kids = defaultdict(list)
+        for x in leafset:
+            for p in preds[x]:
+                kids[p].append(x)
+        prow = sorted({V[p].rank for p in kids})
+        for r in prow:
+            for G in groups(layers[r]):
+                o, tgt, wts = [0.0], [], []
+                for i in range(1, len(G)):
+                    o.append(o[-1] + (V[G[i - 1]].w + V[G[i]].w) / 2 + sep(G[i - 1], G[i]))
+                for i, x in enumerate(G):
+                    K = kids.get(x)
+                    if K:
+                        lo = min(X[k] + anchor(k) - V[k].w / 2 for k in K)
+                        hi = max(X[k] + anchor(k) + V[k].w / 2 for k in K)
+                        tgt.append((lo + hi) / 2 - anchor(x) - o[i])
+                        wts.append(1.0)
+                    else:
+                        tgt.append(X[x] - o[i])
+                        wts.append(0.05 if V[x].dummy else 0.5)
+                blocks = []
+                for t, w in zip(tgt, wts):
+                    blocks.append([t, w, 1])
+                    while len(blocks) > 1 and blocks[-2][0] > blocks[-1][0]:
+                        v2, w2, c2 = blocks.pop()
+                        v1, w1, c1 = blocks.pop()
+                        blocks.append([(v1 * w1 + v2 * w2) / (w1 + w2), w1 + w2, c1 + c2])
+                z = []
+                for val, _, cnt in blocks:
+                    z += [val] * cnt
+                for i, x in enumerate(G):
+                    X[x] = z[i] + o[i]
+        for r in range(min(prow) - 1, -1, -1):
+            place(r, "down")
 
     lane_band = []
     if LANES:
@@ -1454,12 +1521,13 @@ def _route(R, su, tv, segs, C):
         return free_cache[(i, j)]
 
     def overlap_pen(p, q):
+        # validator coi hai doan lech <= 1px la chong khit -> phat ca truong hop lech dung 1px (sau lam tron)
         for a, b, src in segs:
             if src == su:
                 continue
-            if abs(p[1] - q[1]) < 0.01 and abs(a[1] - b[1]) < 0.01 and abs(a[1] - p[1]) < 1.0:
+            if abs(p[1] - q[1]) < 0.01 and abs(a[1] - b[1]) < 0.01 and abs(a[1] - p[1]) < 1.5:
                 ov = min(max(p[0], q[0]), max(a[0], b[0])) - max(min(p[0], q[0]), min(a[0], b[0]))
-            elif abs(p[0] - q[0]) < 0.01 and abs(a[0] - b[0]) < 0.01 and abs(a[0] - p[0]) < 1.0:
+            elif abs(p[0] - q[0]) < 0.01 and abs(a[0] - b[0]) < 0.01 and abs(a[0] - p[0]) < 1.5:
                 ov = min(max(p[1], q[1]), max(a[1], b[1])) - max(min(p[1], q[1]), min(a[1], b[1]))
             else:
                 continue

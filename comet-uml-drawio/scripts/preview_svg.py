@@ -75,8 +75,13 @@ def _lines_block(x, y, rows, size=12, anchor="middle", valign="middle"):
                    for i, r in enumerate(rows))
 
 
-def marker(kind, fill, p, q, size=10):
-    """Mui ten tai p, huong tu q -> p."""
+def marker(kind, fill, p, q, size=10, color="#000"):
+    """Mui ten tai p, huong tu q -> p (color: mau net/mui ten dac)."""
+    return _marker(kind, fill, p, q, size).replace('stroke="#000"', 'stroke="%s"' % color).replace(
+        'fill="#000"', 'fill="%s"' % color) if color != "#000" else _marker(kind, fill, p, q, size)
+
+
+def _marker(kind, fill, p, q, size=10):
     dx, dy = p[0] - q[0], p[1] - q[1]
     L = math.hypot(dx, dy) or 1
     ux, uy = dx / L, dy / L
@@ -250,7 +255,8 @@ def render_svg(model):
             if st.get("rounded") == "1":
                 rx = min(h / 2, float(st.get("arcSize", 20)) / 100 * min(w, h)) if st.get("absoluteArcSize") != "1" \
                     else float(st.get("arcSize", 20)) / 2
-            f = "#000" if fill == "#000000" else ("none" if fill == "none" else "#fff")
+            f = "#000" if fill == "#000000" else ("none" if fill == "none" else
+                                                  fill if fill.startswith("#") else "#fff")
             S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="%.1f" fill="%s" stroke="%s"%s/>'
                      % (x, y, w, h, rx, f, stroke, dash))
             if st.get("double") == "1":  # ERD Chen: thuc the yeu -> vien kep
@@ -261,6 +267,9 @@ def render_svg(model):
                          '<rect x="%.1f" y="%.1f" width="8" height="4" fill="#fff" stroke="#000"/>'
                          % (x - 4, y + 4, x - 4, y + 12))
         if rows and any(r[0] for r in rows):
+            fc = st.get("fontColor", "")
+            if fc.startswith("#") and fc.lower() not in ("#000", "#000000"):   # chu mau (vd do = man hinh nhan manh)
+                S.append('<g fill="%s">' % fc)
             if st.get("labelPosition") == "right":
                 S.append(_lines_block(x + w + 6, y + h / 2, rows, 12, "start"))
             elif st.get("verticalLabelPosition") == "bottom":
@@ -272,21 +281,25 @@ def render_svg(model):
                     S.append(_lines_block(x + w / 2, y + 4, rows, 12, "middle", "top"))
             else:
                 S.append(_lines_block(x + w / 2, y + h / 2, rows))
+            if fc.startswith("#") and fc.lower() not in ("#000", "#000000"):
+                S.append("</g>")
 
     for eid, (c, pts) in G.edges.items():
         st = c.st
         dash = ' stroke-dasharray="6 4"' if st.get("dashed") == "1" else ""
+        ec = st.get("strokeColor", "#000")
+        ec = ec if ec.startswith("#") and ec.lower() != "#000000" else "#000"
         if st.get("rounded") == "1" and len(pts) > 2:
-            S.append('<path d="%s" fill="none" stroke="#000"%s/>' % (_rounded_path(pts), dash))
+            S.append('<path d="%s" fill="none" stroke="%s"%s/>' % (_rounded_path(pts), ec, dash))
         else:
-            S.append('<polyline points="%s" fill="none" stroke="#000"%s/>'
-                     % (" ".join("%.1f,%.1f" % p for p in pts), dash))
+            S.append('<polyline points="%s" fill="none" stroke="%s"%s/>'
+                     % (" ".join("%.1f,%.1f" % p for p in pts), ec, dash))
         ea = st.get("endArrow", "classic")
         if ea and ea != "none":
-            S.append(marker(ea, st.get("endFill", "1") != "0", pts[-1], pts[-2], float(st.get("endSize", 10))))
+            S.append(marker(ea, st.get("endFill", "1") != "0", pts[-1], pts[-2], float(st.get("endSize", 10)), ec))
         sa = st.get("startArrow", "none")
         if sa and sa != "none":
-            S.append(marker(sa, st.get("startFill", "1") != "0", pts[0], pts[1], float(st.get("startSize", 10))))
+            S.append(marker(sa, st.get("startFill", "1") != "0", pts[0], pts[1], float(st.get("startSize", 10)), ec))
         for p in pts:
             maxx, maxy = max(maxx, p[0]), max(maxy, p[1])
     for i, (r, owner, d, cell) in enumerate(G.labels):
